@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -e
+
+case $1 in
+    remove|upgrade)
+		INITSYS=$(ls -al /proc/1/exe | awk -F' ' '{print $NF}' | awk -F'/' '{print $NF}')
+		rm -f /usr/bin/luoda
+		
+		if [ "systemd" == "${INITSYS}" ]; then
+
+			systemctl stop luoda || true
+			systemctl disable luoda || true
+			rm /etc/systemd/system/luoda.service /usr/lib/systemd/system/luoda.service || true
+			
+			# workaround temp dev build between 1.1.9 and 1.2.0
+			serverUser=$(ps -ef | grep -E 'luoda +--server' | grep -v 'sudo ' | awk '{print $1}' | head -1)
+			if [ "$serverUser" != "" ] && [ "$serverUser" != "root" ]
+			then
+				systemctl --machine=${serverUser}@.host --user stop luoda >/dev/null 2>&1 || true
+			fi
+			rm /usr/lib/systemd/user/luoda.service >/dev/null 2>&1 || true
+		fi
+        ;;
+esac
+
+exit 0

@@ -1,0 +1,47 @@
+# arg 1:  the new package version
+#pre_install() {
+#}
+
+# arg 1:  the new package version
+post_install() {
+	# do something here
+	cp /usr/share/luoda/files/luoda.service /etc/systemd/system/luoda.service
+	cp /usr/share/luoda/files/luoda.desktop /usr/share/applications/
+	cp /usr/share/luoda/files/luoda-link.desktop /usr/share/applications/
+	systemctl daemon-reload
+	systemctl enable luoda
+	systemctl start luoda
+	update-desktop-database
+}
+
+# arg 1:  the new package version
+# arg 2:  the old package version
+pre_upgrade() {
+    systemctl stop luoda || true
+}
+
+# arg 1:  the new package version
+# arg 2:  the old package version
+post_upgrade() {
+	cp /usr/share/luoda/files/luoda.service /etc/systemd/system/luoda.service
+	cp /usr/share/luoda/files/luoda.desktop /usr/share/applications/
+	cp /usr/share/luoda/files/luoda-link.desktop /usr/share/applications/
+	systemctl daemon-reload
+	systemctl enable luoda
+	systemctl start luoda
+	update-desktop-database
+}
+
+# arg 1:  the old package version
+pre_remove() {
+	systemctl stop luoda || true
+	systemctl disable luoda || true
+	rm /etc/systemd/system/luoda.service || true
+}
+
+# arg 1:  the old package version
+post_remove() {
+	rm /usr/share/applications/luoda.desktop || true
+	rm /usr/share/applications/luoda-link.desktop || true
+	update-desktop-database
+}

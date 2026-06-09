@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=LUODA
+NoDisplay=true
+MimeType=x-scheme-handler/luoda;
+TryExec=luoda
+Exec=luoda %u
+Icon=luoda
+Terminal=false
+Type=Application
+StartupNotify=false
+StartupWMClass=luoda

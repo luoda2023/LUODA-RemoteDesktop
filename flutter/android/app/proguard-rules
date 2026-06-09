@@ -1,0 +1,53 @@
+# Keep class members from protobuf generated code.
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
+  <fields>;
+}
+
+# Flutter Play Store deferred components (not used, but Flutter SDK references them)
+-dontwarn com.google.android.play.core.**
+-keep class com.google.android.play.core.** { *; }# Keep rustls-platform-verifier classes for JNI
+-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }
+
+# Kotlin
+-keepattributes *Annotation*
+-keep class kotlin.** { *; }
+-keep class kotlin.Metadata { *; }
+-dontwarn kotlin.**
+
+# AndroidX
+-keep class androidx.** { *; }
+-keep class com.google.android.** { *; }
+
+# Flutter
+-keep class io.flutter.** { *; }
+-keep class dev.flutter.** { *; }
+
+# Keep Rust bridge classes
+-keep class com.luoda.remote.** { *; }
+
+# Keep native methods
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Keep Parcelable
+-keep class * implements android.os.Parcelable {
+  public static final android.os.Parcelable$Creator *;
+}
+
+# Keep Serializable
+-keepnames class * implements java.io.Serializable
+-keepclassmembers class * implements java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    !static !transient <fields>;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
+
+# Keep R8 from stripping info needed by reflection
+-keepattributes Signature
+-keepattributes InnerClasses
+-keepattributes EnclosingMethod

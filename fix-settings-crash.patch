@@ -1,0 +1,205 @@
+From 016c232c816ae4eafcd0e95df84fa05f2af15999 Mon Sep 17 00:00:00 2001
+From: luoda <info@dicad.cn>
+Date: Fri, 22 May 2026 17:03:58 +0000
+Subject: [PATCH] fix(settings): consolidate tab config into single FFI call to
+ fix crash
+
+---
+ .../desktop/pages/desktop_setting_page.dart   | 77 ++++++++++++++-----
+ flutter/lib/generated_bridge.dart             | 20 +++++
+ src/bridge_generated.io.rs                    |  5 ++
+ src/bridge_generated.rs                       | 10 +++
+ src/flutter_ffi.rs                            | 14 ++++
+ 5 files changed, 107 insertions(+), 19 deletions(-)
+
+diff --git a/flutter/lib/desktop/pages/desktop_setting_page.dart b/flutter/lib/desktop/pages/desktop_setting_page.dart
+index 248c791..963f0e1 100644
+--- a/flutter/lib/desktop/pages/desktop_setting_page.dart
++++ b/flutter/lib/desktop/pages/desktop_setting_page.dart
+@@ -63,25 +63,64 @@ enum SettingsTabKey {
+ 
+ class DesktopSettingPage extends StatefulWidget {
+   final SettingsTabKey initialTabkey;
+-  static final List<SettingsTabKey> tabKeys = [
+-    SettingsTabKey.general,
+-    if (!isWeb &&
+-        !bind.isOutgoingOnly() &&
+-        !bind.isDisableSettings() &&
+-        bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
+-      SettingsTabKey.safety,
+-    if (!bind.isDisableSettings() &&
+-        bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
+-      SettingsTabKey.network,
+-    if (!bind.isIncomingOnly()) SettingsTabKey.display,
+-    if (!isWeb && !bind.isIncomingOnly() && bind.pluginFeatureIsEnabled())
+-      SettingsTabKey.plugin,
+-    if (!bind.isDisableAccount()) SettingsTabKey.account,
+-    if (isWindows &&
+-        bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
+-      SettingsTabKey.printer,
+-    SettingsTabKey.about,
+-  ];
++
++  static List<SettingsTabKey> get tabKeys {
++    if (_tabKeys != null) return _tabKeys!;
++    _tabKeys = _buildTabKeys();
++    return _tabKeys!;
++  }
++  static List<SettingsTabKey>? _tabKeys;
++
++  static List<SettingsTabKey> _buildTabKeys() {
++    final keys = <SettingsTabKey>[SettingsTabKey.general];
++
++    try {
++      final jsonStr = bind.getSettingsTabConfig();
++      final config = jsonDecode(jsonStr) as Map<String, dynamic>;
++
++      final isOutgoingOnly = config['is_outgoing_only'] as bool;
++      final isIncomingOnly = config['is_incoming_only'] as bool;
++      final isDisableSettings = config['is_disable_settings'] as bool;
++      final isDisableAccount = config['is_disable_account'] as bool;
++      final hideSecuritySetting = config['hide_security_setting'] as bool;
++      final hideNetworkSetting = config['hide_network_setting'] as bool;
++      final hideRemotePrinterSetting =
++          config['hide_remote_printer_setting'] as bool;
++      final pluginFeatureEnabled = config['plugin_feature_enabled'] as bool;
++
++      if (!isWeb &&
++          !isOutgoingOnly &&
++          !isDisableSettings &&
++          !hideSecuritySetting) {
++        keys.add(SettingsTabKey.safety);
++      }
++
++      if (!isDisableSettings && !hideNetworkSetting) {
++        keys.add(SettingsTabKey.network);
++      }
++
++      if (!isIncomingOnly) {
++        keys.add(SettingsTabKey.display);
++      }
++
++      if (!isWeb && !isIncomingOnly && pluginFeatureEnabled) {
++        keys.add(SettingsTabKey.plugin);
++      }
++
++      if (!isDisableAccount) {
++        keys.add(SettingsTabKey.account);
++      }
++
++      if (isWindows && !hideRemotePrinterSetting) {
++        keys.add(SettingsTabKey.printer);
++      }
++    } catch (e) {
++      debugPrint('Failed to init tab keys: $e');
++    }
++
++    keys.add(SettingsTabKey.about);
++    return keys;
++  }
+ 
+   DesktopSettingPage({Key? key, required this.initialTabkey}) : super(key: key);
+ 
+diff --git a/flutter/lib/generated_bridge.dart b/flutter/lib/generated_bridge.dart
+index aae69b1..8822264 100644
+--- a/flutter/lib/generated_bridge.dart
++++ b/flutter/lib/generated_bridge.dart
+@@ -1724,6 +1724,10 @@ abstract class Luoda {
+       dynamic hint});
+ 
+   FlutterRustBridgeTaskConstMeta get kSessionGetCommonConstMeta;
++
++  String getSettingsTabConfig({dynamic hint});
++
++  FlutterRustBridgeTaskConstMeta get kGetSettingsTabConfigConstMeta;
+ }
+ 
+ @freezed
+@@ -7749,6 +7753,22 @@ class LuodaImpl implements Luoda {
+         argNames: ["key"],
+       );
+ 
++  String getSettingsTabConfig({dynamic hint}) {
++    return _platform.executeSync(FlutterRustBridgeSyncTask(
++      callFfi: () => _platform.inner.wire_get_settings_tab_config(),
++      parseSuccessData: _wire2api_String,
++      constMeta: kGetSettingsTabConfigConstMeta,
++      argValues: [],
++      hint: hint,
++    ));
++  }
++
++  FlutterRustBridgeTaskConstMeta get kGetSettingsTabConfigConstMeta =>
++      const FlutterRustBridgeTaskConstMeta(
++        debugName: "get_settings_tab_config",
++        argNames: [],
++      );
++
+   Future<void> mainCheckHwcodec({dynamic hint}) {
+     return _platform.executeNormal(FlutterRustBridgeTask(
+       callFfi: (port_) => _platform.inner.wire_main_check_hwcodec(port_),
+diff --git a/src/bridge_generated.io.rs b/src/bridge_generated.io.rs
+index 299a53d..fb08eee 100644
+--- a/src/bridge_generated.io.rs
++++ b/src/bridge_generated.io.rs
+@@ -2183,6 +2183,11 @@ pub extern "C" fn wire_main_get_buildin_option(
+     wire_main_get_buildin_option_impl(key)
+ }
+ 
++#[no_mangle]
++pub extern "C" fn wire_get_settings_tab_config() -> support::WireSyncReturn {
++    wire_get_settings_tab_config_impl()
++}
++
+ #[no_mangle]
+ pub extern "C" fn wire_main_check_hwcodec(port_: i64) {
+     wire_main_check_hwcodec_impl(port_)
+diff --git a/src/bridge_generated.rs b/src/bridge_generated.rs
+index 6efb57c..c866450 100644
+--- a/src/bridge_generated.rs
++++ b/src/bridge_generated.rs
+@@ -4940,6 +4940,16 @@ fn wire_main_get_buildin_option_impl(
+         },
+     )
+ }
++fn wire_get_settings_tab_config_impl() -> support::WireSyncReturn {
++    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync(
++        WrapInfo {
++            debug_name: "get_settings_tab_config",
++            port: None,
++            mode: FfiCallMode::Sync,
++        },
++        move || Ok(get_settings_tab_config()),
++    )
++}
+ fn wire_main_check_hwcodec_impl(port_: MessagePort) {
+     FLUTTER_RUST_BRIDGE_HANDLER.wrap::<_, _, _, ()>(
+         WrapInfo {
+diff --git a/src/flutter_ffi.rs b/src/flutter_ffi.rs
+index ca43232..c64ea80 100644
+--- a/src/flutter_ffi.rs
++++ b/src/flutter_ffi.rs
+@@ -2744,6 +2744,20 @@ pub fn main_get_buildin_option(key: String) -> SyncReturn<String> {
+     SyncReturn(get_builtin_option(&key))
+ }
+ 
++pub fn get_settings_tab_config() -> SyncReturn<String> {
++    let config = serde_json::json!({
++        "is_outgoing_only": config::is_outgoing_only(),
++        "is_incoming_only": config::is_incoming_only(),
++        "is_disable_settings": config::is_disable_settings(),
++        "is_disable_account": config::is_disable_account(),
++        "hide_security_setting": get_builtin_option("hide-security-settings") == "Y",
++        "hide_network_setting": get_builtin_option("hide-network-settings") == "Y",
++        "hide_remote_printer_setting": get_builtin_option("hide-remote-printer-settings") == "Y",
++        "plugin_feature_enabled": plugin_feature_is_enabled().0,
++    });
++    SyncReturn(serde_json::to_string(&config).unwrap_or_default())
++}
++
+ pub fn main_check_hwcodec() {
+     check_hwcodec()
+ }
+-- 
+2.34.1
+

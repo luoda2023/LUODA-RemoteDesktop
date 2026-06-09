@@ -1,0 +1,235 @@
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  deployments: write
+  packages: read
+
+name: Build LUODA Windows MSI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master,v2.0.0]
+    paths:
+      - 'build.rs'
+      - 'src/**'
+      - 'libs/**'
+      - 'flutter/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-msi.yml'
+      - 'vdi/**'
+
+jobs:
+  build-msi:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-msi-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-msi-${{ runner.os }}-
+
+      - name: Setup Flutter
+        timeout-minutes: 10
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.88"
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Ensure correct cargo version
+        run: |
+          rustup default 1.88
+          cargo --version
+
+      - name: Configure Git for private forks
+        shell: bash
+        run: |
+          git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Generate FFI bridge
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "=== Installing cargo-expand ==="
+          cargo install cargo-expand --version 1.0.95 --locked 2>&1 | tail -5
+          echo "=== Installing flutter_rust_bridge_codegen ==="
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked 2>&1 | tail -5
+          echo "=== Running flutter pub get ==="
+          cd flutter && flutter pub get && cd ..
+          echo "=== Running flutter_rust_bridge_codegen ==="
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart 2>&1
+          echo "=== Verifying generated file ==="
+          ls -la flutter/lib/generated_bridge.dart || echo "ERROR: generated_bridge.dart not created!"
+          head -5 flutter/lib/generated_bridge.dart || echo "ERROR: Cannot read file!"
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: "120deac3062162151622ca4860575a33844ba10b"
+
+      - name: Cache vcpkg installed packages
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-msi-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-msi-${{ runner.os }}-
+
+      - name: Install vcpkg deps
+        timeout-minutes: 40
+        run: |
+          # Enable vcpkg binary caching to avoid recompiling AOM/FFmpeg from source
+          $env:VCPKG_BINARY_SOURCES="clear;files,$env:VCPKG_ROOT\archives,readwrite"
+          # Add timeout: kill if vcpkg hangs (40 min step timeout + 35 min internal timeout)
+          $proc = Start-Process -NoNewWindow -PassThru -FilePath "vcpkg" -ArgumentList "install --triplet x64-windows-static --x-install-root=$env:VCPKG_ROOT\installed --clean-after-build"
+          $timeout = 2100  # 35 minutes in seconds
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+          while (-not $proc.HasExited) {
+            if ($sw.Elapsed.TotalSeconds -gt $timeout) {
+              Write-Host "FATAL: vcpkg install timed out after 35 min, killing..."
+              $proc.Kill()
+              exit 1
+            }
+            Start-Sleep -Seconds 10
+          }
+          if ($proc.ExitCode -ne 0) {
+            Write-Host "vcpkg install failed with exit code $($proc.ExitCode)"
+            exit $proc.ExitCode
+          }
+          Write-Host "vcpkg install complete"
+
+      - name: Build Rust
+        timeout-minutes: 50
+        shell: bash
+        run: |
+          cargo build --release --features flutter
+        env:
+          VCPKG_ROOT: C:\\\\vcpkg
+          VCPKG_DEFAULT_TRIPLET: x64-windows-static
+          VCPKG_INSTALLED_ROOT: C:\\\\vcpkg\\\\installed\\\\x64-windows-static
+          SODIUM_LIB_DIR: C:\\\\vcpkg\\\\installed\\\\x64-windows-static\\\\lib
+          CXXFLAGS: -include cstdint
+
+      - name: Build Flutter Windows
+        timeout-minutes: 15
+        run: |
+          cd flutter
+          flutter clean
+          flutter build windows --release
+
+      - name: Install WiX Toolset
+        run: dotnet tool install --global wix --version 4.0.5
+
+      - name: Copy Flutter output for MSI
+        shell: cmd
+        run: |
+          if not exist luoda mkdir luoda
+          xcopy /E /I flutter\build\windows\x64\runner\Release\* luoda\
+
+      - name: Preprocess MSI
+        shell: cmd
+        run: |
+          cd res\msi
+          python preprocess.py -m LUODA
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore NuGet packages for CustomActions
+        shell: cmd
+        run: |
+          cd res\msi\CustomActions
+          nuget restore packages.config -PackagesDirectory ..\packages
+          if %ERRORLEVEL% NEQ 0 (
+            echo "NuGet restore failed, trying alternative..."
+            nuget restore packages.config -PackagesDirectory ..\packages -Source https://api.nuget.org/v3/index.json
+          )
+          cd ..\..
+
+      - name: Build MSI with MSBuild
+        shell: powershell
+        run: |
+          # FIXED: $msbuild = "path" not $msbuild = & "path" (the & operator executes, not assigns!)
+          $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+          if (-not (Test-Path $msbuild)) {
+            Write-Host "MSBuild not at default path, searching..."
+            $msbuild = (Get-ChildItem -Path "C:\Program Files\Microsoft Visual Studio" -Recurse -Filter "MSBuild.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          }
+          if (-not $msbuild) {
+            Write-Error "MSBuild.exe not found!"
+            exit 1
+          }
+          Write-Host "Using MSBuild: $msbuild"
+          cd res\msi
+          & $msbuild msi.sln /p:Configuration=Release /p:Platform=x64 /restore
+
+      - name: Collect MSI outputs
+        shell: powershell
+        run: |
+          $dist = "res\msi\dist"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          $msis = Get-ChildItem -Path "res\msi\Package\bin\x64\Release" -Recurse -Filter "*.msi"
+          if (-not $msis) {
+            Write-Error "No MSI files found"
+            exit 1
+          }
+          foreach ($msi in $msis) {
+            Copy-Item $msi.FullName -Destination $dist -Force
+          }
+          Get-ChildItem $dist -Filter "*.msi" | Format-Table Name,Length
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUODA-MSI
+          path: res/msi/dist/*.msi
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          prerelease: true
+          tag_name: nightly
+          files: res/msi/dist/*.msi
+      - name: Upload runtime logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-logs-msi
+          path: .auto_build_logs/
+
+
+
+
+
+
+
+
+

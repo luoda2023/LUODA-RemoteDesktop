@@ -1,0 +1,188 @@
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  deployments: write
+  packages: read
+
+name: Build LUODA Linux DEB
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master,v2.0.0]
+    paths:
+      - 'build.rs'
+      - 'src/**'
+      - 'libs/**'
+      - 'flutter/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-deb.yml'
+
+env:
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-deb-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-deb-${{ runner.os }}-
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            build-essential cmake curl git nasm yasm ninja-build \
+            clang pkg-config unzip wget libssl-dev \
+            libgtk-3-dev libayatana-appindicator3-dev \
+            libasound2-dev libpulse-dev libpam0g-dev \
+            libx11-dev libglib2.0-dev libblkid-dev liblzma-dev \
+            librsvg2-dev dpkg-dev \
+            libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxdo-dev libxfixes-dev libva-dev libclang-dev \
+            libopus-dev libvpx-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev || true
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+
+      - name: Install vcpkg dependencies
+        run: |
+          for i in 1 2 3; do
+            echo "vcpkg install attempt $i/3..."
+            $VCPKG_ROOT/vcpkg install --x-install-root="$VCPKG_ROOT/installed" && break
+            echo "Attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+        shell: bash
+
+      - name: Setup Flutter
+        timeout-minutes: 10
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.88"
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Ensure correct cargo version
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          cargo --version
+          rustup default 1.88
+
+      - name: Configure Git for private forks
+        run: |
+          git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Generate FFI bridge
+        timeout-minutes: 20
+        run: |
+          echo "=== Installing cargo-expand ==="
+          cargo install cargo-expand --version 1.0.95 --locked 2>&1 | tail -5
+          echo "=== Installing flutter_rust_bridge_codegen ==="
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked 2>&1 | tail -5
+          echo "=== Running flutter pub get ==="
+          cd flutter && flutter pub get && cd ..
+          echo "=== Running flutter_rust_bridge_codegen ==="
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart 2>&1
+          echo "=== Verifying generated file ==="
+          ls -la flutter/lib/generated_bridge.dart || echo "ERROR: generated_bridge.dart not created!"
+          head -5 flutter/lib/generated_bridge.dart || echo "ERROR: Cannot read file!"
+
+      - name: Build Rust binary
+        timeout-minutes: 40
+        run: |
+          cargo build --release --features flutter
+        env:
+          VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
+          CXXFLAGS: "-include cstdint"
+
+      - name: Build Flutter Linux
+        timeout-minutes: 30
+        run: |
+          cd flutter
+          flutter build linux --release
+
+      - name: Package DEB
+        run: |
+          mkdir -p tmpdeb/usr/bin tmpdeb/usr/share/luoda tmpdeb/DEBIAN
+          mkdir -p tmpdeb/usr/share/luoda/files/systemd
+          cp target/release/luoda tmpdeb/usr/bin/
+          cp -r flutter/build/linux/x64/release/bundle/* tmpdeb/usr/share/luoda/
+          # Include systemd service file
+          cp res/luoda.service tmpdeb/usr/share/luoda/files/systemd/
+          cat > tmpdeb/DEBIAN/control << EOF
+          Package: luoda
+          Version: 1.0.0
+          Architecture: amd64
+          Maintainer: LUODA
+          Description: LUODA Remote Desktop
+          EOF
+          # Include postinst/prerm scripts to auto-start service
+          cp res/DEBIAN/postinst tmpdeb/DEBIAN/
+          cp res/DEBIAN/prerm tmpdeb/DEBIAN/
+          chmod 755 tmpdeb/DEBIAN/postinst tmpdeb/DEBIAN/prerm
+          dpkg-deb --build tmpdeb luoda.deb
+
+      - name: Package RPM
+        run: |
+          sudo apt-get install -y alien rpm
+          sudo alien --to-rpm luoda.deb --scripts
+          ls -la *.rpm
+          mv *.rpm luoda.rpm
+
+      - name: Upload DEB
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUODA-DEB
+          path: luoda.deb
+
+      - name: Upload RPM
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUODA-RPM
+          path: luoda.rpm
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          prerelease: true
+          tag_name: nightly
+          files: |
+            luoda.deb
+            luoda.rpm
+      - name: Upload runtime logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-logs-deb
+          path: .auto_build_logs/
+

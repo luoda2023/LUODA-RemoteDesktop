@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUODA CI 构建监控</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .status-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .status-item:last-child { border-bottom: none; }
+        .status-label { color: #666; font-weight: 500; }
+        .status-value { color: #333; font-weight: bold; }
+        .status-success { color: #48bb78; }
+        .status-failure { color: #f56565; }
+        .status-running { color: #4299e1; }
+        .status-pending { color: #ed8936; }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: all 0.3s;
+        }
+        .btn:hover { background: #5a67d8; transform: translateY(-2px); }
+        .btn-secondary { background: #718096; }
+        .btn-secondary:hover { background: #4a5568; }
+        .log-container {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .log-line {
+            padding: 5px 0;
+            border-bottom: 1px solid #2d3748;
+        }
+        .log-info { color: #63b3ed; }
+        .log-success { color: #68d391; }
+        .log-error { color: #fc8181; }
+        .log-warning { color: #f6ad55; }
+        .quick-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .link-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #333;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .link-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .link-card h3 { color: #667eea; margin-bottom: 10px; }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-success { background: #c6f6d5; color: #22543d; }
+        .badge-error { background: #fed7d7; color: #742a2a; }
+        .badge-warning { background: #feebc8; color: #744210; }
+        .badge-info { background: #bee3f8; color: #2a4365; }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .refresh-info {
+            text-align: center;
+            color: #718096;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>🚀 LUODA CI 构建监控</h1>
+            <p style="color: #718096; margin-top: 10px;">
+                实时监控构建状态，快速响应构建问题
+            </p>
+        </div>
+
+        <!-- 状态卡片 -->
+        <div class="status-card">
+            <h2 style="margin-bottom: 20px;">📊 构建状态</h2>
+            <div class="status-item">
+                <span class="status-label">当前状态</span>
+                <span class="status-value status-running" id="build-status">准备中...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">流水线 ID</span>
+                <span class="status-value" id="pipeline-id">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">触发类型</span>
+                <span class="status-value" id="trigger-type">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">开始时间</span>
+                <span class="status-value" id="start-time">-</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">持续时间</span>
+                <span class="status-value" id="duration">-</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="status-card">
+            <h2 style="margin-bottom: 20px;">🎮 操作</h2>
+            <button class="btn" onclick="triggerBuild()">🚀 触发新构建</button>
+            <button class="btn btn-secondary" onclick="refreshStatus()">🔄 刷新状态</button>
+            <a href="https://gitee.com/soulemo_1/dicad/pipelines" class="btn btn-secondary" target="_blank">📋 Gitee 流水线</a>
+        </div>
+
+        <!-- 实时日志 -->
+        <div class="status-card">
+            <h2 style="margin-bottom: 20px;">📝 实时日志</h2>
+            <div class="log-container" id="log-output">
+                <div class="log-line log-info">等待构建启动...</div>
+            </div>
+        </div>
+
+        <!-- 快速链接 -->
+        <div class="quick-links">
+            <a href="https://gitee.com/soulemo_1/dicad" class="link-card" target="_blank">
+                <h3>📁 代码仓库</h3>
+                <p>查看 LUODA 源代码</p>
+            </a>
+            <a href="https://gitee.com/soulemo_1/dicad/releases" class="link-card" target="_blank">
+                <h3>📦 发布版本</h3>
+                <p>下载构建产物</p>
+            </a>
+            <a href="CI_GUIDE.md" class="link-card" target="_blank">
+                <h3>📖 构建指南</h3>
+                <p>查看 CI/CD 文档</p>
+            </a>
+            <a href="BRANDING_SUMMARY.md" class="link-card" target="_blank">
+                <h3>🎨 品牌文档</h3>
+                <p>查看品牌化说明</p>
+            </a>
+        </div>
+
+        <!-- 刷新信息 -->
+        <div class="refresh-info">
+            <p>页面将每 10 秒自动刷新 | 最后更新：<span id="last-update">-</span></p>
+        </div>
+    </div>
+
+    <script>
+        let pipelineId = null;
+        let autoRefresh = null;
+
+        // 触发构建
+        async function triggerBuild() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ 触发中...';
+            
+            addLog('正在触发新构建...', 'info');
+            
+            // 使用 Python 脚本触发
+            fetch('ci-logger.py', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'trigger'})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    pipelineId = data.pipeline_id;
+                    document.getElementById('pipeline-id').textContent = pipelineId;
+                    addLog(`构建已触发！ID: ${pipelineId}`, 'success');
+                    startMonitoring();
+                } else {
+                    addLog('触发失败：' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                addLog('触发失败：' + error, 'error');
+                addLog('请手动访问 https://gitee.com/soulemo_1/dicad/pipelines 触发', 'warning');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = '🚀 触发新构建';
+            });
+        }
+
+        // 刷新状态
+        async function refreshStatus() {
+            if (!pipelineId) {
+                // 获取最新流水线
+                fetch('https://gitee.com/api/v5/repos/soulemo_1/dicad/pipelines?page=1&per_page=1')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.length > 0) {
+                            pipelineId = data[0].id;
+                            document.getElementById('pipeline-id').textContent = pipelineId;
+                            updateStatus(data[0]);
+                        }
+                    })
+                    .catch(error => {
+                        addLog('获取状态失败：' + error, 'error');
+                    });
+            } else {
+                // 更新指定流水线
+                fetch(`https://gitee.com/api/v5/repos/soulemo_1/dicad/pipelines/${pipelineId}`)
+                    .then(response => response.json())
+                    .then(data => updateStatus(data))
+                    .catch(error => {
+                        addLog('更新状态失败：' + error, 'error');
+                    });
+            }
+        }
+
+        // 更新状态显示
+        function updateStatus(pipeline) {
+            const statusEl = document.getElementById('build-status');
+            statusEl.textContent = getStatusText(pipeline.state);
+            statusEl.className = 'status-value status-' + pipeline.state;
+            
+            document.getElementById('trigger-type').textContent = pipeline.trigger || 'manual';
+            document.getElementById('start-time').textContent = formatTime(pipeline.start_time);
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            
+            // 更新进度条
+            updateProgress(pipeline.state);
+            
+            // 记录日志
+            if (pipeline.state === 'success') {
+                addLog('✅ 构建成功！', 'success');
+                stopMonitoring();
+            } else if (pipeline.state === 'failure') {
+                addLog('❌ 构建失败！', 'error');
+                stopMonitoring();
+            }
+        }
+
+        // 更新进度条
+        function updateProgress(state) {
+            const progress = document.getElementById('progress');
+            const widths = {
+                'pending': '10%',
+                'running': '50%',
+                'success': '100%',
+                'failure': '75%',
+                'cancelled': '50%'
+            };
+            progress.style.width = widths[state] || '25%';
+        }
+
+        // 添加日志
+        function addLog(message, type = 'info') {
+            const logOutput = document.getElementById('log-output');
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logOutput.appendChild(line);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        // 获取状态文本
+        function getStatusText(state) {
+            const texts = {
+                'pending': '等待中',
+                'running': '运行中',
+                'success': '成功',
+                'failure': '失败',
+                'cancelled': '已取消',
+                'timeout': '超时'
+            };
+            return texts[state] || state;
+        }
+
+        // 格式化时间
+        function formatTime(timeStr) {
+            if (!timeStr) return '-';
+            return new Date(timeStr).toLocaleString('zh-CN');
+        }
+
+        // 开始监控
+        function startMonitoring() {
+            if (autoRefresh) clearInterval(autoRefresh);
+            autoRefresh = setInterval(refreshStatus, 10000); // 10 秒刷新
+            addLog('开始自动监控...', 'info');
+        }
+
+        // 停止监控
+        function stopMonitoring() {
+            if (autoRefresh) {
+                clearInterval(autoRefresh);
+                autoRefresh = null;
+                addLog('停止自动监控', 'info');
+            }
+        }
+
+        // 页面加载时获取最新状态
+        window.onload = function() {
+            refreshStatus();
+            startMonitoring();
+        };
+    </script>
+</body>
+</html>

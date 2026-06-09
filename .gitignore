@@ -1,0 +1,15 @@
+.ci_auto_heal/
+.auto_build_logs/
+.github/artifacts/
+*.zip
+!res/drivers/*.zip
+*.apk
+*.aab
+*.dmg
+*.exe
+*.msi
+*.deb
+*.rpm
+target/
+!target/.rustc_info.json
+!target/CACHEDIR.TAG

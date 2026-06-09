@@ -1,0 +1,341 @@
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  deployments: write
+  packages: read
+
+name: Build LUODA Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master,v2.0.0]
+    paths:
+      - 'build.rs'
+      - 'src/**'
+      - 'libs/**'
+      - 'flutter/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-apk.yml'
+
+env:
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-apk-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-apk-${{ runner.os }}-
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            build-essential cmake clang git nasm yasm ninja-build \
+            libssl-dev libopus-dev libvpx-dev
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        timeout-minutes: 10
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          add-to-path: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.88"
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Ensure correct cargo version
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          cargo --version
+          rustup default 1.88
+
+      - name: Configure Git for private forks
+        run: |
+          git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --version 2.11.0 --locked
+
+      - name: Setup opus headers for Android build
+        run: |
+          OPUS_INCLUDE=$(pwd)/target/opus-include/opus
+          mkdir -p $OPUS_INCLUDE
+          wget -q https://raw.githubusercontent.com/xiph/opus/master/include/opus.h -O $OPUS_INCLUDE/opus.h
+          wget -q https://raw.githubusercontent.com/xiph/opus/master/include/opus_multistream.h -O $OPUS_INCLUDE/opus_multistream.h
+          wget -q https://raw.githubusercontent.com/xiph/opus/master/include/opus_defines.h -O $OPUS_INCLUDE/opus_defines.h
+          wget -q https://raw.githubusercontent.com/xiph/opus/master/include/opus_types.h -O $OPUS_INCLUDE/opus_types.h
+          wget -q https://raw.githubusercontent.com/xiph/opus/master/include/opus_projection.h -O $OPUS_INCLUDE/opus_projection.h
+          ls -la $OPUS_INCLUDE/
+          echo "OPUS_INCLUDE_PATH=$(pwd)/target/opus-include" >> $GITHUB_ENV
+
+      - name: Setup vpx headers for Android build
+        run: |
+          VPX_INCLUDE=$(pwd)/target/vpx-include/vpx
+          mkdir -p $VPX_INCLUDE
+          BASE_URL="https://raw.githubusercontent.com/webmproject/libvpx/main/vpx"
+          for f in vp8.h vp8cx.h vp8dx.h vpx_codec.h vpx_decoder.h vpx_encoder.h vpx_image.h vpx_integer.h vpx_ext_ratectrl.h vpx_tpl.h vpx_frame_buffer.h; do
+            wget -q "$BASE_URL/$f" -O "$VPX_INCLUDE/$f" || echo "WARN: failed to download $f"
+          done
+          ls -la $VPX_INCLUDE/
+          echo "VPX_INCLUDE_PATH=$(pwd)/target/vpx-include" >> $GITHUB_ENV
+
+      - name: Register rustls-platform-verifier maven repo
+        run: |
+          set -euo pipefail
+          echo "=== Searching for rustls-platform-verifier maven repo ==="
+          CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+          FOUND_DIR=$(find "$CARGO_HOME/registry/src" -type d -name "maven" -path "*rustls-platform-verifier*" 2>/dev/null | head -1)
+          if [ -n "$FOUND_DIR" ]; then
+            echo "Found: $FOUND_DIR"
+            # Add to gradle.properties so it can be used in build.gradle.kts
+            echo "rustlsMavenRepo=$FOUND_DIR" >> "$GITHUB_WORKSPACE/flutter/android/gradle.properties"
+            echo "OK: rustls Maven repo registered"
+          else
+            echo "WARN: rustls-platform-verifier maven repo not found, build may fail"
+          fi
+        shell: bash
+
+      - name: Patch Flutter Gradle plugin for AGP 8.x compatibility
+        run: |
+          FLUTTER_GRADLE_PLUGIN="$FLUTTER_ROOT/packages/flutter_tools/gradle/src/main/groovy/flutter.groovy"
+          if [ -f "$FLUTTER_GRADLE_PLUGIN" ]; then
+            echo "=== Patching $FLUTTER_GRADLE_PLUGIN ==="
+            # OutputFile was removed in AGP 8.0. Replace import with compatible alternative
+            sed -i "/import com.android.build.OutputFile/d" "$FLUTTER_GRADLE_PLUGIN"
+            # Replace OutputFile.ABI with plain "ABI" (FilterType was also removed in AGP 8.3+)
+            sed -i 's/OutputFile\.ABI/"ABI"/g' "$FLUTTER_GRADLE_PLUGIN"
+            echo "=== Verification ==="
+            if grep -q "OutputFile\|FilterType\.ABI" "$FLUTTER_GRADLE_PLUGIN"; then
+              echo "WARN: Unpatched OutputFile/FilterType.ABI references remain"
+              grep -n "OutputFile\|FilterType" "$FLUTTER_GRADLE_PLUGIN" | head -10
+            else
+              echo "OK: Flutter Gradle plugin patched for AGP 8.x"
+            fi
+          else
+            echo "WARN: Flutter Gradle plugin not found at $FLUTTER_GRADLE_PLUGIN"
+            find "$FLUTTER_ROOT/packages/flutter_tools/gradle" -name "*.groovy" -exec grep -l "OutputFile" {} \; 2>/dev/null || echo "No OutputFile references found in any Groovy file"
+          fi
+        shell: bash
+
+      - name: Generate FFI bridge
+        timeout-minutes: 20
+        run: |
+          cargo install cargo-expand --version 1.0.95 --locked 2>&1 | tail -5
+          echo "=== Installing flutter_rust_bridge_codegen ==="
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked 2>&1 | tail -5
+          echo "=== Running flutter pub get ==="
+          cd flutter && flutter pub get && cd ..
+          echo "=== Running flutter_rust_bridge_codegen ==="
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart 2>&1
+          echo "=== Verifying generated file ==="
+          ls -la flutter/lib/generated_bridge.dart || echo "ERROR: generated_bridge.dart not created!"
+          head -5 flutter/lib/generated_bridge.dart || echo "ERROR: Cannot read file!"
+
+      - name: Build Rust library for Android
+        timeout-minutes: 90
+        run: |
+          NDK=${{ steps.setup-ndk.outputs.ndk-path }}
+          VCPKG=${{ env.VCPKG_ROOT }}
+          OUT=flutter/android/app/src/main/jniLibs
+          OPUS_INCLUDE=${{ env.OPUS_INCLUDE_PATH }}
+          VPX_INCLUDE=${{ env.VPX_INCLUDE_PATH }}
+
+          for TARGET_ABI in arm64-v8a x86_64; do
+            case $TARGET_ABI in
+              arm64-v8a)
+                RUST_TARGET=aarch64-linux-android
+                VCPKG_TRIPLET=arm64-android
+                ;;
+              x86_64)
+                RUST_TARGET=x86_64-linux-android
+                VCPKG_TRIPLET=x64-android
+                ;;
+            esac
+
+            echo "=========================================="
+            echo "Building for $TARGET_ABI ($RUST_TARGET)..."
+            echo "=========================================="
+
+            echo "Installing vcpkg packages for $VCPKG_TRIPLET..."
+            export VCPKG_BINARY_SOURCES="clear;files,$VCPKG/archives,readwrite"
+            for i in 1 2 3; do
+              echo "vcpkg install attempt $i/3 for $VCPKG_TRIPLET..."
+              # timeout 20min: prevent vcpkg from hanging indefinitely
+              timeout 2100 $VCPKG/vcpkg install \
+                --triplet=$VCPKG_TRIPLET \
+                --x-install-root="$VCPKG/installed" \
+                --clean-after-build && break
+              RET=$?
+              if [ $RET -eq 124 ]; then
+                echo "vcpkg timed out (20 min), retrying..."
+              else
+                echo "Attempt $i failed (exit=$RET), retrying in 15s..."
+              fi
+              sleep 15
+            done
+
+            VCPKG_INCLUDE_FLAG=""
+            if [ -d "$VCPKG/installed/$VCPKG_TRIPLET/include" ]; then
+              VCPKG_INCLUDE_FLAG="-isystem $VCPKG/installed/$VCPKG_TRIPLET/include"
+              echo "vcpkg include: $VCPKG/installed/$VCPKG_TRIPLET/include"
+            fi
+
+            VCPKG_LIB_FLAG=""
+            if [ -d "$VCPKG/installed/$VCPKG_TRIPLET/lib" ]; then
+              VCPKG_LIB_FLAG="-L$VCPKG/installed-$VCPKG_TRIPLET/$VCPKG_TRIPLET/lib"
+              echo "vcpkg lib: $VCPKG/installed-$VCPKG_TRIPLET/$VCPKG_TRIPLET/lib"
+            fi
+
+            BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG" \
+            CFLAGS="-I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG" \
+            CXXFLAGS="-I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG -include cstdint" \
+            RUSTFLAGS="-C link-args=$VCPKG_LIB_FLAG" \
+            cargo ndk -t $TARGET_ABI -o $OUT build --release --features flutter --features use_dasp --features mediacodec --target $RUST_TARGET
+
+            echo "OK: $TARGET_ABI build complete"
+          done
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
+
+      - name: Flutter pub get
+        run: |
+          cd flutter
+          flutter pub get
+
+      - name: Generate Flutter Rust Bridge code
+        run: |
+          cd flutter
+          flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Debug signing config verification
+        run: |
+          grep -n 'signingConfig' ./flutter/android/app/build.gradle || true
+
+
+      - name: Generate APK icons from mac-icon.png
+        run: |
+          pip3 install pillow
+          python3 res/resize_for_apk.py
+          echo "=== Verifying generated icons ==="
+          ls -la flutter/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png
+          ls -la flutter/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png
+          ls -la flutter/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png
+          ls -la flutter/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+
+      - name: Fix plugin Kotlin/Java JVM target compatibility
+        run: python3 flutter/android/fix_jvm.py
+        shell: bash
+
+      - name: Fix AGP 8.x compatibility issues in plugin build.gradle files
+        run: python3 flutter/android/fix_plugin_agp8_compat.py
+        shell: bash
+
+
+      - name: Build APK (split per ABI)
+        timeout-minutes: 30
+        run: |
+          cd flutter
+          flutter build apk --release --split-per-abi
+
+      - name: Build APK (universal)
+        timeout-minutes: 15
+        run: |
+          cd flutter
+          flutter build apk --release
+
+      - name: Collect APK outputs
+        run: |
+          set -euo pipefail
+          APK_ROOT=flutter/build
+          DIST_DIR=flutter/build/app/outputs/dist-apk
+          mkdir -p "$DIST_DIR"
+          echo "=== APK outputs ==="
+          find "$APK_ROOT" -type f -name "*.apk" -print -exec ls -lh {} \; || true
+
+          mapfile -t apks < <(find "$APK_ROOT" -type f -name "*.apk")
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "ERROR: no APK files produced under $APK_ROOT"
+            exit 1
+          fi
+
+          for apk in "${apks[@]}"; do
+            name="$(basename "$apk")"
+            case "$name" in
+              app-release.apk) out="LUODA-universal.apk" ;;
+              app-arm64-v8a-release.apk) out="LUODA-arm64-v8a.apk" ;;
+              app-x86_64-release.apk) out="LUODA-x86_64.apk" ;;
+              *) out="LUODA-${name#app-}" ;;
+            esac
+            cp "$apk" "$DIST_DIR/$out"
+          done
+
+          echo "=== Collected APK artifacts ==="
+          ls -lh "$DIST_DIR"/*.apk
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUODA-APK
+          path: flutter/build/app/outputs/dist-apk/*.apk
+          if-no-files-found: error
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          prerelease: true
+          tag_name: nightly
+          files: flutter/build/app/outputs/dist-apk/*.apk
+      - name: Upload runtime logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-logs-apk
+          path: .auto_build_logs/
+
+

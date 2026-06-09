@@ -1,0 +1,99 @@
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  deployments: write
+  packages: read
+
+name: Build LUODA Windows Sciter (32-bit Portable)
+
+on:
+  workflow_dispatch:
+  # push trigger removed: Sciter UI deprecated by upstream, build broken
+  # Re-enable when sciter support is restored
+
+jobs:
+  build-sciter:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup Rust (i686)
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.88"
+          targets: i686-pc-windows-msvc
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: "120deac3062162151622ca4860575a33844ba10b"
+
+      - name: Cache vcpkg installed packages
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-sciter-v2-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-sciter-v2-${{ runner.os }}-
+
+      - name: Install vcpkg deps (x86 + x64)
+        run: |
+          vcpkg install --triplet x86-windows-static --x-install-root="$env:VCPKG_ROOT\installed"
+          vcpkg install --triplet x64-windows-static --x-install-root="$env:VCPKG_ROOT\installed"
+
+      - name: Build LUODA (sciter)
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          python3 res/inline-sciter.py
+          sed -i 's/branch = "dyn"/branch = "dyn_x86"/g' ./Cargo.toml
+          cargo fetch
+          find ~/.cargo/git/checkouts/rust-sciter-*/ -name "lib.rs" -exec sed -i '/#\!\[feature(abi_thiscall)\]/d' {} \;
+          cargo build --features inline --release --bins --target i686-pc-windows-msvc
+          mkdir -p ./Release
+          mv ./target/i686-pc-windows-msvc/release/luoda.exe ./Release/luoda.exe
+          curl -LJ -o ./Release/sciter.dll https://github.com/c-smile/sciter-sdk/raw/master/bin.win/x32/sciter.dll
+        env:
+          VCPKG_ROOT: C:\\vcpkg
+          CXXFLAGS: -include cstdint
+          SODIUM_LIB_DIR: C:\vcpkg\installed\x86-windows-static\lib
+
+      - name: Build portable packer
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          pip3 install brotli
+          cd libs/portable
+          python3 generate.py -f ../../Release/ -o . -e ../../Release/luoda.exe -t i686-pc-windows-msvc
+          mkdir -p ../../SignOutput
+          mv ./target/i686-pc-windows-msvc/release/luoda-portable-packer.exe ../../SignOutput/LUODA-portable-x86-sciter.exe
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUODA-Sciter-x86
+          path: SignOutput/LUODA-portable-x86-sciter.exe
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          prerelease: true
+          tag_name: nightly
+          files: SignOutput/LUODA-portable-x86-sciter.exe
+      - name: Upload runtime logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-logs-sciter
+          path: .auto_build_logs/
+

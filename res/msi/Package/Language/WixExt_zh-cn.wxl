@@ -1,0 +1,33 @@
+<!--
+   Copyright (c) Microsoft Corporation.  All rights reserved.
+   
+   The use and distribution terms for this software are covered by the
+   Common Public License 1.0 (http://opensource.org/licenses/cpl1.0.php)
+   which can be found in the file CPL.TXT at the root of this distribution.
+   By using this software in any fashion, you are agreeing to be bound by
+   the terms of this license.
+   
+   You must not remove this notice, or any other, from this software.
+-->
+<!--
+Adapted by LUODA for Custom Dialogs insertions
+-->
+<WixLocalization Culture="zh-cn"
+  xmlns="http://wixtoolset.org/schemas/v4/wxl">
+
+  <!-- Firewall Extension needs translation here -->
+  <String Id="msierrFirewallCannotConnect" Overridable="yes" Value="无法连接到 Windows 防火墙。([2]   [3]   [4]   [5])" />
+
+  <String Id="WixSchedFirewallExceptionsInstall" Overridable="yes" Value="正在配置 Windows 防火墙" />
+  <String Id="WixSchedFirewallExceptionsUninstall" Overridable="yes" Value="正在配置 Windows 防火墙" />
+  <String Id="WixRollbackFirewallExceptionsInstall" Overridable="yes" Value="正在回滚 Windows 防火墙配置" />
+  <String Id="WixExecFirewallExceptionsInstall" Overridable="yes" Value="正在安装 Windows 防火墙配置" />
+  <String Id="WixRollbackFirewallExceptionsUninstall" Overridable="yes" Value="正在回滚 Windows 防火墙配置" />
+  <String Id="WixExecFirewallExceptionsUninstall" Overridable="yes" Value="正在卸载 Windows 防火墙配置" />
+
+  <!-- Util Extension does not need translation here, because it is already in official WiX Toolkit -->
+  <String Id="msierrSecureObjectsFailedCreateSD" Overridable="yes" Value="无法创建安全描述符 [3]\[4]，错误：[2]" />
+  <String Id="msierrSecureObjectsFailedSet" Overridable="yes" Value="无法应用对象安全描述符 [3]，错误：[2]" />
+  <String Id="msierrSecureObjectsUnknownType" Overridable="yes" Value="对象类型 [3] 未知，错误：[2]" />
+
+</WixLocalization>

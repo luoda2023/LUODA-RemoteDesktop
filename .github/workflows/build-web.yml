@@ -1,0 +1,89 @@
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  deployments: write
+  packages: read
+
+name: Build LUODA Web
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master,v2.0.0]
+    paths:
+      - 'src/**'
+      - 'libs/**'
+      - 'flutter/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-web.yml'
+
+jobs:
+  build-web:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Flutter
+        timeout-minutes: 10
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+
+      - name: Build Web
+        run: |
+          cd flutter
+          # Generate web platform files (index.html etc) if missing
+          if [ ! -f web/index.html ]; then
+            echo "=== Creating web platform files ==="
+            flutter create --platforms=web . 2>&1
+          fi
+          # Extract web deps (ogv.js for video codec support)
+          if [ -f web/web_deps.tar.gz ]; then
+            echo "=== Extracting web dependencies ==="
+            tar xzf web/web_deps.tar.gz -C web/
+          fi
+          flutter pub get
+          echo "=== Building web ==="
+          flutter build web --release --web-renderer html 2>&1
+          echo "=== Verifying build ==="
+          ls -la build/web/
+          echo "---"
+          ls -la build/web/main.dart.js 2>/dev/null || echo "CRITICAL: main.dart.js MISSING!"
+          echo "=== Total size ==="
+          du -sh build/web/
+
+      - name: Package Web
+        run: |
+          cd flutter/build
+          mv web LUODA-web
+          tar czf LUODA-web.tar.gz LUODA-web
+          ls -la LUODA-web.tar.gz
+
+      - name: Upload Web
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUODA-Web
+          path: flutter/build/LUODA-web.tar.gz
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          prerelease: true
+          tag_name: nightly
+          files: flutter/build/LUODA-web.tar.gz
+      - name: Upload runtime logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-logs-web
+          path: .auto_build_logs/
+

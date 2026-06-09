@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="40" viewBox="0 0 180 40">
+  <defs>
+    <linearGradient id="headerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0071ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00bfe1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Compact icon -->
+  <rect x="2" y="2" width="36" height="36" rx="7" ry="7" fill="url(#headerGradient)"/>
+  <rect x="10" y="10" width="20" height="15" rx="1.5" ry="1.5" fill="white" opacity="0.95"/>
+  <rect x="12" y="12" width="16" height="11" rx="1" ry="1" fill="url(#headerGradient)"/>
+  <path d="M 15 27 L 22 27 L 21 30 L 16 30 Z" fill="white" opacity="0.95"/>
+  <ellipse cx="19" cy="31" rx="8" ry="2" fill="white" opacity="0.95"/>
+  
+  <!-- LUODA text (compact) -->
+  <text x="45" y="28" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="bold" fill="url(#headerGradient)">
+    LUODA
+  </text>
+</svg>

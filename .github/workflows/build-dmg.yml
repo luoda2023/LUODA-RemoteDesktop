@@ -1,0 +1,182 @@
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  deployments: write
+  packages: read
+
+name: Build LUODA macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master,v2.0.0]
+    paths:
+      - 'build.rs'
+      - 'src/**'
+      - 'libs/**'
+      - 'flutter/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/build-dmg.yml'
+
+jobs:
+  build-dmg:
+    runs-on: macos-14
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Flutter
+        timeout-minutes: 10
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.88"
+
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+
+      - name: Configure Git for private forks
+        run: |
+          git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Generate FFI bridge
+        timeout-minutes: 20
+        run: |
+          echo "=== Installing cargo-expand ==="
+          cargo install cargo-expand --version 1.0.95 --locked 2>&1 | tail -5
+          echo "=== Installing flutter_rust_bridge_codegen ==="
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked 2>&1 | tail -5
+          echo "=== Running flutter pub get ==="
+          cd flutter && flutter pub get && cd ..
+          echo "=== Running flutter_rust_bridge_codegen ==="
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --c-output ./flutter/macos/Runner/bridge_generated.h 2>&1
+          echo "=== Verifying generated file ==="
+          ls -la flutter/lib/generated_bridge.dart || echo "ERROR: generated_bridge.dart not created!"
+          head -5 flutter/lib/generated_bridge.dart || echo "ERROR: Cannot read file!" 
+
+      - name: Install dependencies via vcpkg
+        run: |
+          # vcpkg replaces homebrew for libyuv (removed from brew)
+          # Full clone needed (not --depth=1) so vcpkg can resolve baseline commits
+          # nasm must be installed BEFORE vcpkg (needed by aom)
+          # brew install opus libvpx adds headers to /opt/homebrew/include
+          # (clang's default search path), fixing bindgen header-not-found errors
+          brew install nasm opus libvpx aom autoconf automake libtool
+          # macOS 14 (ARM64) installs brew to /opt/homebrew ??ensure PATH includes it
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+          which nasm && nasm --version
+          git clone https://github.com/Microsoft/vcpkg.git /tmp/vcpkg
+          /tmp/vcpkg/bootstrap-vcpkg.sh
+          /tmp/vcpkg/vcpkg install
+          echo "VCPKG_ROOT=/tmp/vcpkg" >> $GITHUB_ENV
+          # === Diagnostic: verify all static libs exist ===
+          VCPKG_TRIPLET=$(/tmp/vcpkg/vcpkg triplet host 2>/dev/null || echo "arm64-osx")
+          VCPKG_INSTALLED="/tmp/vcpkg/installed/${VCPKG_TRIPLET}"
+          echo "=== Checking for required static libraries ==="
+          for lib in libyuv libvpx opus aom; do
+            find "$VCPKG_INSTALLED" -name "*${lib}*" 2>/dev/null | head -5 || echo "WARNING: no $lib files found!"
+          done
+          echo "=== Library search paths ==="
+          find "$VCPKG_INSTALLED/lib" -name "*.a" 2>/dev/null | head -20 || echo "No .a files in vcpkg lib"
+          find "$VCPKG_INSTALLED/lib" -name "*.dylib" 2>/dev/null | head -10 || echo "No .dylib files in vcpkg lib"
+          # === Fix: ensure libyuv headers are in the vcpkg installed directory ===
+          # vcpkg port's cmake install may not install libyuv headers on macOS ARM64
+          # (GLOB ${ly_inc_dir}/libyuv/*.h may return empty if cmake paths differ)
+          # Fallback: copy headers from build tree to installed/include
+          VCPKG_TRIPLET=$(/tmp/vcpkg/vcpkg triplet host 2>/dev/null || echo "arm64-osx")
+          INSTALLED_INC="/tmp/vcpkg/installed/${VCPKG_TRIPLET}/include"
+          BUILD_SRC=$(ls -d /tmp/vcpkg/buildtrees/libyuv/src/*/include/libyuv 2>/dev/null | head -1)
+          if [ -n "$BUILD_SRC" ] && [ -d "$BUILD_SRC" ]; then
+            if [ ! -f "$INSTALLED_INC/libyuv/convert.h" ]; then
+              echo "WARNING: libyuv headers not found in installed dir, copying from build tree..."
+              mkdir -p "$INSTALLED_INC/libyuv"
+              cp -r "$BUILD_SRC"/* "$INSTALLED_INC/libyuv/"
+              echo "Copied $(ls "$INSTALLED_INC/libyuv/" | wc -l) libyuv headers"
+            else
+              echo "OK: libyuv/convert.h found in installed dir"
+            fi
+          fi
+          ls -la "$INSTALLED_INC/libyuv/" 2>/dev/null || echo "ERROR: libyuv headers missing!"
+
+      - name: Build Rust
+        env:
+          VCPKG_ROOT: /tmp/vcpkg
+          VCPKG_INSTALLED_ROOT: ${{ github.workspace }}/vcpkg_installed
+        run: |
+          # Find vcpkg paths (triplet depends on architecture)
+          VCPKG_TRIPLET=$(/tmp/vcpkg/vcpkg triplet host 2>/dev/null || echo "arm64-osx")
+          # Manifest-mode vcpkg installs to vcpkg_installed/ in project root (NOT /tmp/vcpkg/installed/)
+          VCPKG_MANIFEST_DIR="${{ github.workspace }}/vcpkg_installed/${VCPKG_TRIPLET}"
+          VCPKG_INCLUDE="${VCPKG_MANIFEST_DIR}/include"
+          VCPKG_LIB="${VCPKG_MANIFEST_DIR}/lib"
+          BREW_INCLUDE="/opt/homebrew/include"
+          BREW_LIB="/opt/homebrew/lib"
+          [ -d "$BREW_INCLUDE" ] || BREW_INCLUDE="/usr/local/include"
+          [ -d "$BREW_LIB" ] || BREW_LIB="/usr/local/lib"
+          echo "vcpkg manifest dir: $VCPKG_MANIFEST_DIR"
+          echo "vcpkg include: $VCPKG_INCLUDE"
+          echo "vcpkg lib: $VCPKG_LIB"
+          echo "brew include: $BREW_INCLUDE"
+          echo "brew lib: $BREW_LIB"
+          # Diagnostic: verify vpx and yuv static libraries exist
+          echo "=== Checking vpx/yuv static libraries ==="
+          find "$VCPKG_LIB" -name "*vpx*" 2>/dev/null || echo "WARNING: no vpx files in vcpkg lib!"
+          find "$VCPKG_LIB" -name "*yuv*" 2>/dev/null || echo "WARNING: no yuv files in vcpkg lib!"
+          ls -la "$BREW_LIB"/libvpx* 2>/dev/null || echo "No brew libvpx"
+          # Ensure linker finds vcpkg static libs
+          export LIBRARY_PATH="${VCPKG_LIB}:${BREW_LIB}:${LIBRARY_PATH}"
+          export RUSTFLAGS="-L native=${VCPKG_LIB} -L native=${BREW_LIB}"
+          BINDGEN_EXTRA_CLANG_ARGS="-I${VCPKG_INCLUDE} -I${BREW_INCLUDE}" \
+          CFLAGS="-I${VCPKG_INCLUDE} -I${BREW_INCLUDE}" \
+          CXXFLAGS="-I${VCPKG_INCLUDE} -I${BREW_INCLUDE} -include cstdint" \
+          cargo build --release --features flutter
+
+      - name: Build Flutter macOS
+        run: |
+          cd flutter
+          # Fix: disable nullability warnings-as-errors from system headers
+          export OTHER_CFLAGS="-Wno-error=nullability-completeness -Wno-error=nullability"
+          export OTHER_CPLUSPLUSFLAGS="-Wno-error=nullability-completeness -Wno-error=nullability"
+          # Ensure Xcode can find libluoda.dylib
+          export LIBRARY_PATH="${LIBRARY_PATH}:../target/release"
+          ls -la ../target/release/libluoda.dylib 2>/dev/null || echo "WARNING: libluoda.dylib not found at expected path!"
+          flutter build macos --release
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          mkdir -p dmg_folder
+          cp -r flutter/build/macos/Build/Products/Release/LUODA.app dmg_folder/
+          create-dmg --volname "LUODA" --window-size 800 400 --app-drop-link 600 185 "LUODA-1.0.dmg" dmg_folder/
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUODA-DMG
+          path: LUODA-1.0.dmg
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          prerelease: true
+          tag_name: nightly
+          files: LUODA-1.0.dmg
+      - name: Upload runtime logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-logs-dmg
+          path: .auto_build_logs/
+
