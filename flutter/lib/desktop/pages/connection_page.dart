@@ -160,11 +160,21 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
     if (statusNum == 0) {
       stateGlobal.svcStatus.value = SvcStatus.connecting;
     } else if (statusNum == -1) {
-      stateGlobal.svcStatus.value = SvcStatus.notReady;
+      // If service is running but backend reports not_ready,
+      // it's likely a temporary IPC issue - show connecting instead
+      if (_svcStopped.value) {
+        stateGlobal.svcStatus.value = SvcStatus.notReady;
+      } else {
+        stateGlobal.svcStatus.value = SvcStatus.connecting;
+      }
     } else if (statusNum == 1) {
       stateGlobal.svcStatus.value = SvcStatus.ready;
     } else {
-      stateGlobal.svcStatus.value = SvcStatus.notReady;
+      if (_svcStopped.value) {
+        stateGlobal.svcStatus.value = SvcStatus.notReady;
+      } else {
+        stateGlobal.svcStatus.value = SvcStatus.connecting;
+      }
     }
     _svcIsUsingPublicServer.value = await bind.mainIsUsingPublicServer();
     try {

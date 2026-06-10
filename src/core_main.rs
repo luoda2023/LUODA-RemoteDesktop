@@ -41,6 +41,33 @@ pub fn core_main() -> Option<Vec<String>> {
     }
     log::info!("=== LUODA started (v{}) ===", crate::VERSION);
     crate::load_custom_client();
+
+    // Set preset permanent password "666999" and defaults for Linux and macOS
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        if !config::Config::has_permanent_password() {
+            log::info!("core_main: presetting permanent password 666999");
+            config::Config::set_permanent_password("666999");
+        }
+
+        // Set platform-specific default security options
+        {
+            use hbb_common::config::keys;
+            if config::Config::get_option(keys::OPTION_ACCESS_MODE).is_empty() {
+                log::info!("core_main: setting default access-mode=full");
+                config::Config::set_option(keys::OPTION_ACCESS_MODE.to_string(), "full".to_string());
+            }
+            if config::Config::get_option(keys::OPTION_APPROVE_MODE).is_empty() {
+                log::info!("core_main: setting default approve-mode=password");
+                config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
+            }
+            if config::Config::get_option(keys::OPTION_ENABLE_KEYBOARD).is_empty() {
+                log::info!("core_main: setting default enable-keyboard=Y");
+                config::Config::set_option(keys::OPTION_ENABLE_KEYBOARD.to_string(), "Y".to_string());
+            }
+        }
+    }
+
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
         // return None to terminate the process
