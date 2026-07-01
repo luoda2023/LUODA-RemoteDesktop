@@ -757,12 +757,7 @@ static DIRECT_PORT: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
 
 fn get_direct_port() -> i32 {
     *DIRECT_PORT.get_or_init(|| {
-        // Check for persisted value first, else generate a random port each session
-        let port = Config::get_option("direct-access-port")
-            .parse::<i32>()
-            .unwrap_or(0);
-        if port > 0 { return port; }
-        // Generate a random port in range [20000, 40000)
+        // Always generate a new random port each session [20000, 40000)
         rand::thread_rng().gen_range(20000..40000)
     })
 }
