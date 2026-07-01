@@ -133,6 +133,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
     });
     #[cfg(windows)]
     let mut last_click = std::time::Instant::now();
+    #[cfg(windows)]
+    let mut rebuild_count: u32 = 0;
     #[cfg(target_os = "macos")]
     {
         use tao::platform::macos::EventLoopExtMacOS;
@@ -153,6 +155,7 @@ fn make_tray() -> hbb_common::ResultType<()> {
             // to prevent issues like https://github.com/tauri-apps/tray-icon/issues/90
             let tray = TrayIconBuilder::new()
                 .with_menu(Box::new(tray_menu.clone()))
+                .with_menu_on_right_click(true)
                 .with_tooltip(tooltip(0))
                 .with_icon(icon.clone())
                 .with_icon_as_template(true) // mac only
@@ -255,6 +258,20 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .map(|t| t.set_tooltip(Some(tooltip(count))));
                 }
                 _ => {}
+            }
+        }
+
+        // Windows periodic rebuild: re-apply the menu every ~300 iterations (~30 seconds)
+        // This works around a Windows Explorer quirk where tray icon menu associations
+        // can be lost after Explorer restarts or sleeps/resumes.
+        #[cfg(windows)]
+        {
+            rebuild_count += 1;
+            if rebuild_count >= 300 {
+                rebuild_count = 0;
+                if let Some(tray) = _tray_icon.lock().unwrap().as_ref() {
+                    tray.set_menu(Some(Box::new(tray_menu.clone())));
+                }
             }
         }
     });

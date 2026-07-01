@@ -392,6 +392,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
     final ipInfo = publicIP.isEmpty ? '' : '$publicIP${directPort.isEmpty ? "" : ":$directPort"}';
     final displayText = ipInfo.isNotEmpty ? ipInfo : translate('Not available');
+    final controller = TextEditingController(text: displayText);
     return Container(
       margin: const EdgeInsets.only(left: 20, right: 11),
       child: Row(
@@ -400,8 +401,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         children: [
           Container(
             width: 2,
+            height: 62,
             decoration: const BoxDecoration(color: MyTheme.accent),
-          ).marginOnly(top: 8),
+          ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(left: 7),
@@ -414,28 +416,30 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         fontSize: 16,
                         color: textColor?.withOpacity(0.5)),
                   ),
-                  SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onDoubleTap: () {
-                            if (ipInfo.isNotEmpty) {
-                              Clipboard.setData(ClipboardData(text: ipInfo));
-                              showToast(translate("Copied"));
-                            }
-                          },
-                          child: Text(
-                            displayText,
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontFamily: 'monospace',
-                                fontWeight: ipInfo.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
-                                color: ipInfo.isNotEmpty ? textColor : textColor?.withOpacity(0.4)),
-                          ),
-                        ),
+                  GestureDetector(
+                    onDoubleTap: () {
+                      if (ipInfo.isNotEmpty) {
+                        Clipboard.setData(ClipboardData(text: ipInfo));
+                        showToast(translate("Copied"));
+                      }
+                    },
+                    child: TextFormField(
+                      controller: controller,
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.only(top: 8, bottom: 8),
                       ),
-                    ],
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace',
+                        color: ipInfo.isNotEmpty
+                            ? textColor
+                            : textColor?.withOpacity(0.4),
+                      ),
+                    ).workaroundFreezeLinuxMint(),
                   ),
                 ],
               ),
