@@ -1117,6 +1117,12 @@ pub fn main_get_connect_status() -> String {
 pub fn main_check_connect_status() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     start_option_status_sync(); // avoid multi calls
+    // Pre-generate direct-access-port upfront so Flutter UI can display it immediately
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let port = crate::rendezvous_mediator::ensure_direct_port();
+        crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
+    }
 }
 
 pub fn main_is_using_public_server() -> bool {

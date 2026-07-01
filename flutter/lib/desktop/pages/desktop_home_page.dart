@@ -93,6 +93,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       buildTip(context),
       if (!isOutgoingOnly) buildIDBoard(context),
       if (!isOutgoingOnly) buildPasswordBoard(context),
+      if (!isOutgoingOnly) buildDirectAccessBoard(context),
       FutureBuilder<Widget>(
         future: Future.value(
             Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),
@@ -374,6 +375,66 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                               SettingsTabKey.safety),
                           onHover: (value) => editHover.value = value,
                         ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  buildDirectAccessBoard(BuildContext context) {
+    final publicIP = bind.mainGetOptionSync(key: 'public-ip');
+    final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
+    final textColor = Theme.of(context).textTheme.titleLarge?.color;
+    final ipInfo = publicIP.isEmpty ? '' : '$publicIP${directPort.isEmpty ? "" : ":$directPort"}';
+    final displayText = ipInfo.isNotEmpty ? ipInfo : translate('Not available');
+    return Container(
+      margin: const EdgeInsets.only(left: 20, right: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Container(
+            width: 2,
+            decoration: const BoxDecoration(color: MyTheme.accent),
+          ).marginOnly(top: 8),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 7),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "IP直连",
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: textColor?.withOpacity(0.5)),
+                  ),
+                  SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onDoubleTap: () {
+                            if (ipInfo.isNotEmpty) {
+                              Clipboard.setData(ClipboardData(text: ipInfo));
+                              showToast(translate("Copied"));
+                            }
+                          },
+                          child: Text(
+                            displayText,
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontFamily: 'monospace',
+                                fontWeight: ipInfo.isNotEmpty ? FontWeight.w600 : FontWeight.normal,
+                                color: ipInfo.isNotEmpty ? textColor : textColor?.withOpacity(0.4)),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -735,6 +796,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           setState(() {});
         }
       }
+      // 1秒定时刷新IP:端口显示
+      _refreshIpDisplay();
     });
     Get.put<RxBool>(svcStopped, tag: 'stop-service');
     luodaWinManager.registerActiveWindowListener(onActiveWindowChanged);
@@ -861,6 +924,14 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         imcomingOnlyHomeSize = size;
         windowManager.setSize(getIncomingOnlyHomeSize());
       }
+    }
+  }
+
+  _refreshIpDisplay() {
+    final ip = bind.mainGetOptionSync(key: 'public-ip');
+    final port = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
+    if (ip.isNotEmpty || port.isNotEmpty) {
+      setState(() {});
     }
   }
 

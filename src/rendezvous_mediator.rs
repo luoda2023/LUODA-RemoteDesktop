@@ -15,6 +15,7 @@ use hbb_common::{
     config::{
         self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT, REG_INTERVAL, RENDEZVOUS_PORT,
     },
+    rand::Rng,
     futures::future::join_all,
     log,
     protobuf::Message as _,
@@ -752,14 +753,22 @@ impl RendezvousMediator {
     }
 }
 
+static DIRECT_PORT: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+
 fn get_direct_port() -> i32 {
-    let mut port = Config::get_option("direct-access-port")
-        .parse::<i32>()
-        .unwrap_or(0);
-    if port <= 0 {
-        port = RENDEZVOUS_PORT + 2;
-    }
-    port
+    *DIRECT_PORT.get_or_init(|| {
+        // Check for persisted value first, else generate a random port each session
+        let port = Config::get_option("direct-access-port")
+            .parse::<i32>()
+            .unwrap_or(0);
+        if port > 0 { return port; }
+        // Generate a random port in range [20000, 40000)
+        rand::thread_rng().gen_range(20000..40000)
+    })
+}
+
+pub fn ensure_direct_port() -> i32 {
+    get_direct_port()
 }
 
 async fn direct_server(server: ServerPtr) {
