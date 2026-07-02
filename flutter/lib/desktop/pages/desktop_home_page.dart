@@ -466,10 +466,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   Text(
                     "IP直连",
                     style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 16,
                         color: textColor?.withOpacity(0.5)),
                   ),
-                  SizedBox(height: 4),
                   GestureDetector(
                     onDoubleTap: () {
                       if (ipInfo.isNotEmpty) {
@@ -483,10 +482,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                       decoration: InputDecoration(
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding: EdgeInsets.only(top: 16, bottom: 14),
+                        contentPadding: EdgeInsets.only(top: 8, bottom: 8),
                       ),
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'monospace',
                         color: ipInfo.isNotEmpty
