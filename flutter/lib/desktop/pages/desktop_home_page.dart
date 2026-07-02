@@ -163,7 +163,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.settings,
+                              Icons.settings_outlined,
                               color: _settingsHover.value
                                   ? textColor
                                   : Colors.grey.withOpacity(0.5),
@@ -199,7 +199,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.dns_outlined,
+                              Icons.cloud_outlined,
                               color: _relayHover.value
                                   ? textColor
                                   : Colors.grey.withOpacity(0.5),
