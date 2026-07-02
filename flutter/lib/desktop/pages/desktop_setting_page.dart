@@ -221,35 +221,35 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
       switch (tab) {
         case SettingsTabKey.general:
           settingTabs.add(_TabInfo(
-              tab, 'General', Icons.settings_outlined, Icons.settings));
+              tab, 'General', Icons.tune_outlined, Icons.tune));
           break;
         case SettingsTabKey.safety:
-          settingTabs.add(_TabInfo(tab, 'Security',
-              Icons.enhanced_encryption_outlined, Icons.enhanced_encryption));
+          settingTabs.add(
+              _TabInfo(tab, 'Security', Icons.shield_outlined, Icons.shield));
           break;
         case SettingsTabKey.network:
-          settingTabs
-              .add(_TabInfo(tab, 'Network', Icons.link_outlined, Icons.link));
+          settingTabs.add(_TabInfo(
+              tab, 'Network', Icons.language_outlined, Icons.language));
           break;
         case SettingsTabKey.display:
-          settingTabs.add(_TabInfo(tab, 'Display',
-              Icons.desktop_windows_outlined, Icons.desktop_windows));
+          settingTabs.add(_TabInfo(
+              tab, 'Display', Icons.monitor_outlined, Icons.monitor));
           break;
         case SettingsTabKey.plugin:
           settingTabs.add(_TabInfo(
               tab, 'Plugin', Icons.extension_outlined, Icons.extension));
           break;
         case SettingsTabKey.account:
-          settingTabs.add(
-              _TabInfo(tab, 'Account', Icons.person_outline, Icons.person));
+          settingTabs.add(_TabInfo(
+              tab, 'Account', Icons.account_circle_outlined, Icons.account_circle));
           break;
         case SettingsTabKey.printer:
-          settingTabs
-              .add(_TabInfo(tab, 'Printer', Icons.print_outlined, Icons.print));
+          settingTabs.add(
+              _TabInfo(tab, 'Printer', Icons.print_outlined, Icons.print));
           break;
         case SettingsTabKey.about:
-          settingTabs
-              .add(_TabInfo(tab, 'About', Icons.info_outline, Icons.info));
+          settingTabs.add(
+              _TabInfo(tab, 'About', Icons.info_outline, Icons.info));
           break;
       }
     }
@@ -331,7 +331,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           const VerticalDivider(width: 1),
           Expanded(
             child: Container(
-              color: Theme.of(context).scaffoldBackgroundColor,
+              color: Theme.of(context).colorScheme.background,
               child: PageView(
                 controller: controller,
                 physics: NeverScrollableScrollPhysics(),

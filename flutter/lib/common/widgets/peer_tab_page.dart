@@ -7,6 +7,7 @@ import 'package:luoda_flutter/common/widgets/dialog.dart';
 import 'package:luoda_flutter/common/widgets/my_group.dart';
 import 'package:luoda_flutter/common/widgets/peers_view.dart';
 import 'package:luoda_flutter/common/widgets/peer_card.dart';
+import 'package:luoda_flutter/common/widgets/vip_features_page.dart';
 import 'package:luoda_flutter/consts.dart';
 import 'package:luoda_flutter/desktop/widgets/popup_menu.dart';
 import 'package:luoda_flutter/desktop/widgets/material_mod_popup_menu.dart'
@@ -66,6 +67,9 @@ class _PeerTabPageState extends State<PeerTabPage>
       ),
       ({dynamic hint}) => gFFI.groupModel.pull(force: hint == null),
     ),
+    _TabEntry(VipFeaturesPage(
+      menuPadding: _menuPadding(),
+    )),
   ];
   RelativeRect? mobileTabContextMenuPos;
 
