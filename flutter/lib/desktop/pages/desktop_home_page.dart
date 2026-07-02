@@ -51,7 +51,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Timer? _updateTimer;
   bool isCardClosed = false;
 
-  final RxBool _editHover = false.obs;
+  final RxBool _settingsHover = false.obs;
+  final RxBool _relayHover = false.obs;
   final RxBool _block = false.obs;
 
   final GlobalKey _childKey = GlobalKey();
@@ -148,33 +149,85 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 Expanded(child: Container())
               ],
             ),
-            if (isOutgoingOnly)
-              Positioned(
-                bottom: 6,
-                left: 12,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: InkWell(
+            Positioned(
+              bottom: 6,
+              left: 10,
+              right: 10,
+              child: Row(
+                children: [
+                  // 设置按钮
+                  Expanded(
                     child: Obx(
-                      () => Icon(
-                        Icons.settings,
-                        color: _editHover.value
-                            ? textColor
-                            : Colors.grey.withOpacity(0.5),
-                        size: 22,
+                      () => InkWell(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.settings,
+                              color: _settingsHover.value
+                                  ? textColor
+                                  : Colors.grey.withOpacity(0.5),
+                              size: 18,
+                            ),
+                            Text(
+                              translate("Settings"),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: _settingsHover.value
+                                    ? textColor
+                                    : Colors.grey.withOpacity(0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          if (DesktopSettingPage.tabKeys.isNotEmpty) {
+                            DesktopSettingPage.switch2page(
+                                DesktopSettingPage.tabKeys[0]);
+                          }
+                        },
+                        onHover: (value) =>
+                            _settingsHover.value = value,
                       ),
                     ),
-                    onTap: () => {
-                      if (DesktopSettingPage.tabKeys.isNotEmpty)
-                        {
-                          DesktopSettingPage.switch2page(
-                              DesktopSettingPage.tabKeys[0])
-                        }
-                    },
-                    onHover: (value) => _editHover.value = value,
                   ),
-                ),
-              )
+                  // 中继服务器按钮
+                  Expanded(
+                    child: Obx(
+                      () => InkWell(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.dns_outlined,
+                              color: _relayHover.value
+                                  ? textColor
+                                  : Colors.grey.withOpacity(0.5),
+                              size: 18,
+                            ),
+                            Text(
+                              translate("Network"),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: _relayHover.value
+                                    ? textColor
+                                    : Colors.grey.withOpacity(0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          DesktopSettingPage.switch2page(
+                              SettingsTabKey.network);
+                        },
+                        onHover: (value) =>
+                            _relayHover.value = value,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -432,7 +485,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         contentPadding: EdgeInsets.only(top: 8, bottom: 8),
                       ),
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'monospace',
                         color: ipInfo.isNotEmpty
