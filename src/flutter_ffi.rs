@@ -1117,6 +1117,23 @@ pub fn main_get_connect_status() -> String {
 pub fn main_check_connect_status() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     start_option_status_sync(); // avoid multi calls
+    // Pre-generate direct-access-port upfront so Flutter UI can display it immediately
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let port = crate::rendezvous_mediator::ensure_direct_port();
+        crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
+    }
+    // Fetch public IP via STUN in background and store for UI display
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    std::thread::spawn(|| {
+        use hbb_common::tokio;
+        if let Ok(rt) = tokio::runtime::Runtime::new() {
+            if let Ok((addr, _)) = rt.block_on(crate::common::test_nat_ipv4()) {
+                let ip = addr.ip().to_string();
+                crate::ui_interface::set_option("public-ip".to_owned(), ip);
+            }
+        }
+    });
 }
 
 pub fn main_is_using_public_server() -> bool {
