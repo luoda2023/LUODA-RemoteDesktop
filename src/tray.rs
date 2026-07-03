@@ -184,6 +184,19 @@ fn make_tray() -> hbb_common::ResultType<()> {
                 crate::ipc::set_option("stop-service", "Y");
                 std::thread::sleep(std::time::Duration::from_millis(500));
 
+                // 停止Windows服务（如已安装），确保服务进程退出
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::process::CommandExt;
+                    let app_name = crate::get_app_name();
+                    log::info!("Tray exit: stopping Windows service '{}' with sc stop", app_name);
+                    let _ = std::process::Command::new("sc")
+                        .args(["stop", &app_name])
+                        .creation_flags(0x08000000)
+                        .output();
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                }
+
                 // 移除stop-service标志，让下次启动时自动连接
                 // 直接写入本地配置即可，无需走IPC（托盘是线程而非独立进程）
                 hbb_common::config::Config::set_options(std::collections::HashMap::new());
@@ -201,6 +214,13 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .args(["/f", "/im", &format!("{}.exe", exe_name), "/fi", &format!("PID ne {}", std::process::id())])
                         .creation_flags(0x08000000)
                         .output();
+                    // 补杀可能残留的服务/命名进程
+                    for stray in &["service.exe", "luoda_svc.exe", "naming.exe"] {
+                        let _ = std::process::Command::new("taskkill")
+                            .args(["/f", "/im", stray])
+                            .creation_flags(0x08000000)
+                            .output();
+                    }
                 }
                 #[cfg(not(target_os = "windows"))]
                 {

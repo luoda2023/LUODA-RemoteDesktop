@@ -332,10 +332,15 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           Expanded(
             child: Container(
               color: Colors.white,
-              child: PageView(
-                controller: controller,
-                physics: NeverScrollableScrollPhysics(),
-                children: _children(),
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  cardColor: Colors.white,
+                ),
+                child: PageView(
+                  controller: controller,
+                  physics: NeverScrollableScrollPhysics(),
+                  children: _children(),
+                ),
               ),
             ),
           )
