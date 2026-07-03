@@ -198,8 +198,9 @@ fn make_tray() -> hbb_common::ResultType<()> {
                 }
 
                 // 移除stop-service标志，让下次启动时自动连接
-                // 直接写入本地配置即可，无需走IPC（托盘是线程而非独立进程）
-                hbb_common::config::Config::set_options(std::collections::HashMap::new());
+                // 直接写入本地配置即可（无需走IPC），仅移除stop-service这一项
+                // ⚠️ 注意：不要调用 set_options(HashMap::new())，那会清空所有已保存的配置！
+                hbb_common::config::Config::set_option("stop-service".to_string(), "".to_string());
                 // Kill main GUI process(es) using taskkill (much faster than PowerShell).
                 #[cfg(target_os = "windows")]
                 {

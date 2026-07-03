@@ -30,6 +30,10 @@ fn main() {
             log::info!("service: setting default enable-keyboard=Y");
             config::Config::set_option(keys::OPTION_ENABLE_KEYBOARD.to_string(), "Y".to_string());
         }
+        if config::Config::get_option(keys::OPTION_DIRECT_SERVER).is_empty() {
+            log::info!("service: setting default direct-server=Y");
+            config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
+        }
     }
 
     crate::start_os_service();

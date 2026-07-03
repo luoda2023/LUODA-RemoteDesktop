@@ -107,6 +107,10 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 log::info!("Setting default enable-keyboard=Y");
                 config::Config::set_option(keys::OPTION_ENABLE_KEYBOARD.to_string(), "Y".to_string());
             }
+            if config::Config::get_option(keys::OPTION_DIRECT_SERVER).is_empty() {
+                log::info!("Setting default direct-server=Y");
+                config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
+            }
         }
     }
 }
