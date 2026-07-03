@@ -1,5 +1,5 @@
 use luoda::*;
-use hbb_common::config;
+use hbb_common::{config, log};
 
 #[cfg(not(target_os = "macos"))]
 fn main() {}
