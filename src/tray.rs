@@ -180,6 +180,10 @@ fn make_tray() -> hbb_common::ResultType<()> {
 
         if let Ok(event) = menu_channel.try_recv() {
             if event.id == exit_i.id() {
+                // 先停止后台服务，防止任务栏残留进程
+                crate::ipc::set_option("stop-service", "Y");
+                std::thread::sleep(std::time::Duration::from_millis(500));
+
                 // 移除stop-service标志，让下次启动时自动连接
                 // 直接写入本地配置即可，无需走IPC（托盘是线程而非独立进程）
                 hbb_common::config::Config::set_options(std::collections::HashMap::new());

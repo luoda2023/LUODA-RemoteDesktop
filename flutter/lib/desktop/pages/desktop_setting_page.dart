@@ -331,7 +331,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           const VerticalDivider(width: 1),
           Expanded(
             child: Container(
-              color: Theme.of(context).colorScheme.background,
+              color: Colors.white,
               child: PageView(
                 controller: controller,
                 physics: NeverScrollableScrollPhysics(),
