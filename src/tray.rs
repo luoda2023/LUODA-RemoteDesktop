@@ -231,6 +231,11 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .arg(&*exe_name)
                         .output();
                 }
+                // 手动析构托盘图标，确保Windows通知区域图标被清除
+                // 注意：exit(0)不会运行Drop析构函数，必须显式清理
+                if let Ok(mut guard) = _tray_icon.lock() {
+                    *guard = None;
+                }
                 std::process::exit(0);
             } else if event.id == open_i.id() {
                 open_func();
