@@ -128,6 +128,7 @@ class FfiModel with ChangeNotifier {
 
   RxBool waitForImageDialogShow = true.obs;
   Timer? waitForImageTimer;
+  Timer? waitForImageAutoDismissTimer;
   RxBool waitForFirstImage = true.obs;
   bool isRefreshing = false;
 
@@ -252,6 +253,7 @@ class FfiModel with ChangeNotifier {
     _timer = null;
     clearPermissions();
     waitForImageTimer?.cancel();
+    waitForImageAutoDismissTimer?.cancel();
     timerScreenshot?.cancel();
   }
 
@@ -1131,6 +1133,7 @@ class FfiModel with ChangeNotifier {
   void showConnectedWaitingForImage(OverlayDialogManager dialogManager,
       SessionID sessionId, String type, String title, String text) {
     onClose() {
+      waitForImageAutoDismissTimer?.cancel();
       closeConnection();
     }
 
@@ -1149,6 +1152,14 @@ class FfiModel with ChangeNotifier {
     waitForImageTimer = Timer(Duration(milliseconds: 1500), () {
       if (waitForFirstImage.isTrue && !isRefreshing) {
         bind.sessionInputOsPassword(sessionId: sessionId, value: '');
+      }
+    });
+    // Auto-dismiss after 30 seconds if no image received
+    waitForImageAutoDismissTimer?.cancel();
+    waitForImageAutoDismissTimer = Timer(Duration(seconds: 30), () {
+      if (waitForImageDialogShow.isTrue) {
+        waitForImageDialogShow.value = false;
+        dialogManager.dismissByTag('$sessionId-waiting-for-image');
       }
     });
     bind.sessionOnWaitingForImageDialogShow(sessionId: sessionId);
@@ -3679,6 +3690,8 @@ class FFI {
     ffiModel.waitForImageDialogShow.value = true;
     ffiModel.waitForImageTimer?.cancel();
     ffiModel.waitForImageTimer = null;
+    ffiModel.waitForImageAutoDismissTimer?.cancel();
+    ffiModel.waitForImageAutoDismissTimer = null;
   }
 
   /// Start with the given [id]. Only transfer file if [isFileTransfer], only view camera if [isViewCamera], only port forward if [isPortForward].
@@ -3883,6 +3896,7 @@ class FFI {
     if (ffiModel.waitForImageDialogShow.isTrue) {
       ffiModel.waitForImageDialogShow.value = false;
       ffiModel.waitForImageTimer?.cancel();
+      ffiModel.waitForImageAutoDismissTimer?.cancel();
       clearWaitingForImage(dialogManager, sessionId);
     }
     if (ffiModel.waitForFirstImage.value == true) {

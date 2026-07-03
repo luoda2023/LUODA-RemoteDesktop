@@ -50,6 +50,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   var watchIsCanRecordAudio = false;
   Timer? _updateTimer;
   bool isCardClosed = false;
+  String _lastIp = '';
+  String _lastPort = '';
 
   final RxBool _settingsHover = false.obs;
   final RxBool _relayHover = false.obs;
@@ -987,8 +989,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   _refreshIpDisplay() {
     final ip = bind.mainGetOptionSync(key: 'public-ip');
     final port = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
-    if (ip.isNotEmpty || port.isNotEmpty) {
-      setState(() {});
+    if (ip != _lastIp || port != _lastPort) {
+      _lastIp = ip;
+      _lastPort = port;
+      if (ip.isNotEmpty || port.isNotEmpty) {
+        setState(() {});
+      }
     }
   }
 

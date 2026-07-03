@@ -82,13 +82,12 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
         hbb_common::init_log(false, "flutter_ffi");
     }
 
-    // Set preset permanent password "666999" for Linux and macOS (like Windows)
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    // Set preset permanent password "666999" for all platforms
     {
         if !config::Config::has_permanent_password()
             && !config::Config::is_disable_change_permanent_password()
         {
-            log::info!("Presetting permanent password 666999 for Linux/macOS");
+            log::info!("Presetting permanent password 666999");
             config::Config::set_permanent_password("666999");
             let _ = crate::ipc::set_permanent_password("666999".to_string());
         }
@@ -97,15 +96,15 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
         {
             use hbb_common::config::keys;
             if config::Config::get_option(keys::OPTION_ACCESS_MODE).is_empty() {
-                log::info!("Setting default access-mode=full for Linux/macOS");
+                log::info!("Setting default access-mode=full");
                 config::Config::set_option(keys::OPTION_ACCESS_MODE.to_string(), "full".to_string());
             }
             if config::Config::get_option(keys::OPTION_APPROVE_MODE).is_empty() {
-                log::info!("Setting default approve-mode=password for Linux/macOS");
+                log::info!("Setting default approve-mode=password");
                 config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
             }
             if config::Config::get_option(keys::OPTION_ENABLE_KEYBOARD).is_empty() {
-                log::info!("Setting default enable-keyboard=Y for Linux/macOS");
+                log::info!("Setting default enable-keyboard=Y");
                 config::Config::set_option(keys::OPTION_ENABLE_KEYBOARD.to_string(), "Y".to_string());
             }
         }

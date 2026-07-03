@@ -42,8 +42,7 @@ pub fn core_main() -> Option<Vec<String>> {
     log::info!("=== LUODA started (v{}) ===", crate::VERSION);
     crate::load_custom_client();
 
-    // Set preset permanent password "666999" and defaults for Linux and macOS
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    // Set preset permanent password "666999" and defaults for all platforms
     {
         if !config::Config::has_permanent_password() {
             log::info!("core_main: presetting permanent password 666999");
