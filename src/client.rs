@@ -236,7 +236,8 @@ impl Client {
             }
             // Fallback: old-style direct TCP connection (backward compatibility,
             // works with older servers and as last resort when relay is unavailable).
-            return Self::_start(peer, key, token, conn_type, interface).await;
+            return Self::_start(peer, key, token, conn_type, interface).await
+                .map(|(conn, fb, _needs_update)| (conn, fb));
         }
 
         match Self::_start(peer, key, token, conn_type, interface.clone()).await {
