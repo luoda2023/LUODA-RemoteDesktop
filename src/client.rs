@@ -223,12 +223,26 @@ impl Client {
                     // Update interface so the resolved ID becomes the peer identity
                     interface.get_lch().write().unwrap().id = id.clone();
                     // Phase-2: reconnect via standard ID path (encrypted, relay fallback).
-                    // If this fails (e.g. no rendezvous server, target offline), fall through
-                    // to the old-style direct TCP connection as a last resort.
-                    if let Ok(result) = Self::start(&id, "", "", conn_type, interface.clone()).await {
-                        return Ok(result);
+                    // Use _start() directly (non-recursive) since we have the ID now;
+                    // _start() sees a numeric string → goes to rendezvous → P2P/Relay.
+                    let id = id.clone();
+                    match Self::_start(&id, "", "", conn_type, interface.clone()).await {
+                        Ok(x) => {
+                            if x.2 {
+                                let direct_failures = interface.get_lch().read().unwrap().direct_failures;
+                                let direct = x.0 .1;
+                                if !interface.is_force_relay() && (direct_failures == 0) != direct {
+                                    let n = if direct { 0 } else { 1 };
+                                    log::info!("direct_failures updated to {}", n);
+                                    interface.get_lch().write().unwrap().set_direct_failure(n);
+                                }
+                            }
+                            return Ok((x.0, x.1));
+                        }
+                        Err(e) => {
+                            log::warn!("Phase-2 via ID for {} failed: {}, falling back to direct connect", id, e);
+                        }
                     }
-                    log::warn!("Phase-2 via ID failed, falling back to direct connect");
                 }
                 Err(e) => {
                     log::warn!("ID resolution from IP {} failed: {}, using direct fallback", peer, e);
@@ -269,7 +283,7 @@ impl Client {
     /// Returns the resolved ID on success, or an error if the server is unreachable/old-version.
     async fn resolve_id_from_ip(peer: &str) -> ResultType<String> {
         let host = check_port(peer, DEFAULT_DIRECT_PORT);
-        let mut stream = connect_tcp_local(host.as_str(), None, CONNECT_TIMEOUT).await?;
+        let mut stream = connect_tcp_local(host, None, CONNECT_TIMEOUT).await?;
         let mut query = Message::new();
         query.set_direct_id_query(DirectIdQuery::new());
         stream.send(&query).await?;
