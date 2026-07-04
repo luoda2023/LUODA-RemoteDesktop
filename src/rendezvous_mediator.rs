@@ -13,8 +13,10 @@ use hbb_common::{
     allow_err,
     anyhow::{self, bail},
     config::{
-        self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT, REG_INTERVAL, RENDEZVOUS_PORT,
+        self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT, DEFAULT_DIRECT_PORT,
+        REG_INTERVAL, RENDEZVOUS_PORT,
     },
+    message_proto,
     rand::Rng,
     futures::future::join_all,
     log,
@@ -29,7 +31,7 @@ use hbb_common::{
 
 use crate::{
     check_port,
-    server::{check_zombie, new as new_server, ServerPtr},
+    server::{check_zombie, handle_direct_id_query, new as new_server, ServerPtr},
 };
 
 type Message = RendezvousMessage;
@@ -753,13 +755,27 @@ impl RendezvousMediator {
     }
 }
 
-static DIRECT_PORT: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+static DIRECT_PORT: std::sync::OnceLock<std::sync::Mutex<i32>> = std::sync::OnceLock::new();
 
 fn get_direct_port() -> i32 {
-    *DIRECT_PORT.get_or_init(|| {
-        // Always generate a new random port each session [20000, 40000)
-        rand::thread_rng().gen_range(20000..40000)
-    })
+    let mtx = DIRECT_PORT.get_or_init(|| std::sync::Mutex::new(DEFAULT_DIRECT_PORT));
+    *mtx.lock().unwrap()
+}
+
+/// Mark the current direct port as failed (e.g. port already in use),
+/// forcing a new random port to be generated.
+fn invalidate_direct_port() {
+    if let Some(mtx) = DIRECT_PORT.get() {
+        let mut port = mtx.lock().unwrap();
+        if *port == DEFAULT_DIRECT_PORT {
+            *port = rand::thread_rng().gen_range(20000..40000);
+            log::info!(
+                "Direct port {} in use, fell back to random port {}",
+                DEFAULT_DIRECT_PORT,
+                *port
+            );
+        }
+    }
 }
 
 pub fn ensure_direct_port() -> i32 {
@@ -783,20 +799,18 @@ async fn direct_server(server: ServerPtr) {
                         "Direct server listening on: {:?}",
                         listener.as_ref().map(|l| l.local_addr())
                     );
+                    // Sync the actual port to UI option so the IP:port display stays correct
+                    // even when the default port was unavailable and we fell back.
+                    Config::set_option("direct-access-port".to_owned(), port.to_string());
                 }
                 Err(err) => {
-                    // to-do: pass to ui
                     log::error!(
                         "Failed to start direct server on port: {}, error: {}",
                         port,
                         err
                     );
-                    loop {
-                        if port != get_direct_port() {
-                            break;
-                        }
-                        sleep(1.).await;
-                    }
+                    invalidate_direct_port();
+                    sleep(1.).await;
                 }
             }
         }
@@ -806,25 +820,44 @@ async fn direct_server(server: ServerPtr) {
                 listener = None;
                 continue;
             }
-            if let Ok(Ok((stream, addr))) = hbb_common::timeout(1000, l.accept()).await {
-                stream.set_nodelay(true).ok();
+            if let Ok(Ok((tcp_stream, addr))) = hbb_common::timeout(1000, l.accept()).await {
+                tcp_stream.set_nodelay(true).ok();
                 log::info!("direct access from {}", addr);
-                let local_addr = stream
+                let local_addr = tcp_stream
                     .local_addr()
                     .unwrap_or(Config::get_any_listen_addr(true));
-                let server = server.clone();
-                tokio::spawn(async move {
-                    allow_err!(
-                        crate::server::create_tcp_connection(
-                            server,
-                            hbb_common::Stream::from(stream, local_addr),
-                            addr,
-                            false,
-                            None, // Direct connections don't have control_permissions
-                        )
-                        .await
-                    );
-                });
+                let mut stream = hbb_common::Stream::from(tcp_stream, local_addr);
+
+                // Phase-1 light-weight ID query detection:
+                //   client sends DirectIdQuery → server replies DirectIdResponse → close.
+                // Old protocol (timeout, secure=false):
+                //   server sends Hash first (in on_open), so client won't send first.
+                //   We detect this via timeout: if no message after 500ms, proceed normally.
+                match stream.next_timeout(500).await {
+                    Some(Ok(bytes)) => {
+                        if let Ok(msg) = message_proto::Message::parse_from_bytes(&bytes) {
+                            if matches!(msg.union, Some(message_proto::message::Union::DirectIdQuery(_))) {
+                                log::info!("direct_id_query from {}, replying with device ID", addr);
+                                handle_direct_id_query(stream, addr, local_addr).await;
+                                continue;
+                            }
+                        }
+                        log::warn!("Unknown first message from {}, dropping", addr);
+                    }
+                    // Timeout (None) or error: client is waiting for server's Hash (old protocol).
+                    // Stream data is intact, proceed with normal connection.
+                    _ => {
+                        let server = server.clone();
+                        tokio::spawn(async move {
+                            allow_err!(
+                                crate::server::create_tcp_connection(
+                                    server, stream, addr, false, None,
+                                )
+                                .await
+                            );
+                        });
+                    }
+                }
             } else {
                 sleep(0.1).await;
             }

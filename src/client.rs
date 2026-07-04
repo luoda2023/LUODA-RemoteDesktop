@@ -51,7 +51,7 @@ use hbb_common::{
     bail,
     config::{
         self, keys, use_ws, Config, LocalConfig, PeerConfig, PeerInfoSerde, Resolution,
-        CONNECT_TIMEOUT, READ_TIMEOUT, RELAY_PORT, RENDEZVOUS_PORT, RENDEZVOUS_SERVERS,
+        CONNECT_TIMEOUT, DEFAULT_DIRECT_PORT, READ_TIMEOUT, RELAY_PORT, RENDEZVOUS_PORT, RENDEZVOUS_SERVERS,
     },
     fs::JobType,
     futures::future::{select_ok, FutureExt},
@@ -191,6 +191,10 @@ impl Client {
     const CLIENT_CLIPBOARD_NAME: &'static str = "client-clipboard";
 
     /// Start a new connection.
+    /// If `peer` is an IP address, uses a two-phase approach:
+    ///   1. Query `DirectIdQuery` on `IP:DEFAULT_DIRECT_PORT(21118)`
+    ///   2. On success: reconnect via standard ID path (encrypted, with relay fallback)
+    ///   3. On failure: fall back to old direct-connect for backward compatibility
     pub async fn start(
         peer: &str,
         key: &str,
@@ -210,6 +214,31 @@ impl Client {
         debug_assert!(peer == interface.get_id());
         interface.update_direct(None);
         interface.update_received(false);
+
+        // ── Two-phase IP→ID direct connection ──
+        if hbb_common::is_ip_str(peer) {
+            match resolve_id_from_ip(peer).await {
+                Ok(id) => {
+                    log::info!("Resolved device ID {} from IP {}", id, peer);
+                    // Update interface so the resolved ID becomes the peer identity
+                    interface.get_lch().write().unwrap().id = id.clone();
+                    // Phase-2: reconnect via standard ID path (encrypted, relay fallback).
+                    // If this fails (e.g. no rendezvous server, target offline), fall through
+                    // to the old-style direct TCP connection as a last resort.
+                    if let Ok(result) = Self::start(&id, "", "", conn_type, interface.clone()).await {
+                        return Ok(result);
+                    }
+                    log::warn!("Phase-2 via ID failed, falling back to direct connect");
+                }
+                Err(e) => {
+                    log::warn!("ID resolution from IP {} failed: {}, using direct fallback", peer, e);
+                }
+            }
+            // Fallback: old-style direct TCP connection (backward compatibility,
+            // works with older servers and as last resort when relay is unavailable).
+            return Self::_start(peer, key, token, conn_type, interface).await;
+        }
+
         match Self::_start(peer, key, token, conn_type, interface.clone()).await {
             Err(err) => {
                 let err_str = err.to_string();
@@ -233,6 +262,32 @@ impl Client {
                 Ok((x.0, x.1))
             }
         }
+    }
+
+    /// Query a remote device's ID via a light-weight `DirectIdQuery` on `IP:DEFAULT_DIRECT_PORT`.
+    /// Returns the resolved ID on success, or an error if the server is unreachable/old-version.
+    async fn resolve_id_from_ip(peer: &str) -> ResultType<String> {
+        let host = check_port(peer, DEFAULT_DIRECT_PORT);
+        let mut stream = connect_tcp_local(&host, None, CONNECT_TIMEOUT).await?;
+        let mut query = Message::new();
+        query.set_direct_id_query(DirectIdQuery::new());
+        stream.send(&query).await?;
+        stream.next_timeout(500).await
+            .ok_or_else(|| anyhow!("No response from direct server"))?
+            .map_err(|e| anyhow!("Read error: {}", e))
+            .and_then(|bytes| {
+                Message::parse_from_bytes(&bytes)
+                    .map_err(|e| anyhow!("Parse error: {}", e))
+                    .and_then(|msg| {
+                        match msg.union {
+                            Some(message::Union::DirectIdResponse(resp)) => {
+                                log::info!("resolved ID={} hostname={} version={}", resp.id, resp.hostname, resp.version);
+                                Ok(resp.id)
+                            }
+                            _ => Err(anyhow!("Unexpected response type")),
+                        }
+                    })
+            })
     }
 
     /// Start a new connection.
@@ -260,7 +315,7 @@ impl Client {
         if hbb_common::is_ip_str(peer) {
             return Ok((
                 (
-                    connect_tcp_local(check_port(peer, RELAY_PORT + 1), None, CONNECT_TIMEOUT)
+                    connect_tcp_local(check_port(peer, DEFAULT_DIRECT_PORT), None, CONNECT_TIMEOUT)
                         .await?,
                     true,
                     None,

@@ -186,6 +186,29 @@ async fn accept_connection_(
     Ok(())
 }
 
+/// Handle a light-weight DirectIdQuery from an IP-direct client.
+/// Responds with the device's ID so the client can reconnect via the
+/// standard rendezvous/relay path (with full encryption and tunnel fallback).
+pub async fn handle_direct_id_query(
+    mut stream: Stream,
+    peer_addr: SocketAddr,
+    local_addr: SocketAddr,
+) {
+    let resp = DirectIdResponse {
+        id: Config::get_id(),
+        version: crate::VERSION.to_owned(),
+        hostname: crate::whoami_hostname(),
+        ..Default::default()
+    };
+    let mut msg = Message::new();
+    msg.set_direct_id_response(resp);
+    if let Err(e) = stream.send(&msg).await {
+        log::warn!("Failed to send DirectIdResponse to {}: {}", peer_addr, e);
+    } else {
+        log::info!("Replied DirectIdResponse to {}, id={}", peer_addr, Config::get_id());
+    }
+}
+
 pub async fn create_tcp_connection(
     server: ServerPtr,
     stream: Stream,

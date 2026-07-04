@@ -163,6 +163,10 @@ pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;
 pub const WS_RENDEZVOUS_PORT: i32 = 21118;
 pub const WS_RELAY_PORT: i32 = 21119;
+/// Default port for direct IP access (peer-to-peer without relay).
+/// The direct-access server listens on this port; the client connects to it
+/// when given a bare IP address. Falls back to a random port if unavailable.
+pub const DEFAULT_DIRECT_PORT: i32 = 21118;
 
 #[inline]
 pub fn is_service_ipc_postfix(postfix: &str) -> bool {

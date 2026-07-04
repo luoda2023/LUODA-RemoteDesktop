@@ -212,7 +212,15 @@ pub fn session_start(
     session_id: SessionID,
     id: String,
 ) -> ResultType<()> {
-    session_start_(&session_id, &id, events2ui)
+    session_start_(&session_id, &id, events2ui)?;
+
+    // Auto-capture main display (display 0) and refresh video immediately
+    // to prevent black screen on new connections.
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        session.capture_displays(vec![0], vec![], vec![]);
+        session.refresh_video(0);
+    }
+    Ok(())
 }
 
 pub fn session_start_with_displays(
@@ -1126,14 +1134,53 @@ pub fn main_check_connect_status() {
         let port = crate::rendezvous_mediator::ensure_direct_port();
         crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
     }
-    // Fetch public IP via STUN in background and store for UI display
+    // Fetch public IP via HTTP first (most reliable), fallback to STUN
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     std::thread::spawn(|| {
-        use hbb_common::tokio;
-        if let Ok(rt) = tokio::runtime::Runtime::new() {
-            if let Ok((addr, _)) = rt.block_on(crate::common::test_nat_ipv4()) {
-                let ip = addr.ip().to_string();
-                crate::ui_interface::set_option("public-ip".to_owned(), ip);
+        // Try HTTP services first (returns same IP for all machines behind same NAT)
+        let http_sources = [
+            "https://api.ipify.org",
+            "https://checkip.amazonaws.com",
+        ];
+        let mut public_ip = String::new();
+        for url in &http_sources {
+            match reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_secs(8))
+                .build()
+            {
+                Ok(client) => match client.get(url).send() {
+                    Ok(resp) => {
+                        if let Ok(text) = resp.text() {
+                            let ip = text.trim().to_string();
+                            if !ip.is_empty() && ip.chars().all(|c| c.is_ascii_digit() || c == '.') {
+                                public_ip = ip;
+                                log::info!("Got public IP from {}: {}", url, public_ip);
+                                crate::ui_interface::set_option(
+                                    "public-ip".to_owned(),
+                                    public_ip.clone(),
+                                );
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to get public IP from {}: {}", url, e);
+                    }
+                },
+                Err(e) => {
+                    log::warn!("Failed to create HTTP client for {}: {}", url, e);
+                }
+            }
+        }
+        // Fallback to STUN if HTTP failed (STUN may report different mapped addresses per device)
+        if public_ip.is_empty() {
+            log::info!("HTTP public IP lookup failed, falling back to STUN");
+            use hbb_common::tokio;
+            if let Ok(rt) = tokio::runtime::Runtime::new() {
+                if let Ok((addr, _)) = rt.block_on(crate::common::test_nat_ipv4()) {
+                    let ip = addr.ip().to_string();
+                    crate::ui_interface::set_option("public-ip".to_owned(), ip);
+                }
             }
         }
     });

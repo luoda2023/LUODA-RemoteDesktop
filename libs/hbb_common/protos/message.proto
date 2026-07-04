@@ -949,6 +949,16 @@ message TerminalResponse {
   }
 }
 
+message DirectIdQuery {
+  // Query device ID from the direct server (phase 1 of IP-direct connection)
+}
+
+message DirectIdResponse {
+  string id = 1;            // Device ID
+  string version = 2;       // Software version
+  string hostname = 3;      // Hostname for UI display
+}
+
 message Message {
   oneof union {
     SignedId signed_id = 3;
@@ -981,5 +991,7 @@ message Message {
     ScreenshotResponse screenshot_response= 30;
     TerminalAction terminal_action = 31;
     TerminalResponse terminal_response = 32;
+    DirectIdQuery direct_id_query = 33;
+    DirectIdResponse direct_id_response = 34;
   }
 }
