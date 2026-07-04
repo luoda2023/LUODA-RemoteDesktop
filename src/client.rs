@@ -217,7 +217,7 @@ impl Client {
 
         // ── Two-phase IP→ID direct connection ──
         if hbb_common::is_ip_str(peer) {
-            match resolve_id_from_ip(peer).await {
+            match Self::resolve_id_from_ip(peer).await {
                 Ok(id) => {
                     log::info!("Resolved device ID {} from IP {}", id, peer);
                     // Update interface so the resolved ID becomes the peer identity
@@ -268,7 +268,7 @@ impl Client {
     /// Returns the resolved ID on success, or an error if the server is unreachable/old-version.
     async fn resolve_id_from_ip(peer: &str) -> ResultType<String> {
         let host = check_port(peer, DEFAULT_DIRECT_PORT);
-        let mut stream = connect_tcp_local(&host, None, CONNECT_TIMEOUT).await?;
+        let mut stream = connect_tcp_local(host.as_str(), None, CONNECT_TIMEOUT).await?;
         let mut query = Message::new();
         query.set_direct_id_query(DirectIdQuery::new());
         stream.send(&query).await?;

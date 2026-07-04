@@ -1143,7 +1143,7 @@ pub fn main_check_connect_status() {
             "https://checkip.amazonaws.com",
         ];
         let mut public_ip = String::new();
-        for url in &http_sources {
+        for url in http_sources {
             match reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_secs(8))
                 .build()
