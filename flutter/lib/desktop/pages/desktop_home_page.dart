@@ -65,14 +65,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Widget build(BuildContext context) {
     super.build(context);
     final isIncomingOnly = bind.isIncomingOnly();
-    final isIncomingOnly = bind.isIncomingOnly();
     // 客户端专用版：只显示左侧内容，不包含右侧输入框和历史列表
     if (widget.isClientOnly) {
       return _buildBlock(
           child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          buildClientPane(context),
+          buildLeftPane(context),
           if (!isIncomingOnly) const VerticalDivider(width: 1),
         ],
       ));
@@ -94,6 +93,85 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildLeftPane(BuildContext context) {
+    // 客户端专用版：极简布局，只显示头像+名称+ID+密码+IP
+    if (widget.isClientOnly) {
+      return ChangeNotifierProvider.value(
+        value: gFFI.serverModel,
+        child: Container(
+          width: 260.0,
+          color: Theme.of(context).colorScheme.background,
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _leftPaneScrollController,
+                  child: Column(
+                    key: _childKey,
+                    children: [
+                      // 圆形头像
+                      Align(
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(top: 30, bottom: 8),
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                border: Border.all(color: MyTheme.accent, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/avatar.png',
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (ctx, error, stackTrace) => Icon(
+                                    Icons.computer,
+                                    size: 40,
+                                    color: MyTheme.accent,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Text(
+                              "LUODA 远程协助",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).textTheme.titleLarge?.color,
+                              ),
+                            ),
+                            SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                      // ID
+                      buildIDBoard(context),
+                      SizedBox(height: 6),
+                      // 密码
+                      buildPasswordBoard(context),
+                      SizedBox(height: 6),
+                      // IP直连
+                      buildDirectAccessBoard(context),
+                      SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final isIncomingOnly = bind.isIncomingOnly();
     final isOutgoingOnly = bind.isOutgoingOnly();
     final children = <Widget>[
@@ -188,86 +266,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       ]);
     }
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
-    
-    // 客户端专用版：极简布局，只显示头像+名称+ID+密码+IP
-    if (widget.isClientOnly) {
-      return ChangeNotifierProvider.value(
-        value: gFFI.serverModel,
-        child: Container(
-          width: 260.0,
-          color: Theme.of(context).colorScheme.background,
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _leftPaneScrollController,
-                  child: Column(
-                    key: _childKey,
-                    children: [
-                      // 圆形头像
-                      Align(
-                        alignment: Alignment.center,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.only(top: 30, bottom: 8),
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                                border: Border.all(color: MyTheme.accent, width: 2),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: ClipOval(
-                                child: Image.asset(
-                                  'assets/avatar.png',
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (ctx, error, stackTrace) => Icon(
-                                    Icons.computer,
-                                    size: 40,
-                                    color: MyTheme.accent,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Text(
-                              "LUODA 远程协助",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).textTheme.titleLarge?.color,
-                              ),
-                            ),
-                            SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                      // ID
-                      buildIDBoard(context),
-                      SizedBox(height: 6),
-                      // 密码
-                      buildPasswordBoard(context),
-                      SizedBox(height: 6),
-                      // IP直连
-                      buildDirectAccessBoard(context),
-                      SizedBox(height: 8),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
     
     return ChangeNotifierProvider.value(
       value: gFFI.serverModel,
