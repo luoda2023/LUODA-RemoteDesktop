@@ -218,9 +218,17 @@ impl Client {
         // ── Two-phase IP→ID direct connection ──
         // Only for bare IP (no port suffix). If user typed IP:port, skip straight to _start()
         // which handles IP:port format for direct TCP connection.
+        // Detect port suffix reliably:
+        //   IPv4:port   → 192.168.31.39:25488  (ip_part is IPv4 via is_ipv4_str)
+        //   IPv6:port   → [::1]:21118          (ip_part ends with ']')
+        //   bare IPv4   → 192.168.31.39        (no colon)
+        //   bare IPv6   → ::1                  (last colon NOT followed by all-digits port)
         let has_port = peer.rfind(':').map_or(false, |pos| {
-            let rest = &peer[pos+1..];
-            !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit())
+            let ip_part = &peer[..pos];
+            let port_part = &peer[pos+1..];
+            !port_part.is_empty()
+                && port_part.chars().all(|c| c.is_ascii_digit())
+                && (hbb_common::is_ipv4_str(ip_part) || ip_part.ends_with(']'))
         });
         if hbb_common::is_ip_str(peer) && !has_port {
             match Self::resolve_id_from_ip(peer).await {
