@@ -226,7 +226,7 @@ impl Client {
                     // Use _start() directly (non-recursive) since we have the ID now;
                     // _start() sees a numeric string → goes to rendezvous → P2P/Relay.
                     let id = id.clone();
-                    match Self::_start(&id, "", "", conn_type, interface.clone()).await {
+                    match Self::_start(&id, key, token, conn_type, interface.clone()).await {
                         Ok(x) => {
                             if x.2 {
                                 let direct_failures = interface.get_lch().read().unwrap().direct_failures;

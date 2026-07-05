@@ -1345,12 +1345,6 @@ impl<T: InvokeUiSession> Remote<T> {
                             }
                         }
                         self.handler.handle_peer_info(pi);
-                        // Auto-capture main display after successful login
-                        // to prevent black screen on new connections.
-                        if self.handler.is_default() || self.handler.is_view_camera() {
-                            self.handler.capture_displays(vec![0], vec![], vec![]);
-                            self.handler.refresh_video(0);
-                        }
                         #[cfg(all(target_os = "windows", not(feature = "flutter")))]
                         self.check_clipboard_file_context();
                         if self.handler.is_default() {
