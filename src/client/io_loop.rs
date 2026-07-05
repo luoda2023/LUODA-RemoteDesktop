@@ -1345,12 +1345,11 @@ impl<T: InvokeUiSession> Remote<T> {
                             }
                         }
                         self.handler.handle_peer_info(pi);
-                        // Auto-capture main display + refresh video after successful login
-                        // to prevent black screen on new connections. Uses self.sender directly
-                        // to send Misc messages (reliable channel, always available).
+                        // Auto-capture main display after successful login
+                        // to prevent black screen on new connections.
                         if self.handler.is_default() || self.handler.is_view_camera() {
-                            self.send_capture_displays();
-                            self.send_refresh_video();
+                            self.handler.capture_displays(vec![0], vec![], vec![]);
+                            self.handler.refresh_video(0);
                         }
                         #[cfg(all(target_os = "windows", not(feature = "flutter")))]
                         self.check_clipboard_file_context();
@@ -2317,30 +2316,6 @@ impl<T: InvokeUiSession> Remote<T> {
                 }
             }
         }
-    }
-
-    /// 直接通过 self.sender 发送 capture_displays 消息（绕过 Session::send，避免 sender 为 None 的问题）
-    fn send_capture_displays(&self) {
-        use hbb_common::message_proto::*;
-        let mut capture = CaptureDisplays::new();
-        capture.add.push(0); // 捕获主显示器（display 0）
-        let mut misc = Misc::new();
-        misc.set_capture_displays(capture);
-        let mut msg = Message::new();
-        msg.set_misc(misc);
-        self.sender.send(Data::Message(msg)).ok();
-        log::info!("[黑屏修复] send_capture_displays(display=0) via self.sender");
-    }
-
-    /// 直接通过 self.sender 发送 refresh_video 消息
-    fn send_refresh_video(&self) {
-        use hbb_common::message_proto::*;
-        let mut misc = Misc::new();
-        misc.set_refresh_video(true);
-        let mut msg = Message::new();
-        msg.set_misc(misc);
-        self.sender.send(Data::Message(msg)).ok();
-        log::info!("[黑屏修复] send_refresh_video via self.sender");
     }
 
     fn new_video_thread(&mut self, display: usize) {

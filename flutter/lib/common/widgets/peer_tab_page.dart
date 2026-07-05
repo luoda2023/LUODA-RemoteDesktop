@@ -148,13 +148,13 @@ class _PeerTabPageState extends State<PeerTabPage>
         physics: NeverScrollableScrollPhysics(),
         children: model.visibleEnabledOrderedIndexs.map((t) {
           final selected = model.currentTab == t;
+          final tabColor = MyTheme.tabbar(context);
           final color = selected
-              ? MyTheme.tabbar(context).selectedTextColor
-              : MyTheme.tabbar(context).unSelectedTextColor
-            ?..withOpacity(0.5);
+              ? (tabColor.selectedTextColor ?? Colors.black)
+              : (tabColor.unSelectedTextColor ?? Colors.grey).withOpacity(0.5);
           final hover = false.obs;
           // Tab颜色序列
-          final tabColors = [
+          final indicatorColors = [
             Color(0xFF4A90D9), // recent - blue
             Color(0xFFE74C3C), // fav - red
             Color(0xFF2ECC71), // lan - green
@@ -162,17 +162,7 @@ class _PeerTabPageState extends State<PeerTabPage>
             Color(0xFF9B59B6), // group - purple
             Color(0xFF1ABC9C), // vip - teal
           ];
-          final tabColor = tabColors[t % tabColors.length];
-          // Tab显示标签
-          final tabLabels = [
-            translate('Recent'),
-            translate('Favorites'),
-            translate('Discovered'),
-            translate('Address Book'),
-            translate('Group'),
-            'VIP',
-          ];
-          final tabLabel = t < tabLabels.length ? tabLabels[t] : 'Tab $t';
+          final indicatorColor = indicatorColors[t % indicatorColors.length];
           counter += 1;
           return ReorderableDragStartListener(
               key: ValueKey(t),
@@ -182,35 +172,18 @@ class _PeerTabPageState extends State<PeerTabPage>
                     message: model.tabTooltip(t),
                     onTriggered: isMobile ? mobileShowTabVisibilityMenu : null,
                     child: InkWell(
-                      child: AnimatedContainer(
-                        duration: Duration(milliseconds: 200),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
                               width: selected ? 3 : 0,
-                              color: selected ? tabColor : Colors.transparent,
+                              color: selected ? indicatorColor : Colors.transparent,
                             ),
                           ),
                         ),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(model.tabIcon(t),
-                                  color: selected ? tabColor : color, size: 18),
-                              SizedBox(width: 6),
-                              Text(
-                                tabLabel,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                                  color: selected ? tabColor : color,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        child: Icon(model.tabIcon(t),
+                            color: selected ? indicatorColor : color, size: 20),
                       ),
                       onTap: isOptionFixed(kOptionPeerTabIndex)
                           ? null

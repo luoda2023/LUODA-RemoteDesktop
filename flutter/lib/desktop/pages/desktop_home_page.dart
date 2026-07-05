@@ -416,7 +416,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                                 ?.color
                                 ?.withOpacity(0.45)),
                       ).marginOnly(top: 8),
-                      buildPopupMenu(context)
                     ],
                   ),
                   GestureDetector(
