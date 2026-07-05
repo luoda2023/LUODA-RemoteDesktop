@@ -33,12 +33,12 @@ class PeerTabModel with ChangeNotifier {
     'VIP features',
   ];
   static const List<IconData> icons = [
-    Icons.access_time_filled,
-    Icons.star,
-    Icons.explore,
-    IconFont.addressBook,
-    IconFont.deviceGroupFill,
-    Icons.workspace_premium_outlined,
+    Icons.history_rounded,      // 最近会话 - 时钟图标
+    Icons.star_rounded,         // 收藏 - 星星图标
+    Icons.radar_rounded,        // 发现 - 雷达图标
+    Icons.contacts_rounded,     // 通讯录 - 联系人图标
+    Icons.devices_rounded,      // 设备群组 - 设备图标
+    Icons.workspace_premium_rounded, // VIP - 认证图标
   ];
   List<bool> isEnabled = List.from([
     true,

@@ -117,28 +117,21 @@ bool isDoubleEqual(double a, double b) {
 }
 
 class IconFont {
-  static const _family1 = 'Tabbar';
-  static const _family2 = 'PeerSearchbar';
-  static const _family3 = 'AddressBook';
-  static const _family4 = 'DeviceGroup';
-  static const _family5 = 'More';
-
   IconFont._();
 
-  static const IconData max = IconData(0xe606, fontFamily: _family1);
-  static const IconData restore = IconData(0xe607, fontFamily: _family1);
-  static const IconData close = IconData(0xe668, fontFamily: _family1);
-  static const IconData min = IconData(0xe609, fontFamily: _family1);
-  static const IconData add = IconData(0xe664, fontFamily: _family1);
-  static const IconData menu = IconData(0xe628, fontFamily: _family1);
-  static const IconData search = IconData(0xe6a4, fontFamily: _family2);
-  static const IconData roundClose = IconData(0xe6ed, fontFamily: _family2);
-  static const IconData addressBook = IconData(0xe602, fontFamily: _family3);
-  static const IconData deviceGroupOutline =
-      IconData(0xe623, fontFamily: _family4);
-  static const IconData deviceGroupFill =
-      IconData(0xe748, fontFamily: _family4);
-  static const IconData more = IconData(0xe609, fontFamily: _family5);
+  // 使用 Flutter 内置的 Material Icons，更现代更统一
+  static const IconData max = Icons.maximize;
+  static const IconData restore = Icons.fullscreen_exit;
+  static const IconData close = Icons.close;
+  static const IconData min = Icons.minimize;
+  static const IconData add = Icons.add;
+  static const IconData menu = Icons.menu;
+  static const IconData search = Icons.search;
+  static const IconData roundClose = Icons.close_rounded;
+  static const IconData addressBook = Icons.contacts_rounded;
+  static const IconData deviceGroupOutline = Icons.devices_other;
+  static const IconData deviceGroupFill = Icons.devices;
+  static const IconData more = Icons.more_horiz;
 }
 
 class ColorThemeExtension extends ThemeExtension<ColorThemeExtension> {

@@ -1126,6 +1126,21 @@ pub fn main_check_connect_status() {
         let port = crate::rendezvous_mediator::ensure_direct_port();
         crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
     }
+    // Get the LAN IP by connecting a UDP socket to a public address (no actual traffic sent).
+    // This gives us the local network address used to reach the internet — the correct LAN IP
+    // for direct connection within the same network.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            if socket.connect("8.8.8.8:80").is_ok() {
+                if let Ok(addr) = socket.local_addr() {
+                    let ip = addr.ip().to_string();
+                    log::info!("LAN IP detected: {}", ip);
+                    crate::ui_interface::set_option("lan-ip".to_owned(), ip);
+                }
+            }
+        }
+    }
     // Fetch public IP via HTTP first (most reliable), fallback to STUN
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     std::thread::spawn(|| {

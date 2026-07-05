@@ -295,12 +295,16 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         textBaseline: TextBaseline.alphabetic,
         children: [
           Container(
-            width: 2,
-            decoration: const BoxDecoration(color: MyTheme.accent),
+            width: 3,
+            height: 30,
+            decoration: BoxDecoration(
+              color: MyTheme.accent,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ).marginOnly(top: 8),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(left: 7),
+              padding: const EdgeInsets.only(left: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -311,17 +315,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                       Text(
                         translate("ID"),
                         style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                             color: Theme.of(context)
                                 .textTheme
                                 .titleLarge
                                 ?.color
-                                ?.withOpacity(0.5)),
+                                ?.withOpacity(0.45)),
                       ).marginOnly(top: 8),
                       buildPopupMenu(context)
                     ],
                   ),
-                  SizedBox(height: 2),
                   GestureDetector(
                     onDoubleTap: () {
                       Clipboard.setData(
@@ -332,12 +336,24 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                       controller: model.serverId,
                       readOnly: true,
                       decoration: InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(top: 8, bottom: 8),
+                        filled: true,
+                        fillColor: Theme.of(context)
+                            .colorScheme
+                            .background
+                            .withOpacity(0.5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        isDense: true,
                       ),
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace',
+                        letterSpacing: 1.0,
                       ),
                     ).workaroundFreezeLinuxMint(),
                   )
@@ -398,20 +414,25 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         textBaseline: TextBaseline.alphabetic,
         children: [
           Container(
-            width: 2,
-            height: 62,
-            decoration: BoxDecoration(color: MyTheme.accent),
+            width: 3,
+            height: 30,
+            decoration: BoxDecoration(
+              color: MyTheme.accent,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(left: 7),
+              padding: const EdgeInsets.only(left: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AutoSizeText(
                     translate("One-time Password"),
                     style: TextStyle(
-                        fontSize: 16, color: textColor?.withOpacity(0.5)),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: textColor?.withOpacity(0.45)),
                     maxLines: 1,
                   ),
                   Row(
@@ -429,11 +450,25 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                             controller: model.serverPasswd,
                             readOnly: true,
                             decoration: InputDecoration(
-                              border: InputBorder.none,
+                              filled: true,
+                              fillColor: Theme.of(context)
+                                  .colorScheme
+                                  .background
+                                  .withOpacity(0.5),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: BorderSide.none,
+                              ),
                               contentPadding:
-                                  EdgeInsets.only(top: 16, bottom: 14),
+                                  EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              isDense: true,
                             ),
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'monospace',
+                              letterSpacing: 1.5,
+                            ),
                           ).workaroundFreezeLinuxMint(),
                         ),
                       ),
@@ -485,9 +520,19 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 
   buildDirectAccessBoard(BuildContext context) {
     final publicIP = bind.mainGetOptionSync(key: 'public-ip');
+    final lanIP = bind.mainGetOptionSync(key: 'lan-ip');
     final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
-    final ipInfo = publicIP.isEmpty ? '' : '$publicIP${directPort.isEmpty ? "" : ":$directPort"}';
+    // LAN IP is the most reliable for same-network direct connection.
+    // Public IP is shown for WAN access (but may need port forwarding).
+    String ipInfo = '';
+    if (lanIP.isNotEmpty && directPort.isNotEmpty) {
+      ipInfo = '$lanIP:$directPort';
+    } else if (publicIP.isNotEmpty && directPort.isNotEmpty) {
+      ipInfo = '$publicIP:$directPort';
+    } else if (publicIP.isNotEmpty) {
+      ipInfo = publicIP;
+    }
     final displayText = ipInfo.isNotEmpty ? ipInfo : translate('Not available');
     final controller = TextEditingController(text: displayText);
     return Container(
@@ -497,21 +542,25 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         textBaseline: TextBaseline.alphabetic,
         children: [
           Container(
-            width: 2,
-            height: 62,
-            decoration: const BoxDecoration(color: MyTheme.accent),
+            width: 3,
+            height: 30,
+            decoration: BoxDecoration(
+              color: MyTheme.accent,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(left: 7),
+              padding: const EdgeInsets.only(left: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     "IP直连",
                     style: TextStyle(
-                        fontSize: 14,
-                        color: textColor?.withOpacity(0.5)),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: textColor?.withOpacity(0.45)),
                   ),
                   SizedBox(height: 4),
                   GestureDetector(
@@ -521,22 +570,28 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         showToast(translate("Copied"));
                       }
                     },
-                    child: TextFormField(
-                      controller: controller,
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(top: 16, bottom: 14),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .background
+                            .withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'monospace',
-                        color: ipInfo.isNotEmpty
-                            ? textColor
-                            : textColor?.withOpacity(0.4),
+                      child: Text(
+                        displayText,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'monospace',
+                          letterSpacing: 0.5,
+                          color: ipInfo.isNotEmpty
+                              ? textColor
+                              : textColor?.withOpacity(0.4),
+                        ),
                       ),
-                    ).workaroundFreezeLinuxMint(),
+                    ),
                   ),
                 ],
               ),
