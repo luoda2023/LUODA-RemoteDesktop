@@ -327,6 +327,26 @@ impl Client {
             bail!("Incoming only mode");
         }
         // to-do: remember the port for each peer, so that we can retry easier
+        // Support IP:port format like "192.168.31.39:25488" for direct LAN connection
+        // split once on ':' — safe for IPv4, for IPv6 we check is_ip_str first (no port)
+        if let Some(pos) = peer.rfind(':') {
+            let ip_part = &peer[..pos];
+            let port_part = &peer[pos+1..];
+            if hbb_common::is_ip_str(ip_part) && port_part.chars().all(|c| c.is_ascii_digit()) {
+                let host = format!("{}:{}", ip_part, port_part);
+                return Ok((
+                    (
+                        connect_tcp_local(&host, None, CONNECT_TIMEOUT).await?,
+                        true,
+                        None,
+                        None,
+                        "TCP",
+                    ),
+                    (0, "".to_owned()),
+                    false,
+                ));
+            }
+        }
         if hbb_common::is_ip_str(peer) {
             return Ok((
                 (
