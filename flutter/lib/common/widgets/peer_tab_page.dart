@@ -153,7 +153,7 @@ class _PeerTabPageState extends State<PeerTabPage>
               : MyTheme.tabbar(context).unSelectedTextColor
             ?..withOpacity(0.5);
           final hover = false.obs;
-          // Flat design: no background, only bottom indicator
+          // Tab颜色序列
           final tabColors = [
             Color(0xFF4A90D9), // recent - blue
             Color(0xFFE74C3C), // fav - red
@@ -163,6 +163,16 @@ class _PeerTabPageState extends State<PeerTabPage>
             Color(0xFF1ABC9C), // vip - teal
           ];
           final tabColor = tabColors[t % tabColors.length];
+          // Tab显示标签
+          final tabLabels = [
+            translate('Recent'),
+            translate('Favorites'),
+            translate('Discovered'),
+            translate('Address Book'),
+            translate('Group'),
+            'VIP',
+          ];
+          final tabLabel = t < tabLabels.length ? tabLabels[t] : 'Tab $t';
           counter += 1;
           return ReorderableDragStartListener(
               key: ValueKey(t),
@@ -183,9 +193,23 @@ class _PeerTabPageState extends State<PeerTabPage>
                           ),
                         ),
                         child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          child: Icon(model.tabIcon(t),
-                              color: selected ? tabColor : color, size: 20),
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(model.tabIcon(t),
+                                  color: selected ? tabColor : color, size: 18),
+                              SizedBox(width: 6),
+                              Text(
+                                tabLabel,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                                  color: selected ? tabColor : color,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       onTap: isOptionFixed(kOptionPeerTabIndex)

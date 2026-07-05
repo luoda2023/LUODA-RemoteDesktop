@@ -139,35 +139,32 @@ class _PeerCardState extends State<_PeerCard>
         fontSize: 11,
         color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.6));
     final showNote = _showNote(peer);
+    final platformInfo = _getPlatformInfo(peer.platform);
+    final isListMode = peerCardUiType.value == PeerUiType.list;
+    final platformColor = str2color('${peer.id}${peer.platform}', 0x7f);
 
     return Row(
       mainAxisSize: MainAxisSize.max,
       children: [
+        // 左侧平台图标区域 - 根据不同模式不同大小
         Container(
-            decoration: BoxDecoration(
-              color: str2color('${peer.id}${peer.platform}', 0x7f),
-              borderRadius: isPortrait
-                  ? BorderRadius.circular(_tileRadius)
-                  : BorderRadius.only(
-                      topLeft: Radius.circular(_tileRadius),
-                      bottomLeft: Radius.circular(_tileRadius),
-                    ),
-            ),
-            alignment: Alignment.center,
-            width: isPortrait ? 50 : 42,
-            height: isPortrait ? 50 : null,
-            child: Stack(
-              children: [
-                getPlatformImage(peer.platform, size: isPortrait ? 38 : 30)
-                    .paddingAll(6),
-                if (_shouldBuildPasswordIcon(peer))
-                  Positioned(
-                    top: 1,
-                    left: 1,
-                    child: Icon(Icons.key, size: 6, color: Colors.white),
+          decoration: BoxDecoration(
+            color: platformColor.withOpacity(0.15),
+            borderRadius: isPortrait
+                ? BorderRadius.circular(_tileRadius)
+                : BorderRadius.only(
+                    topLeft: Radius.circular(_tileRadius),
+                    bottomLeft: Radius.circular(_tileRadius),
                   ),
-              ],
-            )),
+          ),
+          alignment: Alignment.center,
+          width: isPortrait ? 50 : (isListMode ? 36 : 42),
+          child: Icon(
+            platformInfo['icon'] as IconData,
+            size: isPortrait ? 22 : (isListMode ? 16 : 18),
+            color: platformColor,
+          ),
+        ),
         Expanded(
           child: Container(
             decoration: BoxDecoration(
@@ -181,16 +178,43 @@ class _PeerCardState extends State<_PeerCard>
               children: [
                 Expanded(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        getOnline(isPortrait ? 4 : 8, peer.online),
+                        // 在线状态指示点
+                        Container(
+                          width: isPortrait ? 4 : (isListMode ? 6 : 8),
+                          height: isPortrait ? 4 : (isListMode ? 6 : 8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: peer.online ? Color(0xFF2ECC71) : Colors.grey.shade300,
+                          ),
+                        ),
+                        SizedBox(width: 6),
+                        // 设备ID或别名
                         Expanded(
                             child: Text(
                           peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: peer.online ? FontWeight.w600 : FontWeight.normal,
+                          ),
                         )),
+                        // 列表模式额外显示系统标签
+                        if (isListMode)
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: platformColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(
+                              platformInfo['label'] as String,
+                              style: TextStyle(fontSize: 9, color: platformColor),
+                            ),
+                          ),
                       ]).marginOnly(top: isPortrait ? 0 : 2),
+                      // 第二行：用户名@主机名
                       Row(
                         children: [
                           Flexible(
@@ -220,11 +244,7 @@ class _PeerCardState extends State<_PeerCard>
                                     style: isPortrait ? null : greyStyle,
                                     textAlign: TextAlign.start,
                                     overflow: TextOverflow.ellipsis,
-                                  ).marginOnly(
-                                      left: peerCardUiType.value ==
-                                              PeerUiType.list
-                                          ? 32
-                                          : 4),
+                                  ).marginOnly(left: isListMode ? 16 : 4),
                                 ),
                               ),
                             )
@@ -237,7 +257,7 @@ class _PeerCardState extends State<_PeerCard>
                     ? checkBoxOrActionMorePortrait(peer)
                     : checkBoxOrActionMoreLandscape(peer, isTile: true),
               ],
-            ).paddingOnly(left: 10.0, top: 3.0),
+            ).paddingOnly(left: 8.0, top: 3.0),
           ),
         )
       ],
@@ -286,6 +306,11 @@ class _PeerCardState extends State<_PeerCard>
         ? peer.hostname
         : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
     final platformColor = str2color('${peer.id}${peer.platform}', 0x7f);
+    // 不同系统用不同的系统类型图标
+    final platformInfo = _getPlatformInfo(peer.platform);
+    final systemIcon = platformInfo['icon'] as IconData;
+    final systemLabel = platformInfo['label'] as String;
+
     final child = Card(
       color: Colors.transparent,
       elevation: 0,
@@ -299,8 +324,10 @@ class _PeerCardState extends State<_PeerCard>
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // 上半部分 - 渐变背景 + 系统图标 + 用户名
                 Expanded(
                   child: Container(
+                    width: double.infinity,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -311,69 +338,124 @@ class _PeerCardState extends State<_PeerCard>
                         ],
                       ),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Stack(
                       children: [
-                        // 平台图标 - 居中显示
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          child: getPlatformImage(peer.platform, size: 50),
-                        ),
-                        const SizedBox(height: 4),
-                        // 用户名 - 居中显示
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Tooltip(
-                            message: name,
-                            waitDuration: const Duration(seconds: 1),
-                            child: Text(
-                              name,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 2,
+                        // 右上角在线状态标签
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: peer.online
+                                  ? Color(0xFF2ECC71).withOpacity(0.9)
+                                  : Colors.black26,
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                          ),
-                        ),
-                        if (_showNote(peer))
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            child: Tooltip(
-                              message: peer.note,
-                              waitDuration: const Duration(seconds: 1),
-                              child: Text(
-                                peer.note,
-                                style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 9,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: peer.online ? Colors.white : Colors.white38,
+                                  ),
                                 ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                                SizedBox(width: 4),
+                                Text(
+                                  peer.online ? '在线' : '离线',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+                        ),
+                        // 中间内容区
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // 系统图标 - 用圆形白色半透明背景
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withOpacity(0.2),
+                                ),
+                                child: Icon(systemIcon, size: 32, color: Colors.white),
+                              ),
+                              const SizedBox(height: 6),
+                              // 用户名
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 10),
+                                child: Tooltip(
+                                  message: name,
+                                  waitDuration: const Duration(seconds: 1),
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 2,
+                                  ),
+                                ),
+                              ),
+                              // 系统标签
+                              Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Text(
+                                  systemLabel,
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ),
+                              if (_showNote(peer))
+                                Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  child: Tooltip(
+                                    message: peer.note,
+                                    waitDuration: const Duration(seconds: 1),
+                                    child: Text(
+                                      peer.note,
+                                      style: const TextStyle(color: Colors.white60, fontSize: 9),
+                                      textAlign: TextAlign.center,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
-                // 底部信息栏 - 在线状态 + ID + 更多按钮
+                // 底部信息栏 - ID + 更多按钮
                 Container(
                   color: Theme.of(context).colorScheme.background,
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // 在线状态 + ID
+                      // ID或别名
                       Row(
                         children: [
-                          getOnline(8, peer.online),
-                          const SizedBox(width: 6),
+                          Icon(Icons.tag, size: 12, color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.4)),
+                          const SizedBox(width: 3),
                           ConstrainedBox(
-                            constraints: BoxConstraints(maxWidth: 80),
+                            constraints: BoxConstraints(maxWidth: 120),
                             child: Text(
                               peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
                               overflow: TextOverflow.ellipsis,
@@ -384,7 +466,6 @@ class _PeerCardState extends State<_PeerCard>
                           ),
                         ],
                       ),
-                      // 更多操作按钮
                       checkBoxOrActionMoreLandscape(peer, isTile: false),
                     ],
                   ),
@@ -428,6 +509,26 @@ class _PeerCardState extends State<_PeerCard>
           )
       ]),
     );
+  }
+
+  /// 根据平台返回对应的系统图标和显示标签
+  Map<String, dynamic> _getPlatformInfo(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'windows':
+        return {'icon': Icons.window_rounded, 'label': 'Windows'};
+      case 'macos':
+      case 'mac':
+        return {'icon': Icons.desktop_mac_rounded, 'label': 'macOS'};
+      case 'linux':
+        return {'icon': Icons.terminal_rounded, 'label': 'Linux'};
+      case 'android':
+        return {'icon': Icons.android_rounded, 'label': 'Android'};
+      case 'ios':
+      case 'ipados':
+        return {'icon': Icons.phone_iphone_rounded, 'label': 'iOS'};
+      default:
+        return {'icon': Icons.devices_rounded, 'label': platform.isEmpty ? 'Unknown' : platform};
+    }
   }
 
   List _frontN<T>(List list, int n) {

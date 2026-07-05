@@ -221,35 +221,35 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
       switch (tab) {
         case SettingsTabKey.general:
           settingTabs.add(_TabInfo(
-              tab, 'General', Icons.tune_outlined, Icons.tune));
+              tab, 'General', Icons.tune_rounded, Icons.tune));
           break;
         case SettingsTabKey.safety:
           settingTabs.add(
-              _TabInfo(tab, 'Security', Icons.shield_outlined, Icons.shield));
+              _TabInfo(tab, 'Security', Icons.shield_rounded, Icons.shield));
           break;
         case SettingsTabKey.network:
           settingTabs.add(_TabInfo(
-              tab, 'Network', Icons.language_outlined, Icons.language));
+              tab, 'Network', Icons.language_rounded, Icons.language));
           break;
         case SettingsTabKey.display:
           settingTabs.add(_TabInfo(
-              tab, 'Display', Icons.monitor_outlined, Icons.monitor));
+              tab, 'Display', Icons.monitor_rounded, Icons.monitor));
           break;
         case SettingsTabKey.plugin:
           settingTabs.add(_TabInfo(
-              tab, 'Plugin', Icons.extension_outlined, Icons.extension));
+              tab, 'Plugin', Icons.extension_rounded, Icons.extension));
           break;
         case SettingsTabKey.account:
           settingTabs.add(_TabInfo(
-              tab, 'Account', Icons.account_circle_outlined, Icons.account_circle));
+              tab, 'Account', Icons.account_circle_rounded, Icons.account_circle));
           break;
         case SettingsTabKey.printer:
           settingTabs.add(
-              _TabInfo(tab, 'Printer', Icons.print_outlined, Icons.print));
+              _TabInfo(tab, 'Printer', Icons.print_rounded, Icons.print));
           break;
         case SettingsTabKey.about:
           settingTabs.add(
-              _TabInfo(tab, 'About', Icons.info_outline, Icons.info));
+              _TabInfo(tab, 'About', Icons.info_rounded, Icons.info));
           break;
       }
     }
@@ -413,25 +413,34 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
             }
             selectedTab.value = tab.key;
           },
-          child: Row(children: [
-            Container(
-              width: 4,
-              height: _kTabHeight * 0.7,
-              color: selected ? _accentColor : null,
+          child: AnimatedContainer(
+            duration: Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: selected ? _accentColor.withOpacity(0.08) : null,
+              border: Border(
+                right: BorderSide(
+                  width: selected ? 3 : 0,
+                  color: selected ? _accentColor : Colors.transparent,
+                ),
+              ),
             ),
-            Icon(
-              selected ? tab.selected : tab.unselected,
-              color: selected ? _accentColor : null,
-              size: 20,
-            ).marginOnly(left: 13, right: 10),
-            Text(
-              translate(tab.label),
-              style: TextStyle(
-                  color: selected ? _accentColor : null,
-                  fontWeight: FontWeight.w400,
-                  fontSize: _kContentFontSize),
-            ),
-          ]),
+            child: Row(children: [
+              SizedBox(width: 12),
+              Icon(
+                selected ? tab.selected : tab.unselected,
+                color: selected ? _accentColor : Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.5),
+                size: 20,
+              ),
+              SizedBox(width: 12),
+              Text(
+                translate(tab.label),
+                style: TextStyle(
+                    color: selected ? _accentColor : Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.7),
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    fontSize: _kContentFontSize),
+              ),
+            ]),
+          ),
         ),
       );
     });
