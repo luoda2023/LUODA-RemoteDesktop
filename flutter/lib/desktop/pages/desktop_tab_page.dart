@@ -51,6 +51,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
         closable: false,
         page: DesktopHomePage(
           key: const ValueKey(kTabLabelHomePage),
+          isClientOnly: bind.isCustomClient(),
         )));
     if (bind.isIncomingOnly()) {
       tabController.onSelected = (key) {

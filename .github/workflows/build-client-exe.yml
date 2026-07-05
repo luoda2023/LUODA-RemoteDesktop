@@ -1,0 +1,173 @@
+name: Build LUODA Client EXE
+on:
+  workflow_dispatch:
+  push:
+    branches: [v2.0.1]
+    paths:
+      - 'build.rs'
+      - 'src/**'
+      - 'libs/**'
+      - 'flutter/**'
+      - 'res/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'vcpkg.json'
+      - '.github/workflows/build-client-exe.yml'
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  deployments: write
+  packages: read
+jobs:
+  build-client-exe:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64]
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-client-${{ matrix.arch }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-client-${{ matrix.arch }}-${{ runner.os }}-
+      - name: Setup Flutter
+        if: matrix.arch == 'x64'
+        timeout-minutes: 10
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: '1.88'
+          targets: ${{ matrix.arch == 'x86' && 'i686-pc-windows-msvc' || '' }}
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+      - name: Ensure correct cargo version
+        run: |
+          rustup default 1.88
+          cargo --version
+      - name: Configure Git for private forks
+        shell: bash
+        run: git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+      - name: Generate FFI bridge
+        if: matrix.arch == 'x64'
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          echo "=== Installing cargo-expand ==="
+          cargo install cargo-expand --version 1.0.95 --locked 2>&1 | tail -5
+          echo "=== Installing flutter_rust_bridge_codegen ==="
+          cargo install flutter_rust_bridge_codegen --version 1.80.1 --features uuid --locked 2>&1 | tail -5
+          echo "=== Running flutter pub get ==="
+          cd flutter && flutter pub get && cd ..
+          echo "=== Running flutter_rust_bridge_codegen ==="
+          flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart 2>&1
+          echo "=== Verifying generated file ==="
+          ls -la flutter/lib/generated_bridge.dart || echo "ERROR: generated_bridge.dart not created!"
+          head -5 flutter/lib/generated_bridge.dart || echo "ERROR: Cannot read file!"
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: "120deac3062162151622ca4860575a33844ba10b"
+          vcpkgTriplet: ${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}
+      - name: Cache vcpkg installed packages
+        uses: actions/cache@v4
+        with:
+          path: C:\vcpkg\installed
+          key: vcpkg-client-${{ matrix.arch }}-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-client-${{ matrix.arch }}-${{ runner.os }}-
+      - name: Install vcpkg deps
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          triplet="${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}"
+          vcpkg install --triplet "$triplet" --x-install-root="$VCPKG_ROOT/installed"
+      - name: Build Rust (Client Only mode)
+        timeout-minutes: 50
+        shell: bash
+        run: |
+          cargo build --release --features flutter
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          VCPKG_DEFAULT_TRIPLET: ${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}
+          CXXFLAGS: -include cstdint
+          SODIUM_LIB_DIR: C:\vcpkg\installed\${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}\lib
+      - name: Build Flutter Windows
+        if: matrix.arch == 'x64'
+        timeout-minutes: 15
+        run: |
+          cd flutter
+          flutter clean
+          flutter build windows --release
+      - name: Sign executable with LUODA icon
+        shell: bash
+        run: |
+          choco install rcedit -y
+          rcedit "flutter/build/windows/x64/runner/Release/luoda.exe" --set-icon "res/icon.ico"
+      - name: Build portable packer
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          mkdir -p Release
+          cp -r flutter/build/windows/x64/runner/Release/* Release/
+          if [ ! -f "Release/sciter.dll" ]; then
+            echo "=== Downloading sciter.dll ==="
+            SCITER_URL="https://github.com/c-smile/sciter-sdk/raw/master/bin/windows/x64/sciter.dll"
+            for i in 1 2 3; do
+              if curl -sL -o Release/sciter.dll "$SCITER_URL"; then
+                echo "sciter.dll downloaded successfully"
+                break
+              fi
+              echo "Attempt $i failed, retrying..."
+              sleep 3
+            done
+          fi
+          ls -la Release/sciter.dll 2>/dev/null || echo "WARN: sciter.dll not found!"
+          echo "=== Release directory ==="
+          ls -la Release/
+          pip3 install brotli
+          cd libs/portable
+          python3 generate.py -f ../../Release/ -o . -e ../../Release/luoda.exe
+          cd ../..
+          cd libs/portable
+          cargo build --release
+          cd ../..
+          mkdir -p SignOutput
+          cp target/release/luoda-portable-packer.exe SignOutput/LUODA-Client-x64.exe
+          echo "=== Final Client EXE ==="
+          ls -la SignOutput/LUODA-Client-x64.exe
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUODA-Client-${{ matrix.arch }}
+          path: SignOutput/
+      - name: Upload runtime logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-logs-${{ matrix.arch }}
+          path: .auto_build_logs/
+      - name: Upload to Release (nightly client)
+        if: matrix.arch == 'x64'
+        uses: softprops/action-gh-release@v1
+        with:
+          prerelease: true
+          tag_name: nightly
+          files: SignOutput/LUODA-Client-x64.exe

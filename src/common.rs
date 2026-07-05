@@ -1989,7 +1989,13 @@ pub fn get_builtin_option(key: &str) -> String {
 
 #[inline]
 pub fn is_custom_client() -> bool {
-    get_app_name() != "LUODA"
+    get_app_name() != "LUODA" || std::env::var("LUODA_CLIENT_ONLY").map(|v| v == "1").unwrap_or(false)
+}
+
+/// 判断是否为客户端专用版（被控端专用，不含控制端UI）
+#[inline]
+pub fn is_client_only() -> bool {
+    is_custom_client()
 }
 
 pub fn verify_login(_raw: &str, _id: &str) -> bool {
