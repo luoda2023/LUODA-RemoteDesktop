@@ -14,7 +14,7 @@ use hbb_common::{
     anyhow::{self, bail},
     config::{
         self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT,
-        REG_INTERVAL, RENDEZVOUS_PORT,
+        DEFAULT_DIRECT_PORT, REG_INTERVAL, RENDEZVOUS_PORT,
     },
     message_proto,
     rand::Rng,
@@ -759,23 +759,30 @@ static DIRECT_PORT: std::sync::OnceLock<std::sync::Mutex<i32>> = std::sync::Once
 
 fn get_direct_port() -> i32 {
     let mtx = DIRECT_PORT.get_or_init(|| {
-        // Generate a random port per session [20000, 40000) so each PC uses a different port
-        std::sync::Mutex::new(rand::thread_rng().gen_range(20000..40000))
+        // Default: use the standard direct port 21118 (DEFAULT_DIRECT_PORT).
+        // If unavailable, fall back to a random port so the IP:port UI stays usable.
+        std::sync::Mutex::new(DEFAULT_DIRECT_PORT)
     });
     *mtx.lock().unwrap()
 }
 
 /// Mark the current direct port as failed (e.g. port already in use),
-/// forcing a new random port to be generated.
+/// falling back to a random port 20000-40000.
 fn invalidate_direct_port() {
     if let Some(mtx) = DIRECT_PORT.get() {
         let mut port = mtx.lock().unwrap();
-        // Always switch to a new random port when invalidated
-        *port = rand::thread_rng().gen_range(20000..40000);
-        log::info!(
-            "Direct port invalidated, fell back to random port {}",
-            *port
-        );
+        // Switch to a random fallback port only if we were on the default
+        if *port == DEFAULT_DIRECT_PORT {
+            *port = rand::thread_rng().gen_range(20000..40000);
+            log::info!(
+                "DEFAULT_DIRECT_PORT {} was taken, fell back to random port {}",
+                DEFAULT_DIRECT_PORT,
+                *port
+            );
+        } else {
+            // Already on a fallback port — keep it
+            log::info!("Direct port {} remains in use", *port);
+        }
     }
 }
 
