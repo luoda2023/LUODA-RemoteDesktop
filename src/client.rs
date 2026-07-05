@@ -216,7 +216,13 @@ impl Client {
         interface.update_received(false);
 
         // ── Two-phase IP→ID direct connection ──
-        if hbb_common::is_ip_str(peer) {
+        // Only for bare IP (no port suffix). If user typed IP:port, skip straight to _start()
+        // which handles IP:port format for direct TCP connection.
+        let has_port = peer.rfind(':').map_or(false, |pos| {
+            let rest = &peer[pos+1..];
+            !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit())
+        });
+        if hbb_common::is_ip_str(peer) && !has_port {
             match Self::resolve_id_from_ip(peer).await {
                 Ok(id) => {
                     log::info!("Resolved device ID {} from IP {}", id, peer);
