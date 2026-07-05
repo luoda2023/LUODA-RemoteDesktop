@@ -13,7 +13,7 @@ use hbb_common::{
     allow_err,
     anyhow::{self, bail},
     config::{
-        self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT, DEFAULT_DIRECT_PORT,
+        self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT,
         REG_INTERVAL, RENDEZVOUS_PORT,
     },
     message_proto,
@@ -758,7 +758,10 @@ impl RendezvousMediator {
 static DIRECT_PORT: std::sync::OnceLock<std::sync::Mutex<i32>> = std::sync::OnceLock::new();
 
 fn get_direct_port() -> i32 {
-    let mtx = DIRECT_PORT.get_or_init(|| std::sync::Mutex::new(DEFAULT_DIRECT_PORT));
+    let mtx = DIRECT_PORT.get_or_init(|| {
+        // Generate a random port per session [20000, 40000) so each PC uses a different port
+        std::sync::Mutex::new(rand::thread_rng().gen_range(20000..40000))
+    });
     *mtx.lock().unwrap()
 }
 
@@ -767,14 +770,12 @@ fn get_direct_port() -> i32 {
 fn invalidate_direct_port() {
     if let Some(mtx) = DIRECT_PORT.get() {
         let mut port = mtx.lock().unwrap();
-        if *port == DEFAULT_DIRECT_PORT {
-            *port = rand::thread_rng().gen_range(20000..40000);
-            log::info!(
-                "Direct port {} in use, fell back to random port {}",
-                DEFAULT_DIRECT_PORT,
-                *port
-            );
-        }
+        // Always switch to a new random port when invalidated
+        *port = rand::thread_rng().gen_range(20000..40000);
+        log::info!(
+            "Direct port invalidated, fell back to random port {}",
+            *port
+        );
     }
 }
 

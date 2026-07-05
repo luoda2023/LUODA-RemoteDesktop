@@ -89,9 +89,51 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           alignment: Alignment.center,
           child: loadPowered(context),
         ),
+      // 圆形头像 + LUODA 远程协助
       Align(
         alignment: Alignment.center,
-        child: loadLogo(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 20, bottom: 8),
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                border: Border.all(color: MyTheme.accent, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/avatar.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, error, stackTrace) => Icon(
+                    Icons.computer,
+                    size: 40,
+                    color: MyTheme.accent,
+                  ),
+                ),
+              ),
+            ),
+            Text(
+              "LUODA 远程协助",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.titleLarge?.color,
+              ),
+            ),
+            SizedBox(height: 10),
+          ],
+        ),
       ),
       buildTip(context),
       if (!isOutgoingOnly) buildIDBoard(context),
@@ -135,7 +177,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     return ChangeNotifierProvider.value(
       value: gFFI.serverModel,
       child: Container(
-        width: isIncomingOnly ? 280.0 : 200.0,
+        width: isIncomingOnly ? 300.0 : 220.0,
         color: Theme.of(context).colorScheme.background,
         child: Stack(
           children: [

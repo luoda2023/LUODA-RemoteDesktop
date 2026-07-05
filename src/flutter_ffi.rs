@@ -212,15 +212,7 @@ pub fn session_start(
     session_id: SessionID,
     id: String,
 ) -> ResultType<()> {
-    session_start_(&session_id, &id, events2ui)?;
-
-    // Auto-capture main display (display 0) and refresh video immediately
-    // to prevent black screen on new connections.
-    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
-        session.capture_displays(vec![0], vec![], vec![]);
-        session.refresh_video(0);
-    }
-    Ok(())
+    session_start_(&session_id, &id, events2ui)
 }
 
 pub fn session_start_with_displays(
