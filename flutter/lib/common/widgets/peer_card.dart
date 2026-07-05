@@ -285,13 +285,11 @@ class _PeerCardState extends State<_PeerCard>
     final name = hideUsernameOnCard == true
         ? peer.hostname
         : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
+    final platformColor = str2color('${peer.id}${peer.platform}', 0x7f);
     final child = Card(
       color: Colors.transparent,
       elevation: 0,
       margin: EdgeInsets.zero,
-      // to-do: memory leak here, more investigation needed.
-      // Continious rebuilds of `Obx()` will cause memory leak here.
-      // The simple demo does not have this issue.
       child: Obx(
         () => Container(
           foregroundDecoration: deco.value,
@@ -303,79 +301,93 @@ class _PeerCardState extends State<_PeerCard>
               children: [
                 Expanded(
                   child: Container(
-                    color: str2color('${peer.id}${peer.platform}', 0x7f),
-                    child: Row(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          platformColor,
+                          platformColor.withOpacity(0.7),
+                        ],
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                child:
-                                    getPlatformImage(peer.platform, size: 60),
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Tooltip(
-                                      message: name,
-                                      waitDuration: const Duration(seconds: 1),
-                                      child: Text(
-                                        name,
-                                        style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12),
-                                        textAlign: TextAlign.center,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (_showNote(peer))
-                                Row(
-                                  children: [
-                                    Expanded(
-                                        child: Tooltip(
-                                      message: peer.note,
-                                      waitDuration: const Duration(seconds: 1),
-                                      child: Text(
-                                        peer.note,
-                                        style: const TextStyle(
-                                            color: Colors.white38,
-                                            fontSize: 10),
-                                        textAlign: TextAlign.center,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ))
-                                  ],
-                                ),
-                            ],
-                          ).paddingOnly(top: 4.0, left: 4.0, right: 4.0),
+                        // 平台图标 - 居中显示
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          child: getPlatformImage(peer.platform, size: 50),
                         ),
+                        const SizedBox(height: 4),
+                        // 用户名 - 居中显示
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Tooltip(
+                            message: name,
+                            waitDuration: const Duration(seconds: 1),
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                            ),
+                          ),
+                        ),
+                        if (_showNote(peer))
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            child: Tooltip(
+                              message: peer.note,
+                              waitDuration: const Duration(seconds: 1),
+                              child: Text(
+                                peer.note,
+                                style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 9,
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
                 ),
+                // 底部信息栏 - 在线状态 + ID + 更多按钮
                 Container(
                   color: Theme.of(context).colorScheme.background,
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                          child: Row(children: [
-                        getOnline(8, peer.online),
-                        Expanded(
+                      // 在线状态 + ID
+                      Row(
+                        children: [
+                          getOnline(8, peer.online),
+                          const SizedBox(width: 6),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: 80),
                             child: Text(
-                          peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        )),
-                      ]).paddingSymmetric(vertical: 8)),
+                              peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // 更多操作按钮
                       checkBoxOrActionMoreLandscape(peer, isTile: false),
                     ],
-                  ).paddingSymmetric(horizontal: 12.0),
+                  ),
                 )
               ],
             ),
@@ -396,13 +408,20 @@ class _PeerCardState extends State<_PeerCard>
         if (_shouldBuildPasswordIcon(peer))
           Positioned(
             top: 4,
-            left: 12,
-            child: Icon(Icons.key, size: 12, color: Colors.white),
+            left: 8,
+            child: Container(
+              padding: EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.black45,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Icon(Icons.key, size: 10, color: Colors.white),
+            ),
           ),
         if (colors.isNotEmpty)
           Positioned(
             top: 4,
-            right: 12,
+            right: 8,
             child: CustomPaint(
               painter: TagPainter(radius: 4, colors: colors),
             ),

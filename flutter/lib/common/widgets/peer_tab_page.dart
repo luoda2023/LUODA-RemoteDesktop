@@ -153,13 +153,16 @@ class _PeerTabPageState extends State<PeerTabPage>
               : MyTheme.tabbar(context).unSelectedTextColor
             ?..withOpacity(0.5);
           final hover = false.obs;
-          final deco = BoxDecoration(
-              color: Theme.of(context).colorScheme.background,
-              borderRadius: BorderRadius.circular(6));
-          final decoBorder = BoxDecoration(
-              border: Border(
-            bottom: BorderSide(width: 2, color: color!),
-          ));
+          // Flat design: no background, only bottom indicator
+          final tabColors = [
+            Color(0xFF4A90D9), // recent - blue
+            Color(0xFFE74C3C), // fav - red
+            Color(0xFF2ECC71), // lan - green
+            Color(0xFFF39C12), // address book - orange
+            Color(0xFF9B59B6), // group - purple
+            Color(0xFF1ABC9C), // vip - teal
+          ];
+          final tabColor = tabColors[t % tabColors.length];
           counter += 1;
           return ReorderableDragStartListener(
               key: ValueKey(t),
@@ -169,13 +172,22 @@ class _PeerTabPageState extends State<PeerTabPage>
                     message: model.tabTooltip(t),
                     onTriggered: isMobile ? mobileShowTabVisibilityMenu : null,
                     child: InkWell(
-                      child: Container(
-                        decoration: (hover.value
-                            ? (selected ? decoBorder : deco)
-                            : (selected ? decoBorder : null)),
-                        child: Icon(model.tabIcon(t), color: color)
-                            .paddingSymmetric(horizontal: 4),
-                      ).paddingSymmetric(horizontal: 4),
+                      child: AnimatedContainer(
+                        duration: Duration(milliseconds: 200),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              width: selected ? 3 : 0,
+                              color: selected ? tabColor : Colors.transparent,
+                            ),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          child: Icon(model.tabIcon(t),
+                              color: selected ? tabColor : color, size: 20),
+                        ),
+                      ),
                       onTap: isOptionFixed(kOptionPeerTabIndex)
                           ? null
                           : () async {
