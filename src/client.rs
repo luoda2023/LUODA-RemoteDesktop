@@ -277,7 +277,7 @@ impl Client {
                 let host = format!("{}:{}", ip_part, port_part);
                 return Ok((
                     (
-                        connect_tcp_local(&host, None, CONNECT_TIMEOUT).await?,
+                        connect_tcp_local(&*host, None, CONNECT_TIMEOUT).await?,
                         true,
                         None,
                         None,
@@ -289,9 +289,10 @@ impl Client {
             }
         }
         if hbb_common::is_ip_str(peer) {
+            let host = check_port(peer, DEFAULT_DIRECT_PORT);
             return Ok((
                 (
-                    connect_tcp_local(check_port(peer, DEFAULT_DIRECT_PORT), None, CONNECT_TIMEOUT)
+                    connect_tcp_local(host.as_str(), None, CONNECT_TIMEOUT)
                         .await?,
                     true,
                     None,
