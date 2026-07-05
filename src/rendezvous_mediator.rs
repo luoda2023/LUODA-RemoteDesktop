@@ -16,7 +16,6 @@ use hbb_common::{
         self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT,
         DEFAULT_DIRECT_PORT, REG_INTERVAL, RENDEZVOUS_PORT,
     },
-    message_proto,
     rand::Rng,
     futures::future::join_all,
     log,
@@ -31,7 +30,7 @@ use hbb_common::{
 
 use crate::{
     check_port,
-    server::{check_zombie, handle_direct_id_query, new as new_server, ServerPtr},
+    server::{check_zombie, new as new_server, ServerPtr},
 };
 
 type Message = RendezvousMessage;
@@ -834,38 +833,19 @@ async fn direct_server(server: ServerPtr) {
                 let local_addr = tcp_stream
                     .local_addr()
                     .unwrap_or(Config::get_any_listen_addr(true));
-                let mut stream = hbb_common::Stream::from(tcp_stream, local_addr);
-
-                // Phase-1 light-weight ID query detection:
-                //   client sends DirectIdQuery → server replies DirectIdResponse → close.
-                // Old protocol (timeout, secure=false):
-                //   server sends Hash first (in on_open), so client won't send first.
-                //   We detect this via timeout: if no message after 500ms, proceed normally.
-                match stream.next_timeout(500).await {
-                    Some(Ok(bytes)) => {
-                        if let Ok(msg) = message_proto::Message::parse_from_bytes(&bytes) {
-                            if matches!(msg.union, Some(message_proto::message::Union::DirectIdQuery(_))) {
-                                log::info!("direct_id_query from {}, replying with device ID", addr);
-                                handle_direct_id_query(stream, addr, local_addr).await;
-                                continue;
-                            }
-                        }
-                        log::warn!("Unknown first message from {}, dropping", addr);
-                    }
-                    // Timeout (None) or error: client is waiting for server's Hash (old protocol).
-                    // Stream data is intact, proceed with normal connection.
-                    _ => {
-                        let server = server.clone();
-                        tokio::spawn(async move {
-                            allow_err!(
-                                crate::server::create_tcp_connection(
-                                    server, stream, addr, false, None,
-                                )
-                                .await
-                            );
-                        });
-                    }
-                }
+                let server = server.clone();
+                tokio::spawn(async move {
+                    allow_err!(
+                        crate::server::create_tcp_connection(
+                            server,
+                            hbb_common::Stream::from(tcp_stream, local_addr),
+                            addr,
+                            false,
+                            None,
+                        )
+                        .await
+                    );
+                });
             } else {
                 sleep(0.1).await;
             }

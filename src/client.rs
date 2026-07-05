@@ -215,58 +215,11 @@ impl Client {
         interface.update_direct(None);
         interface.update_received(false);
 
-        // ── Two-phase IP→ID direct connection ──
-        // Only for bare IP (no port suffix). If user typed IP:port, skip straight to _start()
-        // which handles IP:port format for direct TCP connection.
-        // Detect port suffix reliably:
-        //   IPv4:port   → 192.168.31.39:25488  (ip_part is IPv4 via is_ipv4_str)
-        //   IPv6:port   → [::1]:21118          (ip_part ends with ']')
-        //   bare IPv4   → 192.168.31.39        (no colon)
-        //   bare IPv6   → ::1                  (last colon NOT followed by all-digits port)
-        let has_port = peer.rfind(':').map_or(false, |pos| {
-            let ip_part = &peer[..pos];
-            let port_part = &peer[pos+1..];
-            !port_part.is_empty()
-                && port_part.chars().all(|c| c.is_ascii_digit())
-                && (hbb_common::is_ipv4_str(ip_part) || ip_part.ends_with(']'))
-        });
-        if hbb_common::is_ip_str(peer) && !has_port {
-            match Self::resolve_id_from_ip(peer).await {
-                Ok(id) => {
-                    log::info!("Resolved device ID {} from IP {}", id, peer);
-                    // Update interface so the resolved ID becomes the peer identity
-                    interface.get_lch().write().unwrap().id = id.clone();
-                    // Phase-2: reconnect via standard ID path (encrypted, relay fallback).
-                    // Use _start() directly (non-recursive) since we have the ID now;
-                    // _start() sees a numeric string → goes to rendezvous → P2P/Relay.
-                    let id = id.clone();
-                    match Self::_start(&id, key, token, conn_type, interface.clone()).await {
-                        Ok(x) => {
-                            if x.2 {
-                                let direct_failures = interface.get_lch().read().unwrap().direct_failures;
-                                let direct = x.0 .1;
-                                if !interface.is_force_relay() && (direct_failures == 0) != direct {
-                                    let n = if direct { 0 } else { 1 };
-                                    log::info!("direct_failures updated to {}", n);
-                                    interface.get_lch().write().unwrap().set_direct_failure(n);
-                                }
-                            }
-                            return Ok((x.0, x.1));
-                        }
-                        Err(e) => {
-                            log::warn!("Phase-2 via ID for {} failed: {}, falling back to direct connect", id, e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::warn!("ID resolution from IP {} failed: {}, using direct fallback", peer, e);
-                }
-            }
-            // Fallback: old-style direct TCP connection (backward compatibility,
-            // works with older servers and as last resort when relay is unavailable).
-            return Self::_start(peer, key, token, conn_type, interface).await
-                .map(|(conn, fb, _needs_update)| (conn, fb));
-        }
+        // ── IP/ID:port direct connection ──
+        // IP:port (e.g. 192.168.31.39:25488) and bare IP (e.g. 192.168.31.39)
+        // are handled directly by _start() which supports both TCP connect paths.
+        // No two-phase (IP→ID→rendezvous) scheme: it adds latency and fails in
+        // pure-LAN scenarios without internet access.
 
         match Self::_start(peer, key, token, conn_type, interface.clone()).await {
             Err(err) => {
@@ -291,32 +244,6 @@ impl Client {
                 Ok((x.0, x.1))
             }
         }
-    }
-
-    /// Query a remote device's ID via a light-weight `DirectIdQuery` on `IP:DEFAULT_DIRECT_PORT`.
-    /// Returns the resolved ID on success, or an error if the server is unreachable/old-version.
-    async fn resolve_id_from_ip(peer: &str) -> ResultType<String> {
-        let host = check_port(peer, DEFAULT_DIRECT_PORT);
-        let mut stream = connect_tcp_local(host, None, CONNECT_TIMEOUT).await?;
-        let mut query = Message::new();
-        query.set_direct_id_query(DirectIdQuery::new());
-        stream.send(&query).await?;
-        stream.next_timeout(500).await
-            .ok_or_else(|| anyhow!("No response from direct server"))?
-            .map_err(|e| anyhow!("Read error: {}", e))
-            .and_then(|bytes| {
-                Message::parse_from_bytes(&bytes)
-                    .map_err(|e| anyhow!("Parse error: {}", e))
-                    .and_then(|msg| {
-                        match msg.union {
-                            Some(message::Union::DirectIdResponse(resp)) => {
-                                log::info!("resolved ID={} hostname={} version={}", resp.id, resp.hostname, resp.version);
-                                Ok(resp.id)
-                            }
-                            _ => Err(anyhow!("Unexpected response type")),
-                        }
-                    })
-            })
     }
 
     /// Start a new connection.
