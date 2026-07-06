@@ -1199,9 +1199,8 @@ impl FlutterHandler {
         if let Some(rgba_data) = rgba_write_lock.get_mut(&display) {
             if rgba_data.valid {
                 return;
-            } else {
-                rgba_data.valid = true;
             }
+            rgba_data.valid = true;
             // Return the rgba buffer to the video handler for reusing allocated rgba buffer.
             std::mem::swap::<Vec<u8>>(&mut rgba.raw, &mut rgba_data.data);
         } else {
@@ -1230,13 +1229,6 @@ impl FlutterHandler {
                 is_sent = true;
             }
         }
-        // We need `is_sent` here. Because we use texture render for multi-displays session.
-        //
-        // Eg. We have two windows, one is display 1, the other is displays 0&1.
-        // When image of display 0 is received, we will not send the event.
-        //
-        // 1. "display 1" will not send the event.
-        // 2. "displays 0&1" will not send the event. Because it uses texutre render for now.
         if !is_sent {
             if let Some(rgba_data) = self.display_rgbas.write().unwrap().get_mut(&display) {
                 rgba_data.valid = false;

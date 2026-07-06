@@ -1135,8 +1135,10 @@ pub fn main_check_connect_status() {
             if socket.connect("8.8.8.8:80").is_ok() {
                 if let Ok(addr) = socket.local_addr() {
                     let ip = addr.ip().to_string();
-                    log::info!("LAN IP detected: {}", ip);
-                    crate::ui_interface::set_option("lan-ip".to_owned(), ip);
+                    if !ip.is_empty() && ip != "127.0.0.1" {
+                        log::info!("LAN IP detected: {}", ip);
+                        crate::ui_interface::set_option("lan-ip".to_owned(), ip);
+                    }
                 }
             }
         }
