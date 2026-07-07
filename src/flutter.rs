@@ -1231,7 +1231,7 @@ impl FlutterHandler {
         }
         if !is_sent {
             if let Some(rgba_data) = self.display_rgbas.write().unwrap().get_mut(&display) {
-                rgba_data.valid = true;
+                rgba_data.valid = false;
             }
         }
     }
