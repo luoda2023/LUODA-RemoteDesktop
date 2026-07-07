@@ -1231,7 +1231,7 @@ impl FlutterHandler {
         }
         if !is_sent {
             if let Some(rgba_data) = self.display_rgbas.write().unwrap().get_mut(&display) {
-                rgba_data.valid = false;
+                rgba_data.valid = true;
             }
         }
     }
@@ -1698,7 +1698,7 @@ pub fn session_get_rgba_size(session_id: SessionID, display: usize) -> usize {
             .read()
             .unwrap()
             .get(&display)
-            .map_or(0, |rgba| rgba.data.len());
+            .map_or(0, |rgba| if rgba.valid { rgba.data.len() } else { 0 });
     }
     0
 }
