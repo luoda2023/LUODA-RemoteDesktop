@@ -65,10 +65,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   final TextEditingController _clientIdController = TextEditingController();
   final FocusNode _clientIdFocusNode = FocusNode();
 
-  void _onClientConnect(String id) {
+  void _onClientConnect(String id, BuildContext buildCtx) {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
-    DesktopTabPage.connect(trimmed);
+    connect(buildCtx, trimmed);
   }
 
   @override
@@ -400,7 +400,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         ),
         onFieldSubmitted: (value) {
-          _onClientConnect(value);
+          _onClientConnect(value, context);
         },
       ),
     );
