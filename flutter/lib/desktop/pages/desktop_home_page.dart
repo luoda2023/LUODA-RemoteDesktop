@@ -139,7 +139,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   ],
                 ),
               ),
-              const Divider(height: 1),
               Expanded(
                 child: SingleChildScrollView(
                   controller: _leftPaneScrollController,
