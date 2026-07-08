@@ -103,7 +103,7 @@ jobs:
         timeout-minutes: 50
         shell: bash
         run: |
-          cargo build --release --features flutter
+          LUODA_CLIENT_ONLY=1 cargo build --release --features flutter
         env:
           VCPKG_ROOT: C:\vcpkg
           VCPKG_DEFAULT_TRIPLET: ${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}

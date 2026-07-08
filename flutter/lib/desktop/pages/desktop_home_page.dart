@@ -61,6 +61,16 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 
   final GlobalKey _childKey = GlobalKey();
 
+  // ---- 客户端专用版：ID输入框 ----
+  final TextEditingController _clientIdController = TextEditingController();
+  final FocusNode _clientIdFocusNode = FocusNode();
+
+  void _onClientConnect(String id) {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    DesktopTabPage.connect(trimmed);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -93,76 +103,60 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildLeftPane(BuildContext context) {
-    // 客户端专用版：极简布局，只显示头像+名称+ID+密码+IP
+    // 客户端专用版：极简布局，只显示LUODA远程协助标题+远程ID输入+本机ID+右上角关闭
     if (widget.isClientOnly) {
       return ChangeNotifierProvider.value(
         value: gFFI.serverModel,
         child: Container(
-          width: 260.0,
+          width: 220.0,
           color: Theme.of(context).colorScheme.background,
           child: Column(
             children: [
+              // 标题栏 + 关闭按钮
+              Container(
+                height: 40,
+                padding: const EdgeInsets.only(left: 12, right: 4),
+                child: Row(
+                  children: [
+                    Text(
+                      "LUODA 远程协助",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).textTheme.titleLarge?.color,
+                      ),
+                    ),
+                    const Spacer(),
+                    InkWell(
+                      onTap: () => windowManager.close(),
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        child: Icon(Icons.close, size: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
               Expanded(
                 child: SingleChildScrollView(
                   controller: _leftPaneScrollController,
                   child: Column(
                     key: _childKey,
                     children: [
-                      // 圆形头像
-                      Align(
-                        alignment: Alignment.center,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.only(top: 30, bottom: 8),
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                                border: Border.all(color: MyTheme.accent, width: 2),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: ClipOval(
-                                child: Image.asset(
-                                  'assets/avatar.png',
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (ctx, error, stackTrace) => Icon(
-                                    Icons.computer,
-                                    size: 40,
-                                    color: MyTheme.accent,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Text(
-                              "LUODA 远程协助",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).textTheme.titleLarge?.color,
-                              ),
-                            ),
-                            SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                      // ID
+                      // 远程ID输入
+                      _buildClientIDField(),
+                      SizedBox(height: 12),
+                      // 本机ID（只读显示）
                       buildIDBoard(context),
-                      SizedBox(height: 6),
+                      SizedBox(height: 4),
                       // 密码
                       buildPasswordBoard(context),
-                      SizedBox(height: 6),
-                      // IP直连
+                      SizedBox(height: 4),
+                      // IP:端口
                       buildDirectAccessBoard(context),
-                      SizedBox(height: 8),
                     ],
                   ),
                 ),
@@ -375,6 +369,40 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: ConnectionPage(),
+    );
+  }
+
+  /// 客户端专用版：远程ID输入框，回车直接连接
+  Widget _buildClientIDField() {
+    return Container(
+      margin: const EdgeInsets.only(left: 14, right: 14, top: 16),
+      child: TextFormField(
+        controller: _clientIdController,
+        focusNode: _clientIdFocusNode,
+        autocorrect: false,
+        enableSuggestions: false,
+        keyboardType: TextInputType.visiblePassword,
+        style: const TextStyle(fontSize: 13),
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: Theme.of(context)
+              .colorScheme
+              .background
+              .withOpacity(0.5),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: BorderSide(
+              color: Theme.of(context).dividerColor,
+            ),
+          ),
+          hintText: translate('Enter Remote ID'),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
+        onFieldSubmitted: (value) {
+          _onClientConnect(value);
+        },
+      ),
     );
   }
 
