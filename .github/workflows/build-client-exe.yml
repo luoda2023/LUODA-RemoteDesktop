@@ -115,7 +115,7 @@ jobs:
         run: |
           cd flutter
           flutter clean
-          flutter build windows --release
+          flutter build windows --release --dart-define=CLIENT_ONLY=true
       - name: Sign executable with LUODA icon
         shell: bash
         run: |

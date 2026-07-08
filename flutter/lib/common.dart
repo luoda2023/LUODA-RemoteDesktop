@@ -3809,7 +3809,7 @@ bool isUnlockPinDisabled() =>
 
 bool? _isCustomClient;
 bool get isCustomClient {
-  _isCustomClient ??= bind.isCustomClient();
+  _isCustomClient ??= const bool.fromEnvironment('CLIENT_ONLY', defaultValue: false) || bind.isCustomClient();
   return _isCustomClient!;
 }
 
