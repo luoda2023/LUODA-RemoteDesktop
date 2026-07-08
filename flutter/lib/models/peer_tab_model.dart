@@ -85,6 +85,26 @@ class PeerTabModel with ChangeNotifier {
           }
         }
       }
+      // 回退保护：旧版本可能把所有 tab 都隐藏掉，导致右侧只剩空灰色方框。
+      // 检测到没有"启用且可见"的 tab 时，重置为全可见，并把回写本地配置。
+      bool anyVisibleEnabled = false;
+      for (int i = 0; i < maxTabCount; i++) {
+        if (_isVisible[i] && isEnabled[i]) {
+          anyVisibleEnabled = true;
+          break;
+        }
+      }
+      if (!anyVisibleEnabled) {
+        debugPrint(
+            "PeerTabModel: persisted kOptionPeerTabVisible left no visible+enabled tab, reset to all-visible.");
+        for (int i = 0; i < maxTabCount; i++) {
+          _isVisible[i] = true;
+        }
+        try {
+          bind.setLocalFlutterOption(
+              k: kOptionPeerTabVisible, v: jsonEncode(_isVisible));
+        } catch (_) {}
+      }
     } catch (e) {
       debugPrint("failed to get peer tab visible list:$e");
     }
@@ -223,6 +243,24 @@ class PeerTabModel with ChangeNotifier {
   setTabVisible(int index, bool visible) {
     if (index >= 0 && index < maxTabCount) {
       if (_isVisible[index] != visible) {
+        // 护栏：禁止把最后一个"启用且可见"的 tab 也隐藏掉，
+        // 否则 visibleEnabledOrderedIndexs 为空会导致右侧只显示空灰色方框。
+        if (!visible) {
+          final wouldBeVisible = List<bool>.from(_isVisible);
+          wouldBeVisible[index] = false;
+          bool anyVisibleEnabled = false;
+          for (int i = 0; i < maxTabCount; i++) {
+            if (wouldBeVisible[i] && isEnabled[i]) {
+              anyVisibleEnabled = true;
+              break;
+            }
+          }
+          if (!anyVisibleEnabled) {
+            debugPrint(
+                "Reject hide tab $index: would leave no visible enabled tab.");
+            return;
+          }
+        }
         _isVisible[index] = visible;
         if (index == _currentTab && !visible) {
           _trySetCurrentTabToFirstVisibleEnabled();

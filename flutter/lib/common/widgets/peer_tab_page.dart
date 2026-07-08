@@ -202,8 +202,27 @@ class _PeerTabPageState extends State<PeerTabPage>
     final model = Provider.of<PeerTabModel>(context);
     Widget child;
     if (model.visibleEnabledOrderedIndexs.isEmpty) {
-      child = visibleContextMenuListener(Row(
-        children: [Expanded(child: InkWell())],
+      // 兜底 UI：正常情况下不应进入此分支（有护栏和启动回退），
+      // 但万一发生，显示恢复按钮而不是空灰色方框。
+      child = visibleContextMenuListener(Expanded(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(height: 32),
+            Text('No visible tabs',
+                style: TextStyle(
+                    color: Theme.of(context).disabledColor, fontSize: 14)),
+            SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                for (int i = 0; i < PeerTabModel.maxTabCount; i++) {
+                  model.setTabVisible(i, true);
+                }
+              },
+              child: Text('Reset all tabs to visible'),
+            ),
+          ],
+        ),
       ));
     } else {
       if (model.visibleEnabledOrderedIndexs.contains(model.currentTab)) {

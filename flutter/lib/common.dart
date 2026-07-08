@@ -2007,6 +2007,15 @@ Future<bool> restoreWindowPosition(WindowType type,
       case WindowType.Main:
         // Center the main window only if no position is saved (on first run).
         if (isWindows || isLinux) {
+          // 普通版主窗口默认尺寸 900×600（按实际内容大小）；
+          // 客户端定制版 / incoming-only 版本由各自分支单独 setSize。
+          if (!bind.isIncomingOnly() && !bind.isCustomClient()) {
+            try {
+              await windowManager.setSize(const Size(900, 600));
+            } catch (e) {
+              debugPrint("Failed to set default main window size: $e");
+            }
+          }
           await windowManager.center();
         }
         // For MacOS, the window is already centered by default.

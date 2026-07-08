@@ -42,8 +42,14 @@ fn make_tray() -> hbb_common::ResultType<()> {
     }
 
     let (icon_rgba, icon_width, icon_height) = {
-        let image = load_icon_from_asset()
-            .unwrap_or(image::load_from_memory(icon).context("Failed to open icon path")?)
+        // Windows 下：不要加载 600×600 的 flutter_assets/assets/icon.png 作为托盘图标，
+        // 否则 tray_icon 缩放渲染会模糊（大图缩到 16×16 丢失细节）。
+        // 直接使用多尺寸 tray-icon.ico（含 16/24/32/48/64/128/256）。
+        #[cfg(windows)]
+        let image = None;
+        #[cfg(not(windows))]
+        let image = load_icon_from_asset();
+        let image = image.unwrap_or(image::load_from_memory(icon).context("Failed to open icon path")?)
             .into_rgba8();
         let (width, height) = image.dimensions();
         let rgba = image.into_raw();
@@ -158,7 +164,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
                 .with_menu_on_right_click(true)
                 .with_tooltip(tooltip(0))
                 .with_icon(icon.clone())
-                .with_icon_as_template(true) // mac only
+                // icon_as_template 仅在 macOS 生效；Windows 上设 true 会被系统当模板反色，叠加缩放导致更糊
+                .with_icon_as_template(cfg!(target_os = "macos"))
                 .build();
             match tray {
                 Ok(tray) => _tray_icon = Arc::new(Mutex::new(Some(tray))),
