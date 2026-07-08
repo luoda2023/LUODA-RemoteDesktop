@@ -102,120 +102,83 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         block: _block, mask: true, use: canBeBlocked, child: child);
   }
 
-  Widget buildLeftPane(BuildContext context) {
-    // 客户端专用版：圆形头像+标题+远程ID输入+本机ID+密码+IP端口+右上角关闭
-    // 不含右侧栏、不含底部设置/网络按钮、不含TAB底部灰色长条
-    if (widget.isClientOnly) {
-      return ChangeNotifierProvider.value(
-        value: gFFI.serverModel,
-        child: SizedBox(
-          width: 240.0,
-          child: Column(
-            children: [
-              // 标题栏 + 关闭按钮
-              Container(
-                height: 40,
-                padding: const EdgeInsets.only(left: 12, right: 4),
-                child: Row(
-                  children: [
-                    Text(
-                      "LUODA 远程协助",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).textTheme.titleLarge?.color,
-                      ),
-                    ),
-                    const Spacer(),
-                    InkWell(
-                      onTap: () => windowManager.close(),
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        alignment: Alignment.center,
-                        child: Icon(Icons.close, size: 16),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _leftPaneScrollController,
-                  child: Column(
-                    key: _childKey,
-                    children: [
-                      // 圆形头像 + LUODA 远程协助 标题
-                      Container(
-                        margin: const EdgeInsets.only(top: 16, bottom: 8),
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          border:
-                              Border.all(color: MyTheme.accent, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 6,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            'assets/avatar.png',
-                            fit: BoxFit.cover,
-                            errorBuilder: (ctx, error, stackTrace) => Icon(
-                              Icons.computer,
-                              size: 32,
-                              color: MyTheme.accent,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        "LUODA 远程协助",
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color:
-                              Theme.of(context).textTheme.titleLarge?.color,
-                        ),
-                      ),
-                      SizedBox(height: 12),
-                      // 远程ID输入
-                      _buildClientIDField(),
-                      SizedBox(height: 12),
-                      // 本机ID（只读显示）
-                      buildIDBoard(context),
-                      SizedBox(height: 4),
-                      // 密码
-                      buildPasswordBoard(context),
-                      SizedBox(height: 4),
-                      // IP:端口
-                      buildDirectAccessBoard(context),
-                      SizedBox(height: 8),
-                      // 底部连接状态提示：正在连接/已连接/未就绪
-                      OnlineStatusWidget(
-                        onSvcStatusChanged: () {
-                          if (isInHomePage()) {
-                            Future.delayed(Duration(milliseconds: 300), () {
-                              _updateWindowSize();
-                            });
-                          }
-                        },
-                      ).marginOnly(left: 6, right: 6, bottom: 6),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+	  Widget buildLeftPane(BuildContext context) {
+	    // 客户端专用版：只显示本机ID+密码+IP端口+底部连接状态提示
+	    // 无标题栏文字、无关闭按钮、无右侧栏、无输入对方ID框、无灰色方框
+	    if (widget.isClientOnly) {
+	      return ChangeNotifierProvider.value(
+	        value: gFFI.serverModel,
+	        child: SizedBox(
+	          width: 300.0,
+	          child: Column(
+	            children: [
+	              // 只保留很小高度的拖动区域（无文字、无关闭按钮）
+	              Container(height: 28),
+	              Expanded(
+	                child: SingleChildScrollView(
+	                  physics: NeverScrollableScrollPhysics(),
+	                  controller: _leftPaneScrollController,
+	                  child: Column(
+	                    key: _childKey,
+	                    children: [
+	                      // 圆形头像
+	                      Container(
+	                        margin: const EdgeInsets.only(top: 8, bottom: 8),
+	                        width: 64,
+	                        height: 64,
+	                        decoration: BoxDecoration(
+	                          shape: BoxShape.circle,
+	                          color: Colors.white,
+	                          border:
+	                              Border.all(color: MyTheme.accent, width: 2),
+	                          boxShadow: [
+	                            BoxShadow(
+	                              color: Colors.black.withOpacity(0.1),
+	                              blurRadius: 6,
+	                              offset: Offset(0, 2),
+	                            ),
+	                          ],
+	                        ),
+	                        child: ClipOval(
+	                          child: Image.asset(
+	                            'assets/avatar.png',
+	                            fit: BoxFit.cover,
+	                            errorBuilder: (ctx, error, stackTrace) => Icon(
+	                              Icons.computer,
+	                              size: 32,
+	                              color: MyTheme.accent,
+	                            ),
+	                          ),
+	                        ),
+	                      ),
+	                      // 本机ID（只读显示）
+	                      buildIDBoard(context),
+	                      SizedBox(height: 4),
+	                      // 密码（不含修改按钮）
+	                      buildPasswordBoard(context),
+	                      SizedBox(height: 4),
+	                      // IP:端口
+	                      buildDirectAccessBoard(context),
+	                      SizedBox(height: 8),
+	                      // 底部连接状态提示
+	                      OnlineStatusWidget(
+	                        onSvcStatusChanged: () {
+	                          if (isInHomePage()) {
+	                            Future.delayed(Duration(milliseconds: 300), () {
+	                              _updateWindowSize();
+	                            });
+	                          }
+	                        },
+	                      ).marginOnly(left: 6, right: 6, bottom: 6),
+	                    ],
+	                  ),
+	                ),
+	              ),
+	            ],
+	          ),
+	        ),
+	      );
+	    }
     final isIncomingOnly = bind.isIncomingOnly();
     final isOutgoingOnly = bind.isOutgoingOnly();
     final children = <Widget>[
@@ -659,7 +622,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           ),
                           onHover: (value) => refreshHover.value = value,
                         ).marginOnly(right: 8, top: 4),
-                      if (!bind.isDisableSettings())
+                      // 客户端版：不显示"修改密码"按钮
+                      if (!bind.isDisableSettings() && !bind.isCustomClient())
                         InkWell(
                           child: Tooltip(
                             message: translate('Change Password'),

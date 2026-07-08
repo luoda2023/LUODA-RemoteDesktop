@@ -51,7 +51,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
         closable: false,
         page: DesktopHomePage(
           key: const ValueKey(kTabLabelHomePage),
-          isClientOnly: bind.isCustomClient(),
+          isClientOnly: isCustomClient,
         )));
     if (bind.isIncomingOnly()) {
       tabController.onSelected = (key) {
@@ -98,7 +98,9 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
             body: DesktopTab(
               controller: tabController,
               tail: Offstage(
-                offstage: bind.isIncomingOnly() || bind.isDisableSettings(),
+                offstage: bind.isIncomingOnly() ||
+                    bind.isDisableSettings() ||
+                    isCustomClient,
                 child: ActionIcon(
                   message: 'Settings',
                   icon: IconFont.menu,
