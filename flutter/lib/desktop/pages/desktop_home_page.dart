@@ -103,12 +103,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildLeftPane(BuildContext context) {
-    // 客户端专用版：极简布局，只显示LUODA远程协助标题+远程ID输入+本机ID+右上角关闭
+    // 客户端专用版：圆形头像+标题+远程ID输入+本机ID+密码+IP端口+右上角关闭
     if (widget.isClientOnly) {
       return ChangeNotifierProvider.value(
         value: gFFI.serverModel,
         child: Container(
-          width: 220.0,
+          width: 240.0,
           color: Theme.of(context).colorScheme.background,
           child: Column(
             children: [
@@ -146,6 +146,46 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   child: Column(
                     key: _childKey,
                     children: [
+                      // 圆形头像 + LUODA 远程协助 标题
+                      Container(
+                        margin: const EdgeInsets.only(top: 16, bottom: 8),
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          border:
+                              Border.all(color: MyTheme.accent, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/avatar.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, error, stackTrace) => Icon(
+                              Icons.computer,
+                              size: 32,
+                              color: MyTheme.accent,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        "LUODA 远程协助",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color:
+                              Theme.of(context).textTheme.titleLarge?.color,
+                        ),
+                      ),
+                      SizedBox(height: 12),
                       // 远程ID输入
                       _buildClientIDField(),
                       SizedBox(height: 12),
