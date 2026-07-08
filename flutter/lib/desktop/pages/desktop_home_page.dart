@@ -197,6 +197,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                       SizedBox(height: 4),
                       // IP:端口
                       buildDirectAccessBoard(context),
+                      SizedBox(height: 8),
+                      // 底部连接状态提示：正在连接/已连接/未就绪
+                      OnlineStatusWidget(
+                        onSvcStatusChanged: () {
+                          if (isInHomePage()) {
+                            Future.delayed(Duration(milliseconds: 300), () {
+                              _updateWindowSize();
+                            });
+                          }
+                        },
+                      ).marginOnly(left: 6, right: 6, bottom: 6),
                     ],
                   ),
                 ),

@@ -1428,6 +1428,8 @@ class _TabDropDownButtonState extends State<_TabDropDownButton> {
 }
 
 bool _showTabBarBottomDivider(DesktopTabType tabType) {
+  // 客户端专用版：Tab底部灰色长条不显示
+  if (bind.isCustomClient()) return false;
   return tabType == DesktopTabType.main || tabType == DesktopTabType.install;
 }
 
