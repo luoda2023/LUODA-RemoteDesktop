@@ -104,12 +104,12 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 
   Widget buildLeftPane(BuildContext context) {
     // 客户端专用版：圆形头像+标题+远程ID输入+本机ID+密码+IP端口+右上角关闭
+    // 不含右侧栏、不含底部设置/网络按钮、不含TAB底部灰色长条
     if (widget.isClientOnly) {
       return ChangeNotifierProvider.value(
         value: gFFI.serverModel,
-        child: Container(
+        child: SizedBox(
           width: 240.0,
-          color: Theme.of(context).colorScheme.background,
           child: Column(
             children: [
               // 标题栏 + 关闭按钮
