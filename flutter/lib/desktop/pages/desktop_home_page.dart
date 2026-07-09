@@ -655,6 +655,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final publicIP = bind.mainGetOptionSync(key: 'public-ip');
     final lanIP = bind.mainGetOptionSync(key: 'lan-ip');
     final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
+    // UPnP 状态：通过 option "upnp-status" 读取（在 rust 侧 direct_server 启动后设置）
+    final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
+    final upnpOk = upnpStatus == 'ok';
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
     // 同时显示公网 IP 和内网 IP 两条，公网用于外地访问，内网用于同局域网互访。
     // 都用 "地址:端口" 形式，没有则显示 "Not available"。
@@ -697,6 +700,33 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   SizedBox(height: 4),
                   _ipRow(context, '公网', publicAddr, publicAddr.isNotEmpty,
                       textColor),
+                  // UPnP 状态指示：让用户知道外网能不能直连
+                  if (publicAddr.isNotEmpty && directPort.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 28, top: 2),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: upnpOk ? Colors.green : Colors.orange,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            upnpOk
+                                ? '外网可直连（UPnP 已映射端口）'
+                                : 'UPnP 未就绪，外网连接需在路由器配置端口转发',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: textColor?.withOpacity(0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   SizedBox(height: 4),
                   _ipRow(context, '内网', lanAddr, lanAddr.isNotEmpty,
                       textColor),
