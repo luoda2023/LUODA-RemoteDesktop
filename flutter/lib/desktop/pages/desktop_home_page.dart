@@ -655,15 +655,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final lanIP = bind.mainGetOptionSync(key: 'lan-ip');
     final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
-    // LAN IP is the most reliable for same-network direct connection.
-    // Public IP is shown for WAN access (but may need port forwarding).
+    // 优先显示公网 IP（用于外地直接访问），公网 IP 不可用时才回退到局域网 IP（同网段才可用）。
+    // 之前的逻辑是优先 lanIP，导致外地用 IP+端口无法访问本机。
     String ipInfo = '';
-    if (lanIP.isNotEmpty && directPort.isNotEmpty) {
-      ipInfo = '$lanIP:$directPort';
-    } else if (publicIP.isNotEmpty && directPort.isNotEmpty) {
+    if (publicIP.isNotEmpty && directPort.isNotEmpty) {
       ipInfo = '$publicIP:$directPort';
+    } else if (lanIP.isNotEmpty && directPort.isNotEmpty) {
+      ipInfo = '$lanIP:$directPort';
     } else if (publicIP.isNotEmpty) {
       ipInfo = publicIP;
+    } else if (lanIP.isNotEmpty) {
+      ipInfo = lanIP;
     }
     final displayText = ipInfo.isNotEmpty ? ipInfo : translate('Not available');
     final controller = TextEditingController(text: displayText);

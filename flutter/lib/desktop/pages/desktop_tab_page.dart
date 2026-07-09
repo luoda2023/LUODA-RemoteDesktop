@@ -92,11 +92,17 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 客户端定制版：紧凑工具窗口，不需要标题栏的最小化/最大化/关闭按钮，
+    // 防止用户误点关闭按钮以为只是切换主题，导致窗口"打不开只剩标题栏"。
+    final bool hideWindowButtons = isCustomClient;
     final tabWidget = Container(
         child: Scaffold(
             backgroundColor: Theme.of(context).colorScheme.background,
             body: DesktopTab(
               controller: tabController,
+              showMinimize: !hideWindowButtons,
+              showMaximize: !hideWindowButtons,
+              showClose: !hideWindowButtons,
               tail: Offstage(
                 offstage: bind.isIncomingOnly() ||
                     bind.isDisableSettings() ||

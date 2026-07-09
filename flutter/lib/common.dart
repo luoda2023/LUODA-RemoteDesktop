@@ -1916,6 +1916,18 @@ Future<Size> _adjustRestoreMainWindowSize(double? width, double? height) async {
   if (restoreHeight > maxHeight) {
     restoreHeight = defaultHeight;
   }
+  // 客户端定制版：强制高度上限 390（刚好显示头像+ID+密码+IP+状态提示），
+  // 宽度上限 250（已同步 leftPane 的 width），不继承普通版大尺寸。
+  if (bind.isCustomClient()) {
+    const double kMaxClientWidth = 250;
+    const double kMaxClientHeight = 390;
+    if (restoreWidth > kMaxClientWidth) {
+      restoreWidth = kMaxClientWidth;
+    }
+    if (restoreHeight > kMaxClientHeight) {
+      restoreHeight = kMaxClientHeight;
+    }
+  }
   return Size(restoreWidth, restoreHeight);
 }
 
@@ -2020,9 +2032,16 @@ Future<bool> restoreWindowPosition(WindowType type,
       case WindowType.Main:
         // Center the main window only if no position is saved (on first run).
         if (isWindows || isLinux) {
-          // 普通版主窗口默认尺寸 900×600（按实际内容大小）；
-          // 客户端定制版 / incoming-only 版本由各自分支单独 setSize。
-          if (!bind.isIncomingOnly() && !bind.isCustomClient()) {
+          if (bind.isCustomClient()) {
+            // 客户端定制版：紧凑窗口（250 宽×390 高），高度刚好显示到
+            // "已连接 rev.dicad.cn" 状态提示下面就停下来，避免留大段空白。
+            try {
+              await windowManager.setSize(const Size(250, 390));
+            } catch (e) {
+              debugPrint("Failed to set client-only default size: $e");
+            }
+          } else if (!bind.isIncomingOnly()) {
+            // 普通版主窗口默认尺寸 900×600。
             try {
               await windowManager.setSize(const Size(900, 600));
             } catch (e) {
