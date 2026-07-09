@@ -655,20 +655,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final lanIP = bind.mainGetOptionSync(key: 'lan-ip');
     final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
-    // 优先显示公网 IP（用于外地直接访问），公网 IP 不可用时才回退到局域网 IP（同网段才可用）。
-    // 之前的逻辑是优先 lanIP，导致外地用 IP+端口无法访问本机。
-    String ipInfo = '';
-    if (publicIP.isNotEmpty && directPort.isNotEmpty) {
-      ipInfo = '$publicIP:$directPort';
-    } else if (lanIP.isNotEmpty && directPort.isNotEmpty) {
-      ipInfo = '$lanIP:$directPort';
-    } else if (publicIP.isNotEmpty) {
-      ipInfo = publicIP;
-    } else if (lanIP.isNotEmpty) {
-      ipInfo = lanIP;
+    // 同时显示公网 IP 和内网 IP 两条，公网用于外地访问，内网用于同局域网互访。
+    // 都用 "地址:端口" 形式，没有则显示 "Not available"。
+    String publicAddr = '';
+    String lanAddr = '';
+    if (directPort.isNotEmpty) {
+      if (publicIP.isNotEmpty) publicAddr = '$publicIP:$directPort';
+      if (lanIP.isNotEmpty) lanAddr = '$lanIP:$directPort';
     }
-    final displayText = ipInfo.isNotEmpty ? ipInfo : translate('Not available');
-    final controller = TextEditingController(text: displayText);
+    if (publicAddr.isEmpty && publicIP.isNotEmpty) publicAddr = publicIP;
+    if (lanAddr.isEmpty && lanIP.isNotEmpty) lanAddr = lanIP;
+    final naText = translate('Not available');
     return Container(
       margin: const EdgeInsets.only(left: 20, right: 11),
       child: Row(
@@ -677,7 +674,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         children: [
           Container(
             width: 3,
-            height: 30,
+            height: 60,
             decoration: BoxDecoration(
               color: MyTheme.accent,
               borderRadius: BorderRadius.circular(2),
@@ -697,42 +694,72 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         color: textColor?.withOpacity(0.45)),
                   ),
                   SizedBox(height: 4),
-                  GestureDetector(
-                    onDoubleTap: () {
-                      if (ipInfo.isNotEmpty) {
-                        Clipboard.setData(ClipboardData(text: ipInfo));
-                        showToast(translate("Copied"));
-                      }
-                    },
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .background
-                            .withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        displayText,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'monospace',
-                          letterSpacing: 0.5,
-                          color: ipInfo.isNotEmpty
-                              ? textColor
-                              : textColor?.withOpacity(0.4),
-                        ),
-                      ),
-                    ),
-                  ),
+                  _ipRow(context, '公网', publicAddr, publicAddr.isNotEmpty,
+                      textColor),
+                  SizedBox(height: 4),
+                  _ipRow(context, '内网', lanAddr, lanAddr.isNotEmpty,
+                      textColor),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // 一行 IP 显示：左边小标签，右边 IP:端口，双击复制。
+  Widget _ipRow(BuildContext context, String label, String addr, bool hasAddr,
+      Color? textColor) {
+    final displayText = addr.isNotEmpty ? addr : translate('Not available');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        SizedBox(
+          width: 28,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor?.withOpacity(0.5),
+            ),
+          ),
+        ),
+        Expanded(
+          child: GestureDetector(
+            onDoubleTap: () {
+              if (addr.isNotEmpty) {
+                Clipboard.setData(ClipboardData(text: addr));
+                showToast(translate("Copied"));
+              }
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .background
+                    .withOpacity(0.5),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                displayText,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'monospace',
+                  letterSpacing: 0.5,
+                  color: hasAddr
+                      ? textColor
+                      : textColor?.withOpacity(0.4),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
