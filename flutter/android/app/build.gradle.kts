@@ -131,10 +131,10 @@ android {
 
     buildTypes {
         release {
-            val keystoreFile = (keystoreProperties["storeFile"] as? String)?.let { rootProject.file(it) }
-            if (keystoreFile?.exists() == true) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            // 与官方 rustdesk 一致：release 始终用 signingConfigs.release（而非 debug 签名）
+            // 如果 key.properties 不存在或 storeFile 不存在，则为 null 签名（装不上）。
+            // 见官方：https://github.com/rustdesk/rustdesk/blob/master/flutter/android/app/build.gradle
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
