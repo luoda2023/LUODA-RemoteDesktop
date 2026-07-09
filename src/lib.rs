@@ -51,6 +51,11 @@ mod lang;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod port_forward;
 
+// UPnP 端口自动映射模块：让外网能直接通过 公网IP:端口 访问本机，
+// 不需要用户手动配置路由器端口转发。仅在桌面平台启用。
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub mod upnp;
+
 #[cfg(all(feature = "flutter", feature = "plugin_framework"))]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod plugin;

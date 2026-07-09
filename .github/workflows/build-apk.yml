@@ -274,21 +274,22 @@ jobs:
       - name: Generate signing keystore for APK
         run: |
           # 按官方 rustdesk 方式：生成测试用的 keystore（签名一致性保持一版一版相同）
-          # 如果后续有正式 keystore，替换 key.properties 即可
+          # 如果后续有正式 keystore，替换 key.properties 和 keystore.jks 文件即可
           KEYSTORE_FILE="flutter/android/app/keystore.jks"
           if [ ! -f "$KEYSTORE_FILE" ]; then
             keytool -genkey -v -keystore "$KEYSTORE_FILE" \
               -alias rustdesk -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass rustdesk123 -keypass rustdesk123 \
               -dname "CN=RustDesk, OU=RustDesk, O=RustDesk, L=Unknown, ST=Unknown, C=CN" 2>/dev/null
-            echo "storeFile=keystore.jks" > flutter/android/key.properties
-            echo "storePassword=rustdesk123" >> flutter/android/key.properties
-            echo "keyAlias=rustdesk" >> flutter/android/key.properties
-            echo "keyPassword=rustdesk123" >> flutter/android/key.properties
             echo "OK: Generated keystore at $KEYSTORE_FILE"
           else
             echo "OK: Keystore already exists at $KEYSTORE_FILE"
           fi
+          # 始终重写 key.properties，避免上次 CI 残留但 key.properties 丢失
+          echo "storeFile=keystore.jks" > flutter/android/key.properties
+          echo "storePassword=rustdesk123" >> flutter/android/key.properties
+          echo "keyAlias=rustdesk" >> flutter/android/key.properties
+          echo "keyPassword=rustdesk123" >> flutter/android/key.properties
         shell: bash
 
       - name: Verify signing config

@@ -809,6 +809,16 @@ async fn direct_server(server: ServerPtr) {
                     // Sync the actual port to UI option so the IP:port display stays correct
                     // even when the default port was unavailable and we fell back.
                     Config::set_option("direct-access-port".to_owned(), port.to_string());
+                    // 尝试 UPnP 自动端口映射，使外网能直接通过 公网IP:端口 访问本机。
+                    // 路由器需要支持并开启 UPnP（大部分家用路由器默认启用）。
+                    let upnp_port = port as u16;
+                    tokio::spawn(async move {
+                        tokio::task::spawn_blocking(move || {
+                            crate::upnp::add_port_mapping(upnp_port);
+                        })
+                        .await
+                        .ok();
+                    });
                 }
                 Err(err) => {
                     log::error!(

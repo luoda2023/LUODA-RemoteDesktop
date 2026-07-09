@@ -86,6 +86,7 @@ totp-rs = { version = "5.4", default-features = false, features = ["gen_secret",
 stunclient = "0.4"
 kcp-sys= { git = "https://github.com/luoda2023/kcp-sys"}
 reqwest = { version = "0.12", features = ["blocking", "socks", "json", "rustls-tls", "rustls-tls-native-roots", "gzip"], default-features=false }
+igd-next = { version = "0.17", default-features = false }
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 # https://github.com/luoda/luoda/discussions/10197, not use cpal on linux
