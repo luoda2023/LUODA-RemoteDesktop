@@ -105,73 +105,71 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 	  Widget buildLeftPane(BuildContext context) {
 	    // 客户端专用版：只显示本机ID+密码+IP端口+底部连接状态提示
 	    // 无标题栏文字、无关闭按钮、无右侧栏、无输入对方ID框、无灰色方框
+	    // 窗口宽度 250（用户要求减少 1/5），右侧不出现滚动条：直接用 Column+Expanded，
+	    // 不套 SingleChildScrollView 也不挂 ScrollController。
 	    if (widget.isClientOnly) {
 	      return ChangeNotifierProvider.value(
 	        value: gFFI.serverModel,
 	        child: SizedBox(
-	          width: 300.0,
+	          width: 250.0,
 	          child: Column(
 	            children: [
 	              // 只保留很小高度的拖动区域（无文字、无关闭按钮）
 	              Container(height: 28),
 	              Expanded(
-	                child: SingleChildScrollView(
-	                  physics: NeverScrollableScrollPhysics(),
-	                  controller: _leftPaneScrollController,
-	                  child: Column(
-	                    key: _childKey,
-	                    children: [
-	                      // 圆形头像
-	                      Container(
-	                        margin: const EdgeInsets.only(top: 8, bottom: 8),
-	                        width: 64,
-	                        height: 64,
-	                        decoration: BoxDecoration(
-	                          shape: BoxShape.circle,
-	                          color: Colors.white,
-	                          border:
-	                              Border.all(color: MyTheme.accent, width: 2),
-	                          boxShadow: [
-	                            BoxShadow(
-	                              color: Colors.black.withOpacity(0.1),
-	                              blurRadius: 6,
-	                              offset: Offset(0, 2),
-	                            ),
-	                          ],
-	                        ),
-	                        child: ClipOval(
-	                          child: Image.asset(
-	                            'assets/avatar.png',
-	                            fit: BoxFit.cover,
-	                            errorBuilder: (ctx, error, stackTrace) => Icon(
-	                              Icons.computer,
-	                              size: 32,
-	                              color: MyTheme.accent,
-	                            ),
+	                child: Column(
+	                  key: _childKey,
+	                  children: [
+	                    // 圆形头像
+	                    Container(
+	                      margin: const EdgeInsets.only(top: 8, bottom: 8),
+	                      width: 64,
+	                      height: 64,
+	                      decoration: BoxDecoration(
+	                        shape: BoxShape.circle,
+	                        color: Colors.white,
+	                        border:
+	                            Border.all(color: MyTheme.accent, width: 2),
+	                        boxShadow: [
+	                          BoxShadow(
+	                            color: Colors.black.withOpacity(0.1),
+	                            blurRadius: 6,
+	                            offset: Offset(0, 2),
+	                          ),
+	                        ],
+	                      ),
+	                      child: ClipOval(
+	                        child: Image.asset(
+	                          'assets/avatar.png',
+	                          fit: BoxFit.cover,
+	                          errorBuilder: (ctx, error, stackTrace) => Icon(
+	                            Icons.computer,
+	                            size: 32,
+	                            color: MyTheme.accent,
 	                          ),
 	                        ),
 	                      ),
-	                      // 本机ID（只读显示）
-	                      buildIDBoard(context),
-	                      SizedBox(height: 4),
-	                      // 密码（不含修改按钮）
-	                      buildPasswordBoard(context),
-	                      SizedBox(height: 4),
-	                      // IP:端口
-	                      buildDirectAccessBoard(context),
-	                      SizedBox(height: 8),
-	                      // 底部连接状态提示
-	                      OnlineStatusWidget(
-	                        onSvcStatusChanged: () {
-	                          if (isInHomePage()) {
-	                            Future.delayed(Duration(milliseconds: 300), () {
-	                              _updateWindowSize();
-	                            });
-	                          }
-	                        },
-	                      ).marginOnly(left: 6, right: 6, bottom: 6),
-	                    ],
-	                  ),
+	                    ),
+	                    // 本机ID（只读显示）
+	                    buildIDBoard(context),
+	                    SizedBox(height: 4),
+	                    // 密码（不含修改按钮）
+	                    buildPasswordBoard(context),
+	                    SizedBox(height: 4),
+	                    // IP:端口
+	                    buildDirectAccessBoard(context),
+	                    SizedBox(height: 8),
+	                    // 底部连接状态提示
+	                    OnlineStatusWidget(
+	                      onSvcStatusChanged: () {
+	                        if (isInHomePage()) {
+	                          Future.delayed(Duration(milliseconds: 300), () {
+	                            _updateWindowSize();
+	                          });
+	                        }
+	                      },
+	                    ).marginOnly(left: 6, right: 6, bottom: 6),
+	                  ],
 	                ),
 	              ),
 	            ],

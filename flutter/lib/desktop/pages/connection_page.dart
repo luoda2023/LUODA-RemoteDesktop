@@ -338,7 +338,9 @@ class _ConnectionPageState extends State<ConnectionPage>
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
       decoration: BoxDecoration(
           borderRadius: const BorderRadius.all(Radius.circular(13)),
-          border: Border.all(color: Theme.of(context).colorScheme.background)),
+          // 之前用 colorScheme.background 作为 border，对比度下显示成"灰色细线"，
+          // 普通版输入框与下方 TAB 栏之间不需要这条分隔线，去掉。
+          border: Border.all(color: Colors.transparent)),
       child: Ink(
         child: Column(
           children: [

@@ -1897,6 +1897,19 @@ Future<Size> _adjustRestoreMainWindowSize(double? width, double? height) async {
   if (restoreHeight < minHeight) {
     restoreHeight = defaultHeight;
   }
+  // 普通版（非 incoming-only / 非 custom-client）的窗口下限 900×600：
+  // 之前若被客户端定制版保存过 300×280 等小尺寸，启动恢复会误把普通版压成小窗口。
+  // 这里强制下限，保证普通版至少 900×600 显示完整内容。
+  if (!bind.isIncomingOnly() && !bind.isCustomClient()) {
+    const double kMinNormalWidth = 900;
+    const double kMinNormalHeight = 600;
+    if (restoreWidth < kMinNormalWidth) {
+      restoreWidth = kMinNormalWidth;
+    }
+    if (restoreHeight < kMinNormalHeight) {
+      restoreHeight = kMinNormalHeight;
+    }
+  }
   if (restoreWidth > maxWidth) {
     restoreWidth = defaultWidth;
   }
