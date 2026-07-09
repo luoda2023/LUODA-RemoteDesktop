@@ -152,23 +152,24 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 	                    ),
 	                    // 本机ID（只读显示）
 	                    buildIDBoard(context),
-	                    SizedBox(height: 4),
-	                    // 密码（不含修改按钮）
-	                    buildPasswordBoard(context),
-	                    SizedBox(height: 4),
-	                    // IP:端口
-	                    buildDirectAccessBoard(context),
-	                    SizedBox(height: 8),
-	                    // 底部连接状态提示
-	                    OnlineStatusWidget(
-	                      onSvcStatusChanged: () {
-	                        if (isInHomePage()) {
-	                          Future.delayed(Duration(milliseconds: 300), () {
-	                            _updateWindowSize();
-	                          });
-	                        }
-	                      },
-	                    ).marginOnly(left: 6, right: 6, bottom: 6),
+                    SizedBox(height: 4),
+                    // 密码（不含修改按钮）
+                    buildPasswordBoard(context),
+                    SizedBox(height: 4),
+                    // IP:端口
+                    buildDirectAccessBoard(context),
+                    // IP 显示和在线状态之间留约 2cm 间距（~75px）
+                    SizedBox(height: 75),
+                    // 底部连接状态提示
+                    OnlineStatusWidget(
+                      onSvcStatusChanged: () {
+                        if (isInHomePage()) {
+                          Future.delayed(Duration(milliseconds: 300), () {
+                            _updateWindowSize();
+                          });
+                        }
+                      },
+                    ).marginOnly(left: 6, right: 6, bottom: 6),
 	                  ],
 	                ),
 	              ),
