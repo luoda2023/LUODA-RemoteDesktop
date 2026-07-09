@@ -565,9 +565,111 @@ class ServerInfo extends StatelessWidget {
                           })
                     ])
             ]).marginOnly(left: 40, bottom: 15),
-            ConnectionStateNotification()
+            ConnectionStateNotification(),
+            // IP直连信息：公网+内网+UPnP状态，与桌面端对齐
+            _buildDirectAccessInfo(context),
           ],
         ));
+  }
+
+  /// 显示 IP 直连地址（公网+内网）和 UPnP 映射状态。
+  /// 与桌面端 buildDirectAccessBoard 一致，让手机用户也能
+  /// 把自己的 IP 告诉对方进行直连。
+  Widget _buildDirectAccessInfo(BuildContext context) {
+    final publicIP = bind.mainGetOptionSync(key: 'public-ip');
+    final lanIP = bind.mainGetOptionSync(key: 'lan-ip');
+    final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
+    final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
+    final upnpOk = upnpStatus == 'ok';
+    String publicAddr = '';
+    String lanAddr = '';
+    if (directPort.isNotEmpty) {
+      if (publicIP.isNotEmpty) publicAddr = '$publicIP:$directPort';
+      if (lanIP.isNotEmpty) lanAddr = '$lanIP:$directPort';
+    }
+    final hasAny = publicAddr.isNotEmpty || lanAddr.isNotEmpty;
+    if (!hasAny) return SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 4, left: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'IP直连',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+          SizedBox(height: 4),
+          _mobileIpRow('公网', publicAddr),
+          SizedBox(height: 2),
+          if (publicAddr.isNotEmpty && directPort.isNotEmpty)
+            Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  margin: EdgeInsets.only(right: 6, left: 4),
+                  decoration: BoxDecoration(
+                    color: upnpOk ? Colors.green : Colors.orange,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    upnpOk
+                        ? '外网可直连（UPnP 已映射端口）'
+                        : 'UPnP 未就绪，外网连接需在路由器配置端口转发',
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+          SizedBox(height: 4),
+          _mobileIpRow('内网', lanAddr),
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileIpRow(String label, String addr) {
+    final text = addr.isNotEmpty ? addr : 'Not available';
+    return Row(
+      children: [
+        SizedBox(
+          width: 36,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+        Expanded(
+          child: GestureDetector(
+            onDoubleTap: () {
+              if (addr.isNotEmpty) {
+                Clipboard.setData(ClipboardData(text: addr));
+                showToast('Copied');
+              }
+            },
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'monospace',
+                color: addr.isNotEmpty ? null : Colors.grey,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
