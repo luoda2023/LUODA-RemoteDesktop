@@ -625,7 +625,7 @@ class ServerInfo extends StatelessWidget {
                         ? '当前平台不支持 UPnP，可用 ID 模式连接'
                         : upnpOk
                             ? '外网可直连（UPnP 已映射端口）'
-                            : 'UPnP 未就绪，外网连接需在路由器配置端口转发',
+                            : '端口映射未成功，需手动配置路由器端口转发',
                     style: TextStyle(fontSize: 10, color: Colors.grey),
                   ),
                 ),

@@ -38,15 +38,8 @@ pub fn remove_port_mapping(port: u16) -> bool {
 }
 
 fn try_add_mapping(port: u16) -> Result<(), Box<dyn std::error::Error>> {
-    // igd-next 的典型用法：搜索网关，添加端口映射
-    let gateway = match igd_next::search_gateway(Default::default()) {
-        Ok(g) => g,
-        Err(e) => {
-            return Err(format!("搜索网关失败: {}", e).into());
-        }
-    };
+    let gateway = igd_next::search_gateway(Default::default())?;
 
-    // 获取本机的 LAN IP（路由器看到的本机地址），不是 127.0.0.1
     let local_ipv4 = get_local_lan_ip().ok_or("无法获取本机 LAN IP")?;
     let local_addr = std::net::SocketAddr::new(local_ipv4.into(), port);
     info!(
@@ -58,15 +51,13 @@ fn try_add_mapping(port: u16) -> Result<(), Box<dyn std::error::Error>> {
         igd_next::PortMappingProtocol::TCP,
         port,
         local_addr,
-        0, // lease_duration = 0 表示永久映射
+        0,
         "LUODA Remote Desktop",
     )?;
 
     Ok(())
 }
 
-/// 获取本机在 LAN 中的 IP（不是 127.0.0.1，不是公网 IP）。
-/// 通过创建一个 UDP socket "连"到 8.8.8.8:80 来探测路由器看到的本机地址。
 fn get_local_lan_ip() -> Option<std::net::Ipv4Addr> {
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:80").ok()?;
@@ -78,13 +69,7 @@ fn get_local_lan_ip() -> Option<std::net::Ipv4Addr> {
 }
 
 fn try_remove_mapping(port: u16) -> Result<(), Box<dyn std::error::Error>> {
-    let gateway = match igd_next::search_gateway(Default::default()) {
-        Ok(g) => g,
-        Err(e) => {
-            return Err(format!("搜索网关失败: {}", e).into());
-        }
-    };
-
+    let gateway = igd_next::search_gateway(Default::default())?;
     gateway.remove_port(igd_next::PortMappingProtocol::TCP, port)?;
     Ok(())
 }
