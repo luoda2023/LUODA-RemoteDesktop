@@ -758,9 +758,10 @@ static DIRECT_PORT: std::sync::OnceLock<std::sync::Mutex<i32>> = std::sync::Once
 
 fn get_direct_port() -> i32 {
     let mtx = DIRECT_PORT.get_or_init(|| {
-        // Default: use the standard direct port 21118 (DEFAULT_DIRECT_PORT).
-        // If unavailable, fall back to a random port so the IP:port UI stays usable.
-        std::sync::Mutex::new(DEFAULT_DIRECT_PORT)
+        // 每次运行都随机生成一个新端口（20000-40000），不再固定 21118。
+        std::sync::Mutex::new(
+            rand::thread_rng().gen_range(20000..40000)
+        )
     });
     *mtx.lock().unwrap()
 }
