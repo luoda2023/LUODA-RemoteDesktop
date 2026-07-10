@@ -49,13 +49,9 @@ fn try_add_mapping(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     // 获取本机的 LAN IP（路由器看到的本机地址），不是 127.0.0.1
     let local_ipv4 = get_local_lan_ip().ok_or("无法获取本机 LAN IP")?;
     let local_addr = std::net::SocketAddr::new(local_ipv4.into(), port);
-    hbb_common::log::info!(
-        "UPnP: 网关地址 {:?}, 本机 LAN IP {:?}, 映射外部 TCP:{} -> {}:{}",
-        gateway.addr(),
-        local_ipv4,
-        port,
-        local_ipv4,
-        port
+    info!(
+        "UPnP: 本机 LAN IP {:?}, 映射外部 TCP:{} -> {}:{}",
+        local_ipv4, port, local_ipv4, port
     );
 
     gateway.add_port(
