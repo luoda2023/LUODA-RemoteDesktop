@@ -613,15 +613,19 @@ class ServerInfo extends StatelessWidget {
                   height: 6,
                   margin: EdgeInsets.only(right: 6, left: 4),
                   decoration: BoxDecoration(
-                    color: upnpOk ? Colors.green : Colors.orange,
+                    color: upnpStatus == 'unsupported'
+                        ? Colors.grey
+                        : (upnpOk ? Colors.green : Colors.orange),
                     shape: BoxShape.circle,
                   ),
                 ),
                 Expanded(
                   child: Text(
-                    upnpOk
-                        ? '外网可直连（UPnP 已映射端口）'
-                        : 'UPnP 未就绪，外网连接需在路由器配置端口转发',
+                    upnpStatus == 'unsupported'
+                        ? '当前平台不支持 UPnP，可用 ID 模式连接'
+                        : upnpOk
+                            ? '外网可直连（UPnP 已映射端口）'
+                            : 'UPnP 未就绪，外网连接需在路由器配置端口转发',
                     style: TextStyle(fontSize: 10, color: Colors.grey),
                   ),
                 ),

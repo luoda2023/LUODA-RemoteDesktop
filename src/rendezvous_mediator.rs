@@ -811,23 +811,31 @@ async fn direct_server(server: ServerPtr) {
                     Config::set_option("direct-access-port".to_owned(), port.to_string());
                     // 尝试 UPnP 自动端口映射，使外网能直接通过 公网IP:端口 访问本机。
                     // 路由器需要支持并开启 UPnP（大部分家用路由器默认启用）。
-                    let upnp_port = port as u16;
-                    let ret = crate::upnp::add_port_mapping(upnp_port);
-                    Config::set_option(
-                        "upnp-status".to_owned(),
-                        if ret { "ok" } else { "fail" }.to_owned(),
-                    );
-                    if ret {
-                        log::info!(
-                            "UPnP: 端口 {} 映射成功，外网可通过公网IP:{} 直连",
-                            port,
-                            port
+                    // 移动端（android/ios）没有 upnp 模块，跳过。
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    {
+                        let upnp_port = port as u16;
+                        let ret = crate::upnp::add_port_mapping(upnp_port);
+                        Config::set_option(
+                            "upnp-status".to_owned(),
+                            if ret { "ok" } else { "fail" }.to_owned(),
                         );
-                    } else {
-                        log::warn!(
-                            "UPnP: 端口 {} 映射失败，外网直连需要手动配置路由器端口转发",
-                            port
-                        );
+                        if ret {
+                            log::info!(
+                                "UPnP: 端口 {} 映射成功，外网可通过公网IP:{} 直连",
+                                port,
+                                port
+                            );
+                        } else {
+                            log::warn!(
+                                "UPnP: 端口 {} 映射失败，外网直连需要手动配置路由器端口转发",
+                                port
+                            );
+                        }
+                    }
+                    #[cfg(any(target_os = "android", target_os = "ios"))]
+                    {
+                        Config::set_option("upnp-status".to_owned(), "unsupported".to_owned());
                     }
                 }
                 Err(err) => {
