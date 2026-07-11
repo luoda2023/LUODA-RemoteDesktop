@@ -1127,82 +1127,71 @@ pub fn main_check_connect_status() {
         crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
     }
     // Get the LAN IP.
-    // 优先级：
-    //   1) UDP connect 到 192.168.x.x 网段，能拿到 192.168 本地 IP（家用/小型办公网络最常见）
-    //   2) UDP connect 到 10.x.x.x 网段（企业内网）
-    //   3) UDP connect 到 172.16~172.31.x.x 网段（私有地址段B）
-    //   4) 兜底 UDP connect 8.8.8.8 取默认路由出口 IP
-    // 这种方式不引入新 crate 依赖，纯标准库实现。
+    // 优先级（依次）：
+    //   1) 网卡上 192.168.x.x 的 IPv4 地址（家用/小型办公网络最常见）
+    //   2) 网卡上 10.x.x.x 的 IPv4 地址（企业内网）
+    //   3) 网卡上 172.16~172.31.x.x 的 IPv4 地址（私有地址段B）
+    //   4) 兜底：UDP connect 8.8.8.8 取默认路由出口 IP
+    //
+    // 必须用 default-net crate 枚举所有网卡，UDP connect 法只能拿默认路由
+    // 出口 IP，多网卡/VPN 环境下会拿错（例如真实网卡是 192.168.x.x 但默认路由
+    // 走的是 10.x.x.x 网卡，UDP connect 法返回的就只能是 10.x.x.x）。
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        let pick_lan_ip = || -> Option<String> {
-            // 候选目标地址：192.168, 10, 172.16~31 各选一个代表性 IP，
-            // 路由表会路由到对应网卡，从而拿到该网卡的本地 IP。
-            let candidates: &[&str] = &[
-                "192.168.1.1:80",
-                "192.168.0.1:80",
-                "192.168.31.1:80",
-                "192.168.50.1:80",
-                "10.0.0.1:80",
-                "10.0.1.1:80",
-                "10.168.1.1:80",
-                "172.16.0.1:80",
-                "172.17.0.1:80",
-                "172.20.0.1:80",
-                "172.31.0.1:80",
-            ];
-            let mut best: Option<String> = None;
-            let mut best_rank: i32 = -1;
-            for target in candidates {
-                if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
-                    if socket.connect(target).is_ok() {
-                        if let Ok(addr) = socket.local_addr() {
-                            let ip = addr.ip();
-                            if let std::net::IpAddr::V4(v4) = ip {
-                                if v4.is_loopback() || v4.is_unspecified() {
-                                    continue;
-                                }
-                                let oct = v4.octets();
-                                let rank = if oct[0] == 192 && oct[1] == 168 {
-                                    3
-                                } else if oct[0] == 10 {
-                                    2
-                                } else if oct[0] == 172 && (16..=31).contains(&oct[1]) {
-                                    1
-                                } else {
-                                    0
-                                };
-                                if rank > best_rank {
-                                    best_rank = rank;
-                                    best = Some(ip.to_string());
-                                }
-                                if rank == 3 {
-                                    break;
-                                }
+        let pick_rank = |v4: &std::net::Ipv4Addr| -> i32 {
+            let oct = v4.octets();
+            if oct[0] == 192 && oct[1] == 168 {
+                return 3;
+            }
+            if oct[0] == 10 {
+                return 2;
+            }
+            if oct[0] == 172 && (16..=31).contains(&oct[1]) {
+                return 1;
+            }
+            0
+        };
+
+        let mut best_ip: Option<String> = None;
+        let mut best_rank: i32 = -1;
+
+        // 1) 枚举所有物理网卡的所有 IPv4 地址
+        // default_net::interface::get_interfaces() 返回 Vec<Interface>，
+        // Interface.ipv4 是 Vec<Ipv4Net>，Ipv4Net.addr 是 std::net::Ipv4Addr。
+        let ifaces: Vec<default_net::interface::Interface> =
+            default_net::interface::get_interfaces();
+        for iface in &ifaces {
+            for ipnet in &iface.ipv4 {
+                let v4 = ipnet.addr;
+                if v4.is_loopback() || v4.is_unspecified() {
+                    continue;
+                }
+                let rank = pick_rank(&v4);
+                if rank > best_rank {
+                    best_rank = rank;
+                    best_ip = Some(v4.to_string());
+                }
+            }
+        }
+
+        // 2) 兜底：UDP connect 8.8.8.8 取默认路由出口 IP
+        if best_rank < 0 {
+            if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+                if socket.connect("8.8.8.8:80").is_ok() {
+                    if let Ok(addr) = socket.local_addr() {
+                        if let std::net::IpAddr::V4(v4) = addr.ip() {
+                            if !v4.is_loopback() && !v4.is_unspecified() {
+                                best_ip = Some(v4.to_string());
                             }
                         }
                     }
                 }
             }
-            best
-        };
-        let lan_ip = pick_lan_ip();
-        if let Some(ip) = &lan_ip {
-            log::info!("LAN IP detected: {}", ip);
-            crate::ui_interface::set_option("lan-ip".to_owned(), ip.clone());
-        } else {
-            // 兜底：UDP connect 8.8.8.8 取默认路由出口 IP
-            if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
-                if socket.connect("8.8.8.8:80").is_ok() {
-                    if let Ok(addr) = socket.local_addr() {
-                        let ip = addr.ip().to_string();
-                        if !ip.is_empty() && ip != "127.0.0.1" {
-                            log::info!("LAN IP detected (fallback): {}", ip);
-                            crate::ui_interface::set_option("lan-ip".to_owned(), ip);
-                        }
-                    }
-                }
-            }
+        }
+
+        if let Some(ip) = best_ip {
+            log::info!("LAN IP detected: {} (rank={})", ip, best_rank);
+            crate::ui_interface::set_option("lan-ip".to_owned(), ip);
         }
     }
     // Fetch public IP via HTTP first (most reliable), fallback to STUN

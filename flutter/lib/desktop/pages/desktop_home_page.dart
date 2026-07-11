@@ -110,14 +110,27 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           width: 250.0,
           child: Column(
             children: [
-              // 标题栏：右上角关闭按钮（保留原窗口右上角位置）
+              // 标题栏：左侧保留原关闭按钮 + 右侧新增关闭按钮
               Container(
-                height: 28,
-                padding: const EdgeInsets.only(right: 8),
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    // 左侧关闭按钮（保留原位置）
+                    GestureDetector(
+                      onTap: () => windowManager.close(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.grey.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
                     const Expanded(child: SizedBox()),
+                    // 右侧新增关闭按钮
                     GestureDetector(
                       onTap: () => windowManager.close(),
                       child: Padding(
@@ -136,7 +149,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 child: Column(
                   key: _childKey,
                   children: [
-                    // 圆形头像 —— 显式居中，避免被外层宽度撑成偏右
+                    // 圆形头像 —— 显式居中
                     Center(
                       child: Container(
                         margin: const EdgeInsets.only(top: 8, bottom: 8),
@@ -173,10 +186,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     SizedBox(height: 4),
                     // IP:端口
                     buildDirectAccessBoard(context),
-                    Spacer(flex: 2),
-                    // 底部连接状态
+                    Spacer(flex: 3),
+                    // 底部连接状态 —— 加高 + 加大底部 margin 防止紧贴 IP 栏
                     SizedBox(
-                      height: 50,
+                      height: 56,
                       child: OnlineStatusWidget(
                         onSvcStatusChanged: () {
                           if (isInHomePage()) {
@@ -187,7 +200,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           }
                         },
                       ),
-                    ).marginOnly(left: 6, right: 6, bottom: 8),
+                    ).marginOnly(left: 6, right: 6, bottom: 14),
                   ],
                 ),
               ),
