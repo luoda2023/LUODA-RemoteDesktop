@@ -1126,18 +1126,80 @@ pub fn main_check_connect_status() {
         let port = crate::rendezvous_mediator::ensure_direct_port();
         crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
     }
-    // Get the LAN IP by connecting a UDP socket to a public address (no actual traffic sent).
-    // This gives us the local network address used to reach the internet — the correct LAN IP
-    // for direct connection within the same network.
+    // Get the LAN IP.
+    // 优先级：
+    //   1) UDP connect 到 192.168.x.x 网段，能拿到 192.168 本地 IP（家用/小型办公网络最常见）
+    //   2) UDP connect 到 10.x.x.x 网段（企业内网）
+    //   3) UDP connect 到 172.16~172.31.x.x 网段（私有地址段B）
+    //   4) 兜底 UDP connect 8.8.8.8 取默认路由出口 IP
+    // 这种方式不引入新 crate 依赖，纯标准库实现。
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
-            if socket.connect("8.8.8.8:80").is_ok() {
-                if let Ok(addr) = socket.local_addr() {
-                    let ip = addr.ip().to_string();
-                    if !ip.is_empty() && ip != "127.0.0.1" {
-                        log::info!("LAN IP detected: {}", ip);
-                        crate::ui_interface::set_option("lan-ip".to_owned(), ip);
+        let pick_lan_ip = || -> Option<String> {
+            // 候选目标地址：192.168, 10, 172.16~31 各选一个代表性 IP，
+            // 路由表会路由到对应网卡，从而拿到该网卡的本地 IP。
+            let candidates: &[&str] = &[
+                "192.168.1.1:80",
+                "192.168.0.1:80",
+                "192.168.31.1:80",
+                "192.168.50.1:80",
+                "10.0.0.1:80",
+                "10.0.1.1:80",
+                "10.168.1.1:80",
+                "172.16.0.1:80",
+                "172.17.0.1:80",
+                "172.20.0.1:80",
+                "172.31.0.1:80",
+            ];
+            let mut best: Option<String> = None;
+            let mut best_rank: i32 = -1;
+            for target in candidates {
+                if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+                    if socket.connect(target).is_ok() {
+                        if let Ok(addr) = socket.local_addr() {
+                            let ip = addr.ip();
+                            if let std::net::IpAddr::V4(v4) = ip {
+                                if v4.is_loopback() || v4.is_unspecified() {
+                                    continue;
+                                }
+                                let oct = v4.octets();
+                                let rank = if oct[0] == 192 && oct[1] == 168 {
+                                    3
+                                } else if oct[0] == 10 {
+                                    2
+                                } else if oct[0] == 172 && (16..=31).contains(&oct[1]) {
+                                    1
+                                } else {
+                                    0
+                                };
+                                if rank > best_rank {
+                                    best_rank = rank;
+                                    best = Some(ip.to_string());
+                                }
+                                if rank == 3 {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            best
+        };
+        let lan_ip = pick_lan_ip();
+        if let Some(ip) = &lan_ip {
+            log::info!("LAN IP detected: {}", ip);
+            crate::ui_interface::set_option("lan-ip".to_owned(), ip.clone());
+        } else {
+            // 兜底：UDP connect 8.8.8.8 取默认路由出口 IP
+            if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+                if socket.connect("8.8.8.8:80").is_ok() {
+                    if let Ok(addr) = socket.local_addr() {
+                        let ip = addr.ip().to_string();
+                        if !ip.is_empty() && ip != "127.0.0.1" {
+                            log::info!("LAN IP detected (fallback): {}", ip);
+                            crate::ui_interface::set_option("lan-ip".to_owned(), ip);
+                        }
                     }
                 }
             }

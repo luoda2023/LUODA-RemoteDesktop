@@ -109,32 +109,40 @@ class _PeerTabPageState extends State<PeerTabPage>
       return model.multiSelectionMode ? createMultiSelectionBar(model) : widget;
     }
 
-    return Column(
-      textBaseline: TextBaseline.ideographic,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Obx(() => SizedBox(
-              height: 32,
-              child: Container(
-                padding: stateGlobal.isPortrait.isTrue
-                    ? EdgeInsets.symmetric(horizontal: 2)
-                    : null,
-                child: selectionWrap(Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                        child: visibleContextMenuListener(
-                            _createSwitchBar(context))),
-                    if (stateGlobal.isPortrait.isTrue)
-                      ..._portraitRightActions(context)
-                    else
-                      ..._landscapeRightActions(context)
-                  ],
-                )),
-              ),
-            ).paddingOnly(right: stateGlobal.isPortrait.isTrue ? 0 : 12)),
-        _createPeersView(),
-      ],
+    // 包一层 Material(type: transparency)，给 _createSwitchBar 里的
+    // ReorderableListView 提供 Material 祖先。否则在某些环境（如 Client
+    // 版本里 buildLeftPane 没 Scaffold / 没 Material）抛 FlutterError，
+    // ReorderableListView 子项被吞掉，TAB 区域看起来是空的灰色长方框，
+    // 但右键菜单链路独立工作所以右键仍能弹出 6 个 TAB 选项。
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
+        textBaseline: TextBaseline.ideographic,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Obx(() => SizedBox(
+                height: 32,
+                child: Container(
+                  padding: stateGlobal.isPortrait.isTrue
+                      ? EdgeInsets.symmetric(horizontal: 2)
+                      : null,
+                  child: selectionWrap(Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                          child: visibleContextMenuListener(
+                              _createSwitchBar(context))),
+                      if (stateGlobal.isPortrait.isTrue)
+                        ..._portraitRightActions(context)
+                      else
+                        ..._landscapeRightActions(context)
+                    ],
+                  )),
+                ),
+              ).paddingOnly(right: stateGlobal.isPortrait.isTrue ? 0 : 12)),
+          _createPeersView(),
+        ],
+      ),
     );
   }
 

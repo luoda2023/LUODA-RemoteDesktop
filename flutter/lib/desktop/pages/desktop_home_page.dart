@@ -110,21 +110,23 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           width: 250.0,
           child: Column(
             children: [
-              // 标题栏：关闭按钮
+              // 标题栏：右上角关闭按钮（保留原窗口右上角位置）
               Container(
                 height: 28,
-                padding: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.only(right: 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Expanded(child: Container()),
-                    // 关闭按钮
+                    const Expanded(child: SizedBox()),
                     GestureDetector(
                       onTap: () => windowManager.close(),
-                      child: Icon(
-                        Icons.close,
-                        size: 16,
-                        color: Colors.grey.withOpacity(0.6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.grey.withOpacity(0.6),
+                        ),
                       ),
                     ),
                   ],
@@ -134,21 +136,32 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 child: Column(
                   key: _childKey,
                   children: [
-                    // 圆形头像
-                    Container(
-                      margin: const EdgeInsets.only(top: 8, bottom: 8),
-                      width: 64, height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                        border: Border.all(color: MyTheme.accent, width: 2),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 6, offset: Offset(0, 2))],
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          "assets/avatar.png",
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, error, stackTrace) => Icon(Icons.computer, size: 32, color: MyTheme.accent),
+                    // 圆形头像 —— 显式居中，避免被外层宽度撑成偏右
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 8, bottom: 8),
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          border: Border.all(color: MyTheme.accent, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 6,
+                                offset: Offset(0, 2))
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            "assets/avatar.png",
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, error, stackTrace) => Icon(
+                                Icons.computer,
+                                size: 32,
+                                color: MyTheme.accent),
+                          ),
                         ),
                       ),
                     ),
@@ -167,7 +180,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                       child: OnlineStatusWidget(
                         onSvcStatusChanged: () {
                           if (isInHomePage()) {
-                            Future.delayed(const Duration(milliseconds: 300), () { _updateWindowSize(); });
+                            Future.delayed(const Duration(milliseconds: 300),
+                                () {
+                              _updateWindowSize();
+                            });
                           }
                         },
                       ),
