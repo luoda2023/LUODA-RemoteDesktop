@@ -110,7 +110,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           width: 250.0,
           child: Column(
             children: [
-              // 标题栏：主题切换 + 关闭按钮
+              // 标题栏：关闭按钮
               Container(
                 height: 28,
                 padding: const EdgeInsets.only(right: 4),
@@ -118,21 +118,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(child: Container()),
-                    // 主题切换（深色/浅色）
-                    GestureDetector(
-                      onTap: () {
-                        final isDark = Theme.of(context).brightness == Brightness.dark;
-                        bind.mainSetOption(key: "theme", value: isDark ? "light" : "dark");
-                      },
-                      child: Icon(
-                        Theme.of(context).brightness == Brightness.dark
-                            ? Icons.light_mode
-                            : Icons.dark_mode,
-                        size: 16,
-                        color: Colors.grey.withOpacity(0.6),
-                      ),
-                    ),
-                    SizedBox(width: 4),
                     // 关闭按钮
                     GestureDetector(
                       onTap: () => windowManager.close(),
@@ -175,10 +160,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     SizedBox(height: 4),
                     // IP:端口
                     buildDirectAccessBoard(context),
-                    Spacer(flex: 1),
+                    Spacer(flex: 2),
                     // 底部连接状态
                     SizedBox(
-                      height: 40,
+                      height: 50,
                       child: OnlineStatusWidget(
                         onSvcStatusChanged: () {
                           if (isInHomePage()) {
@@ -186,7 +171,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           }
                         },
                       ),
-                    ).marginOnly(left: 6, right: 6, bottom: 6),
+                    ).marginOnly(left: 6, right: 6, bottom: 8),
                   ],
                 ),
               ),
@@ -395,7 +380,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 
   buildRightPane(BuildContext context) {
     return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: Theme.of(context).colorScheme.background,
       child: ConnectionPage(),
     );
   }
@@ -675,96 +660,87 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
     final upnpOk = upnpStatus == 'ok';
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
-    // 同时显示公网 IP 和内网 IP 两条，公网用于外地访问，内网用于同局域网互访。
-    // 都用 "地址:端口" 形式，没有则显示 "Not available"。
-    String publicAddr = '';
-    String lanAddr = '';
+
+    // 显示用："地址:端口"，没有则只显示地址，再没有则"Not available"
+    String publicAddr = publicIP;
+    String lanAddr = lanIP;
     if (directPort.isNotEmpty) {
       if (publicIP.isNotEmpty) publicAddr = '$publicIP:$directPort';
       if (lanIP.isNotEmpty) lanAddr = '$lanIP:$directPort';
     }
-    if (publicAddr.isEmpty && publicIP.isNotEmpty) publicAddr = publicIP;
-    if (lanAddr.isEmpty && lanIP.isNotEmpty) lanAddr = lanIP;
-    final naText = translate('Not available');
+
     return Container(
       margin: const EdgeInsets.only(left: 20, right: 11),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 3,
-            height: 60,
-            decoration: BoxDecoration(
-              color: MyTheme.accent,
-              borderRadius: BorderRadius.circular(2),
-            ),
+          // 标题
+          Text(
+            "IP直连",
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: textColor?.withOpacity(0.45)),
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "IP直连",
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: textColor?.withOpacity(0.45)),
-                  ),
-                  SizedBox(height: 4),
-                  _ipRow(context, '公网', publicAddr, publicAddr.isNotEmpty,
-                      textColor),
-                  // UPnP 状态指示：让用户知道外网能不能直连
-                  if (publicAddr.isNotEmpty && directPort.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 28, top: 2),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: upnpOk ? Colors.green : Colors.orange,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            upnpOk
-                                ? '端口已映射，外网可直连'
-                                : '端口映射未成功，需手动配置路由器端口转发',
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: textColor?.withOpacity(0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  SizedBox(height: 4),
-                  _ipRow(context, '内网', lanAddr, lanAddr.isNotEmpty,
-                      textColor),
-                ],
-              ),
-            ),
+          SizedBox(height: 6),
+          // 公网 IP 卡片 —— 独立蓝色竖线
+          _ipCard(
+            context: context,
+            label: '公网',
+            addr: publicAddr,
+            hasAddr: publicAddr.isNotEmpty,
+            textColor: textColor,
+            upnpOk: upnpOk,
+            showUpnp: true,
+          ),
+          SizedBox(height: 6),
+          // 内网 IP 卡片 —— 独立蓝色竖线
+          _ipCard(
+            context: context,
+            label: '内网',
+            addr: lanAddr,
+            hasAddr: lanAddr.isNotEmpty,
+            textColor: textColor,
+            upnpOk: false,
+            showUpnp: false,
           ),
         ],
       ),
     );
   }
 
-  // 一行 IP 显示：左边小标签，右边 IP:端口，双击复制。
-  Widget _ipRow(BuildContext context, String label, String addr, bool hasAddr,
-      Color? textColor) {
-    final displayText = addr.isNotEmpty ? addr : translate('Not available');
+  // 一行 IP 显示：左侧独立蓝色竖线 + 标签 + IP:端口
+  //鼠标移到 IP 上时，Tooltip 弹窗显示完整地址（防止因宽度不够被截断）
+  Widget _ipCard(
+      {required BuildContext context,
+      required String label,
+      required String addr,
+      required bool hasAddr,
+      required Color? textColor,
+      required bool upnpOk,
+      required bool showUpnp}) {
+    final naText = translate('Not available');
+    final displayText = addr.isNotEmpty ? addr : naText;
+    // Tooltip 完整文本，悬停弹窗显示用，UPnP 状态一并放入弹窗
+    final tooltipText = showUpnp && addr.isNotEmpty
+        ? (upnpOk
+            ? '$addr\n端口已映射，外网可直连'
+            : '$addr\n端口映射未成功，需手动配置路由器端口转发')
+        : (addr.isNotEmpty ? addr : naText);
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        Container(
+          width: 3,
+          height: 30,
+          decoration: BoxDecoration(
+            color: MyTheme.accent,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        SizedBox(width: 8),
         SizedBox(
-          width: 28,
+          width: 24,
           child: Text(
             label,
             style: TextStyle(
@@ -775,32 +751,55 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           ),
         ),
         Expanded(
-          child: GestureDetector(
-            onDoubleTap: () {
-              if (addr.isNotEmpty) {
-                Clipboard.setData(ClipboardData(text: addr));
-                showToast(translate("Copied"));
-              }
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .background
-                    .withOpacity(0.5),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                displayText,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'monospace',
-                  letterSpacing: 0.5,
-                  color: hasAddr
-                      ? textColor
-                      : textColor?.withOpacity(0.4),
+          child: Tooltip(
+            message: tooltipText,
+            preferBelow: false,
+            waitDuration: Duration(milliseconds: 200),
+            child: GestureDetector(
+              onDoubleTap: () {
+                if (addr.isNotEmpty) {
+                  Clipboard.setData(ClipboardData(text: addr));
+                  showToast(translate("Copied"));
+                }
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .background
+                      .withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        displayText,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'monospace',
+                          letterSpacing: 0.3,
+                          color: hasAddr
+                              ? textColor
+                              : textColor?.withOpacity(0.4),
+                        ),
+                      ),
+                    ),
+                    if (showUpnp && addr.isNotEmpty) ...[
+                      SizedBox(width: 4),
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: upnpOk ? Colors.green : Colors.orange,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
