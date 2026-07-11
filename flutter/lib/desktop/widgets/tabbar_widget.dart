@@ -768,7 +768,8 @@ class WindowActionPanelState extends State<WindowActionPanel> {
         if (!kUseCompatibleUiMode)
           Row(
             children: [
-              _ThemeToggleBtn(),
+              // 客户端定制版去掉半月形主题切换按钮（bark），让关闭按钮直接在右上角
+              if (!bind.isCustomClient()) _ThemeToggleBtn(),
               if (widget.showMinimize && !isMacOS)
                 ActionIcon(
                   message: 'Minimize',

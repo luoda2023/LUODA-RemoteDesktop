@@ -110,27 +110,15 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           width: 250.0,
           child: Column(
             children: [
-              // 标题栏：左侧保留原关闭按钮 + 右侧新增关闭按钮
+              // 标题栏：去掉半月形主题切换按钮（bark），保留原右侧关闭按钮
               Container(
                 height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
+                padding: const EdgeInsets.only(right: 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // 左侧关闭按钮（保留原位置）
-                    GestureDetector(
-                      onTap: () => windowManager.close(),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close,
-                          size: 16,
-                          color: Colors.grey.withOpacity(0.6),
-                        ),
-                      ),
-                    ),
                     const Expanded(child: SizedBox()),
-                    // 右侧新增关闭按钮
+                    // 关闭按钮（原来就在 bark 右侧，现在 bark 去掉了，它顶到右上角）
                     GestureDetector(
                       onTap: () => windowManager.close(),
                       child: Padding(
@@ -187,9 +175,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     // IP:端口
                     buildDirectAccessBoard(context),
                     Spacer(flex: 3),
-                    // 底部连接状态 —— 加高 + 加大底部 margin 防止紧贴 IP 栏
+                    // 底部连接状态 —— 加大间距防止紧贴 IP 栏
                     SizedBox(
-                      height: 56,
+                      height: 60,
                       child: OnlineStatusWidget(
                         onSvcStatusChanged: () {
                           if (isInHomePage()) {
@@ -200,7 +188,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           }
                         },
                       ),
-                    ).marginOnly(left: 6, right: 6, bottom: 14),
+                    ).marginOnly(left: 6, right: 6, bottom: 18),
                   ],
                 ),
               ),
