@@ -110,29 +110,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           width: 276.0,
           child: Column(
             children: [
-              // 标题栏：去掉半月形主题切换按钮（bark），保留原右侧关闭按钮
-              Container(
-                height: 32,
-                padding: const EdgeInsets.only(right: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Expanded(child: SizedBox()),
-                    // 关闭按钮（原来就在 bark 右侧，现在 bark 去掉了，它顶到右上角）
-                    GestureDetector(
-                      onTap: () => windowManager.close(),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.close,
-                          size: 16,
-                          color: Colors.grey.withOpacity(0.6),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               Expanded(
                 child: Column(
                   key: _childKey,
