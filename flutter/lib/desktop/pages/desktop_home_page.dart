@@ -114,33 +114,47 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 child: Column(
                   key: _childKey,
                   children: [
-                    // 圆形头像 —— 显式居中
-                    Center(
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 8, bottom: 8),
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          border: Border.all(color: MyTheme.accent, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 6,
-                                offset: Offset(0, 2))
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            "assets/avatar.png",
-                            fit: BoxFit.cover,
-                            errorBuilder: (ctx, error, stackTrace) => Icon(
-                                Icons.computer,
-                                size: 32,
-                                color: MyTheme.accent),
+                    // 圆形头像 + LUODA 远程协助标题
+                    Align(
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(top: 20, bottom: 8),
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border: Border.all(color: MyTheme.accent, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 6,
+                                    offset: Offset(0, 2))
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                "assets/avatar.png",
+                                fit: BoxFit.cover,
+                                errorBuilder: (ctx, error, stackTrace) => Icon(
+                                    Icons.computer,
+                                    size: 32,
+                                    color: MyTheme.accent),
+                              ),
+                            ),
                           ),
-                        ),
+                          Text(
+                            "LUODA 远程协助",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).textTheme.titleLarge?.color,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     // 本机ID
