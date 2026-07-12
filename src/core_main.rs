@@ -68,6 +68,16 @@ pub fn core_main() -> Option<Vec<String>> {
                 log::info!("core_main: setting default direct-server=Y");
                 config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
             }
+            // LUODA 定制版: 强制启用 direct-server,防止 toml 持久化 N 导致永不恢复
+            if config::Config::get_option(keys::OPTION_DIRECT_SERVER) != "Y" {
+                log::info!("core_main: force enabling direct-server");
+                config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
+            }
+            // LUODA 定制版: 强制启用 direct-server
+            if config::Config::get_option(keys::OPTION_DIRECT_SERVER) != "Y" {
+                log::info!("core_main: force enabling direct-server");
+                config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
+            }
         }
     }
 

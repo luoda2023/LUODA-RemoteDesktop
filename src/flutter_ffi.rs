@@ -111,6 +111,34 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 log::info!("Setting default direct-server=Y");
                 config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
             }
+            // LUODA 定制版: 强制启用 direct-server,确保 IP 直连功能始终可用
+            // 即使 toml 中曾设为 "N",也强制改回 "Y"
+            if config::Config::get_option(keys::OPTION_DIRECT_SERVER) != "Y" {
+                log::info!("Force enabling direct-server for LUODA custom build");
+                config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
+            }
+
+            // LUODA 定制版: 速度优化默认值
+            // - custom-fps: 默认 60 (原默认未设置时为 30)
+            // - image-quality: best (原默认 balanced)
+            // - custom_image_quality: 80 (原默认 50)
+            // - bitrate: 8000 (高码率保证清晰度)
+            if config::Config::get_option(keys::OPTION_CUSTOM_FPS).is_empty() {
+                log::info!("Setting default custom-fps=60");
+                config::Config::set_option(keys::OPTION_CUSTOM_FPS.to_string(), "60".to_string());
+            }
+            if config::Config::get_option(keys::OPTION_IMAGE_QUALITY).is_empty() {
+                log::info!("Setting default image-quality=best");
+                config::Config::set_option(keys::OPTION_IMAGE_QUALITY.to_string(), "best".to_string());
+            }
+            if config::Config::get_option(keys::OPTION_CUSTOM_IMAGE_QUALITY).is_empty() {
+                log::info!("Setting default custom_image_quality=80");
+                config::Config::set_option(keys::OPTION_CUSTOM_IMAGE_QUALITY.to_string(), "80".to_string());
+            }
+            if config::Config::get_option("bitrate").is_empty() {
+                log::info!("Setting default bitrate=8000");
+                config::Config::set_option("bitrate".to_string(), "8000".to_string());
+            }
         }
     }
 }

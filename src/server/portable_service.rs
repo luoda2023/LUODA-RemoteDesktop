@@ -542,13 +542,25 @@ pub mod client {
             bail!("already running");
         }
         if SHMEM.lock().unwrap().is_none() {
-            let displays = scrap::Display::all()?;
+            let mut displays = scrap::Display::all()?;
             if displays.is_empty() {
-                bail!("no display available!");
+                // VPS 无显示器: 尝试创建虚拟显示器 (仅 Windows 支持)
+                #[cfg(windows)]
+                if crate::virtual_display_manager::is_virtual_display_supported() {
+                    log::warn!("no display available, trying to plug in headless display");
+                    if let Err(e) = crate::virtual_display_manager::plug_in_headless() {
+                        log::error!("plug in headless failed: {}", e);
+                    }
+                    // 重新检测显示器
+                    displays = scrap::Display::all()?;
+                }
+                if displays.is_empty() {
+                    bail!("no display available!");
+                }
             }
             let mut max_pixel = 0;
             let align = 64;
-            for d in displays {
+            for d in &displays {
                 let resolutions = crate::platform::resolutions(&d.name());
                 for r in resolutions {
                     let pixel =

@@ -289,19 +289,38 @@ impl Client {
             }
         }
         if hbb_common::is_ip_str(peer) {
-            let host = check_port(peer, DEFAULT_DIRECT_PORT);
-            return Ok((
-                (
-                    connect_tcp_local(host.as_str(), None, CONNECT_TIMEOUT)
-                        .await?,
-                    true,
-                    None,
-                    None,
-                    "TCP",
+            // LUODA 定制版: 裸 IP 直连时并发尝试 21118-21128 共 11 个候选端口，
+            // 解决被控端 21118 被占用导致端口回退到 21119/21120 后客户端硬编码连不上。
+            // 用 select_ok 哪个先成功就用哪个，整体超时仍受 CONNECT_TIMEOUT 控制。
+            let hosts: Vec<String> = (DEFAULT_DIRECT_PORT..DEFAULT_DIRECT_PORT + 11)
+                .map(|p| format!("{}:{}", peer, p))
+                .collect();
+            let futures: Vec<_> = hosts
+                .iter()
+                .map(|h| {
+                    let h = h.clone();
+                    async move {
+                        connect_tcp_local(h.as_str(), None, CONNECT_TIMEOUT).await
+                    }
+                    .boxed()
+                })
+                .collect();
+            match select_ok(futures).await {
+                Ok((conn, _)) => {
+                    return Ok((
+                        (conn, true, None, None, "TCP"),
+                        (0, "".to_owned()),
+                        false,
+                    ));
+                }
+                Err(e) => bail!(
+                    "Failed to connect to {} on ports {}-{}: {}",
+                    peer,
+                    DEFAULT_DIRECT_PORT,
+                    DEFAULT_DIRECT_PORT + 10,
+                    e
                 ),
-                (0, "".to_owned()),
-                false,
-            ));
+            }
         }
         // Allow connect to {domain}:{port}
         if hbb_common::is_domain_port_str(peer) {

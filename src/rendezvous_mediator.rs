@@ -765,7 +765,7 @@ fn get_direct_port() -> i32 {
     *mtx.lock().unwrap()
 }
 
-/// Mark the current direct port as failed (e.g. port already in use),
+/// Mark the current port as failed (e.g. port already in use),
 /// incrementing to the next port (21118 → 21119 → 21120 …).
 /// Falls back to a random port 20000-40000 only after 100 consecutive increments.
 fn invalidate_direct_port() {
@@ -778,6 +778,20 @@ fn invalidate_direct_port() {
             *port = rand::thread_rng().gen_range(20000..40000);
         }
         log::info!("Direct port {} was unavailable, trying {}", failed_port, *port);
+    }
+}
+
+/// Reset the direct port back to DEFAULT_DIRECT_PORT (21118).
+/// Called when the listener exits (e.g. service stopped) so the next
+/// restart will try the canonical port first instead of being stuck
+/// on a fallback port forever.
+fn reset_direct_port() {
+    if let Some(mtx) = DIRECT_PORT.get() {
+        let mut port = mtx.lock().unwrap();
+        if *port != DEFAULT_DIRECT_PORT {
+            log::info!("Resetting direct port from {} back to {}", *port, DEFAULT_DIRECT_PORT);
+            *port = DEFAULT_DIRECT_PORT;
+        }
     }
 }
 
@@ -849,6 +863,8 @@ async fn direct_server(server: ServerPtr) {
             if disabled || port != get_direct_port() {
                 log::info!("Exit direct access listen");
                 listener = None;
+                // 重置端口到 21118，下次启动可重新使用默认端口
+                reset_direct_port();
                 continue;
             }
             if let Ok(Ok((tcp_stream, addr))) = hbb_common::timeout(1000, l.accept()).await {
