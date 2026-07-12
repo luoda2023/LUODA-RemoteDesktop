@@ -115,8 +115,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                   key: _childKey,
                   children: [
                     // 圆形头像 + LUODA 远程协助标题
-                    Align(
-                      alignment: Alignment.center,
+                    Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -199,8 +198,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           child: loadPowered(context),
         ),
       // 圆形头像 + LUODA 远程协助
-      Align(
-        alignment: Alignment.center,
+      Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
