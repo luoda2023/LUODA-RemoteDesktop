@@ -766,17 +766,16 @@ fn get_direct_port() -> i32 {
 }
 
 /// Mark the current direct port as failed (e.g. port already in use),
-/// falling back to a random port 20000-40000.
+/// incrementing to the next port (21118 → 21119 → 21120 …).
+/// Falls back to a random port 20000-40000 only after 100 consecutive increments.
 fn invalidate_direct_port() {
     if let Some(mtx) = DIRECT_PORT.get() {
         let mut port = mtx.lock().unwrap();
         let failed_port = *port;
-        loop {
-            let next = rand::thread_rng().gen_range(20000..40000);
-            if next != failed_port {
-                *port = next;
-                break;
-            }
+        if *port < DEFAULT_DIRECT_PORT + 100 {
+            *port += 1;
+        } else {
+            *port = rand::thread_rng().gen_range(20000..40000);
         }
         log::info!("Direct port {} was unavailable, trying {}", failed_port, *port);
     }

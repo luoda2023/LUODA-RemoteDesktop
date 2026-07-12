@@ -119,6 +119,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                       alignment: Alignment.center,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
                             margin: const EdgeInsets.only(top: 20, bottom: 8),
@@ -202,6 +203,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         alignment: Alignment.center,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               margin: const EdgeInsets.only(top: 20, bottom: 8),
