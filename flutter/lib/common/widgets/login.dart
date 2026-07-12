@@ -365,12 +365,20 @@ class LoginWidgetUserPass extends StatelessWidget {
                 child:
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Container(
-                height: 38,
+                height: 50,
                 width: 200,
                 child: Obx(() => ElevatedButton(
-                      child: Text(
-                        translate('Login'),
-                        style: TextStyle(fontSize: 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.login, size: 18),
+                          SizedBox(height: 4),
+                          Text(
+                            translate('Login'),
+                            style: TextStyle(fontSize: 14),
+                          ),
+                        ],
                       ),
                       onPressed:
                            curOP.value.isEmpty || curOP.value == 'luoda'

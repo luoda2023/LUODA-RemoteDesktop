@@ -2089,7 +2089,8 @@ class _AccountState extends State<_Account> {
               gFFI.userModel.userName.value.isEmpty
                   ? loginDialog()
                   : logOutConfirmDialog()
-            }));
+            },
+        icon: gFFI.userModel.userName.value.isEmpty ? Icons.login : Icons.logout));
   }
 
   Widget useInfo() {
@@ -2246,7 +2247,8 @@ class _PluginState extends State<_Plugin> {
               gFFI.userModel.userName.value.isEmpty
                   ? loginDialog()
                   : logOutConfirmDialog()
-            }));
+            },
+        icon: gFFI.userModel.userName.value.isEmpty ? Icons.login : Icons.logout));
   }
 }
 
@@ -2802,12 +2804,21 @@ class _WaylandCardState extends State<WaylandCard> {
 
 // ignore: non_constant_identifier_names
 Widget _Button(String label, Function() onPressed,
-    {bool enabled = true, String? tip, ButtonStyle? style}) {
+    {bool enabled = true, String? tip, ButtonStyle? style, IconData? icon}) {
   var button = ElevatedButton(
     onPressed: enabled ? onPressed : null,
-    child: Text(
-      translate(label),
-    ).marginSymmetric(horizontal: 15),
+    child: icon != null
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18),
+              SizedBox(height: 4),
+              Text(translate(label)).marginSymmetric(horizontal: 15),
+            ],
+          )
+        : Text(
+            translate(label),
+          ).marginSymmetric(horizontal: 15),
     style: style,
   );
   StatefulWidget child;

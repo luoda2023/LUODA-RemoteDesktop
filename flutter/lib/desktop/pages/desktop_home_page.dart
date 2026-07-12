@@ -1033,6 +1033,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                                       textSize: 20,
                                       radius: 10,
                                       onTap: onPressed,
+                                      icon: btnText == 'Download'
+                                          ? Icons.download
+                                          : Icons.system_update,
                                     )
                                   ])
                             ]

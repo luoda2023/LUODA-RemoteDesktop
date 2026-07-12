@@ -42,7 +42,15 @@ class _AddressBookState extends State<AddressBook> {
         if (!gFFI.userModel.isLogin) {
           return Center(
               child: ElevatedButton(
-                  onPressed: loginDialog, child: Text(translate("Login"))));
+                  onPressed: loginDialog,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.login, size: 18),
+                      SizedBox(height: 4),
+                      Text(translate("Login")),
+                    ],
+                  )));
         } else if (gFFI.userModel.networkError.isNotEmpty) {
           return netWorkErrorWidget();
         } else {

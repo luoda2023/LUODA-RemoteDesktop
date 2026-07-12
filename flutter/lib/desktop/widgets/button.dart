@@ -95,6 +95,8 @@ class FixedWidthButton extends StatefulWidget {
   final double? radius;
   final Color? borderColor;
   final int? maxLines;
+  final IconData? icon;
+  final double? iconSize;
 
   FixedWidthButton({
     Key? key,
@@ -106,6 +108,8 @@ class FixedWidthButton extends StatefulWidget {
     this.textColor,
     this.radius,
     this.borderColor,
+    this.icon,
+    this.iconSize,
     required this.onTap,
     required this.text,
   }) : super(key: key);
@@ -120,6 +124,9 @@ class _FixedWidthButtonState extends State<FixedWidthButton> {
 
   @override
   Widget build(BuildContext context) {
+    final color = widget.isOutline
+        ? widget.textColor ?? Theme.of(context).textTheme.titleLarge?.color
+        : Colors.white;
     return Obx(() => InkWell(
           onTapDown: (_) => pressed.value = true,
           onTapUp: (_) => pressed.value = false,
@@ -145,26 +152,45 @@ class _FixedWidthButtonState extends State<FixedWidthButton> {
               ),
               borderRadius: BorderRadius.circular(widget.radius ?? 5),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: AutoSizeText(
-                    translate(
-                      widget.text,
-                    ),
-                    maxLines: widget.maxLines ?? 1,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: widget.textSize ?? 12.0,
-                        color: widget.isOutline
-                            ? widget.textColor ??
-                                Theme.of(context).textTheme.titleLarge?.color
-                            : Colors.white),
-                  ).marginSymmetric(horizontal: 12),
-                ),
-              ],
-            ),
+            child: widget.icon != null
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        widget.icon,
+                        size: widget.iconSize ?? (widget.textSize ?? 12.0) * 1.4,
+                        color: color,
+                      ),
+                      SizedBox(height: 4),
+                      AutoSizeText(
+                        translate(widget.text),
+                        maxLines: widget.maxLines ?? 1,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: widget.textSize ?? 12.0,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: AutoSizeText(
+                          translate(
+                            widget.text,
+                          ),
+                          maxLines: widget.maxLines ?? 1,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: widget.textSize ?? 12.0,
+                              color: color),
+                        ).marginSymmetric(horizontal: 12),
+                      ),
+                    ],
+                  ),
           ),
         ));
   }
