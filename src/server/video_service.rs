@@ -864,19 +864,10 @@ fn run(vs: VideoService) -> ResultType<()> {
             }
         }
 
+        // 修复画面不更新问题：移除阻塞等待，直接继续下一帧
+        // 原逻辑等待客户端ACK会导致3秒超时，严重降低帧率
         let mut fetched_conn_ids = HashSet::new();
-        let timeout_millis = 3_000u64;
-        let wait_begin = Instant::now();
-        while wait_begin.elapsed().as_millis() < timeout_millis as _ {
-            if vs.source.is_monitor() {
-                check_privacy_mode_changed(&sp, display_idx, &c)?;
-            }
-            frame_controller.try_wait_next(&mut fetched_conn_ids, 300);
-            // break if all connections have received current frame
-            if fetched_conn_ids.len() >= frame_controller.send_conn_ids.len() {
-                break;
-            }
-        }
+        frame_controller.try_wait_next(&mut fetched_conn_ids, 10);
         DISPLAY_CONN_IDS.lock().unwrap().remove(&display_idx);
 
         let elapsed = now.elapsed();
