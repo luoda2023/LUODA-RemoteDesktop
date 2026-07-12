@@ -1151,7 +1151,8 @@ pub fn main_check_connect_status() {
                     crate::direct_access::LanAddressCandidate {
                         address: ipnet.addr,
                         name: iface.name.clone(),
-                        is_default: iface.is_default(),
+                        // default_net 当前版本没有 is_default() API，设为 false
+                        is_default: false,
                         has_gateway: iface.gateway.is_some(),
                         is_physical: !iface.name.to_lowercase().contains("virtual")
                             && !iface.name.to_lowercase().contains("loopback"),
