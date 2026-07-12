@@ -758,10 +758,9 @@ static DIRECT_PORT: std::sync::OnceLock<std::sync::Mutex<i32>> = std::sync::Once
 
 fn get_direct_port() -> i32 {
     let mtx = DIRECT_PORT.get_or_init(|| {
-        // 每次运行都随机生成一个新端口（20000-40000），不再固定 21118。
-        std::sync::Mutex::new(
-            rand::thread_rng().gen_range(20000..40000)
-        )
+        // Keep the documented port stable so entering a bare IP uses the
+        // same port. Fall back to a random port only if 21118 is occupied.
+        std::sync::Mutex::new(DEFAULT_DIRECT_PORT)
     });
     *mtx.lock().unwrap()
 }
@@ -771,18 +770,15 @@ fn get_direct_port() -> i32 {
 fn invalidate_direct_port() {
     if let Some(mtx) = DIRECT_PORT.get() {
         let mut port = mtx.lock().unwrap();
-        // Switch to a random fallback port only if we were on the default
-        if *port == DEFAULT_DIRECT_PORT {
-            *port = rand::thread_rng().gen_range(20000..40000);
-            log::info!(
-                "DEFAULT_DIRECT_PORT {} was taken, fell back to random port {}",
-                DEFAULT_DIRECT_PORT,
-                *port
-            );
-        } else {
-            // Already on a fallback port — keep it
-            log::info!("Direct port {} remains in use", *port);
+        let failed_port = *port;
+        loop {
+            let next = rand::thread_rng().gen_range(20000..40000);
+            if next != failed_port {
+                *port = next;
+                break;
+            }
         }
+        log::info!("Direct port {} was unavailable, trying {}", failed_port, *port);
     }
 }
 

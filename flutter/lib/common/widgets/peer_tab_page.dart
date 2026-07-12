@@ -161,14 +161,13 @@ class _PeerTabPageState extends State<PeerTabPage>
               ? (tabColor.selectedTextColor ?? Colors.black)
               : (tabColor.unSelectedTextColor ?? Colors.grey).withOpacity(0.5);
           final hover = false.obs;
-          // Tab颜色序列
           final indicatorColors = [
-            Color(0xFF4A90D9), // recent - blue
-            Color(0xFFE74C3C), // fav - red
-            Color(0xFF2ECC71), // lan - green
-            Color(0xFFF39C12), // address book - orange
-            Color(0xFF9B59B6), // group - purple
-            Color(0xFF1ABC9C), // vip - teal
+            Color(0xFF4A90D9),
+            Color(0xFFE74C3C),
+            Color(0xFF2ECC71),
+            Color(0xFFF39C12),
+            Color(0xFF9B59B6),
+            Color(0xFF1ABC9C),
           ];
           final indicatorColor = indicatorColors[t % indicatorColors.length];
           counter += 1;
@@ -181,12 +180,15 @@ class _PeerTabPageState extends State<PeerTabPage>
                     onTriggered: isMobile ? mobileShowTabVisibilityMenu : null,
                     child: InkWell(
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
                               width: selected ? 3 : 0,
-                              color: selected ? indicatorColor : Colors.transparent,
+                              color: selected
+                                  ? indicatorColor
+                                  : Colors.transparent,
                             ),
                           ),
                         ),

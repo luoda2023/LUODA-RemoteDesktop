@@ -107,7 +107,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       return ChangeNotifierProvider.value(
         value: gFFI.serverModel,
         child: SizedBox(
-          width: 250.0,
+          width: 276.0,
           child: Column(
             children: [
               // 标题栏：去掉半月形主题切换按钮（bark），保留原右侧关闭按钮

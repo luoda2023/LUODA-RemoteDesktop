@@ -1916,11 +1916,10 @@ Future<Size> _adjustRestoreMainWindowSize(double? width, double? height) async {
   if (restoreHeight > maxHeight) {
     restoreHeight = defaultHeight;
   }
-  // 客户端定制版：窗口固定 250×500，无论从任何已保存尺寸恢复都强制锁定。
-  // 不允许任何操作（包括深色/浅色切换）改变窗口大小。
+  // 客户端定制版：窗口固定为截图对应的紧凑信息面板尺寸。
   if (bind.isCustomClient()) {
-    restoreWidth = 250;
-    restoreHeight = 500;
+    restoreWidth = 276;
+    restoreHeight = 570;
   }
   return Size(restoreWidth, restoreHeight);
 }
