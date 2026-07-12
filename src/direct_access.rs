@@ -50,6 +50,15 @@ fn lan_candidate_score(candidate: &LanAddressCandidate) -> i32 {
     if !is_virtual {
         score += 50;
     }
+    // 优先 192.168.x.x（家用最常见），其次 10.x.x.x（企业网），最后 172.16-31.x.x
+    let oct = candidate.address.octets();
+    if oct[0] == 192 && oct[1] == 168 {
+        score += 30;
+    } else if oct[0] == 10 {
+        score += 20;
+    } else if oct[0] == 172 && (16..=31).contains(&oct[1]) {
+        score += 10;
+    }
     score
 }
 

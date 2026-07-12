@@ -7,6 +7,7 @@ import 'package:luoda_flutter/common/widgets/dialog.dart';
 import 'package:luoda_flutter/common/widgets/my_group.dart';
 import 'package:luoda_flutter/common/widgets/peers_view.dart';
 import 'package:luoda_flutter/common/widgets/peer_card.dart';
+import 'package:luoda_flutter/common/widgets/peer_tab_strip.dart';
 import 'package:luoda_flutter/common/widgets/vip_features_page.dart';
 import 'package:luoda_flutter/consts.dart';
 import 'package:luoda_flutter/desktop/widgets/popup_menu.dart';
@@ -148,64 +149,17 @@ class _PeerTabPageState extends State<PeerTabPage>
 
   Widget _createSwitchBar(BuildContext context) {
     final model = Provider.of<PeerTabModel>(context);
-    var counter = -1;
-    return ReorderableListView(
-        buildDefaultDragHandles: false,
-        onReorder: model.reorder,
-        scrollDirection: Axis.horizontal,
-        physics: NeverScrollableScrollPhysics(),
-        children: model.visibleEnabledOrderedIndexs.map((t) {
-          final selected = model.currentTab == t;
-          final tabColor = MyTheme.tabbar(context);
-          final color = selected
-              ? (tabColor.selectedTextColor ?? Colors.black)
-              : (tabColor.unSelectedTextColor ?? Colors.grey).withOpacity(0.5);
-          final hover = false.obs;
-          final indicatorColors = [
-            Color(0xFF4A90D9),
-            Color(0xFFE74C3C),
-            Color(0xFF2ECC71),
-            Color(0xFFF39C12),
-            Color(0xFF9B59B6),
-            Color(0xFF1ABC9C),
-          ];
-          final indicatorColor = indicatorColors[t % indicatorColors.length];
-          counter += 1;
-          return ReorderableDragStartListener(
-              key: ValueKey(t),
-              index: counter,
-              child: Obx(() => Tooltip(
-                    preferBelow: false,
-                    message: model.tabTooltip(t),
-                    onTriggered: isMobile ? mobileShowTabVisibilityMenu : null,
-                    child: InkWell(
-                      child: Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              width: selected ? 3 : 0,
-                              color: selected
-                                  ? indicatorColor
-                                  : Colors.transparent,
-                            ),
-                          ),
-                        ),
-                        child: Icon(model.tabIcon(t),
-                            color: selected ? indicatorColor : color, size: 20),
-                      ),
-                      onTap: isOptionFixed(kOptionPeerTabIndex)
-                          ? null
-                          : () async {
-                              await handleTabSelection(t);
-                              await bind.setLocalFlutterOption(
-                                  k: kOptionPeerTabIndex, v: t.toString());
-                            },
-                      onHover: (value) => hover.value = value,
-                    ),
-                  )));
-        }).toList());
+    return PeerTabStrip(
+      selectedIndex: model.currentTab,
+      labels: PeerTabModel.tabNames,
+      icons: PeerTabModel.icons,
+      visibleIndexes: model.visibleEnabledOrderedIndexs,
+      onSelected: (index) async {
+        await handleTabSelection(index);
+        await bind.setLocalFlutterOption(
+            k: kOptionPeerTabIndex, v: index.toString());
+      },
+    );
   }
 
   Widget _createPeersView() {
