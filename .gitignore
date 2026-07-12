@@ -13,3 +13,35 @@
 target/
 !target/.rustc_info.json
 !target/CACHEDIR.TAG
+# 本地构建产物
+downloads/
+LUODA-Client-x64/
+
+# 一次性脚本/备份/日志
+_*.py
+_*.txt
+_*.ps1
+auto_build_and_test.py
+auto_loop.py
+branding-ci-v2.bundle
+b64_*.txt
+b64_*.b64
+ci_auto_*.py
+ci_auto_*.ps1
+decode_and_write.py
+desktop_setting_page_backup.txt
+fix-settings-crash.patch
+gen_auto_build.py
+monitor.html
+monitor-ci.sh
+peer_card_backup.txt
+push-changes.sh
+push_result.txt
+write_auto_build.py
+write_p1.py
+build_update.json
+settings_update.json
+.git_acl_backup.txt
+
+# ZCode 计划文件（个人临时计划，不共享）
+.zcode/
