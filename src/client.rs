@@ -274,18 +274,41 @@ impl Client {
             let ip_part = &peer[..pos];
             let port_part = &peer[pos+1..];
             if hbb_common::is_ip_str(ip_part) && port_part.chars().all(|c| c.is_ascii_digit()) {
-                let host = format!("{}:{}", ip_part, port_part);
-                return Ok((
-                    (
-                        connect_tcp_local(&*host, None, CONNECT_TIMEOUT).await?,
-                        true,
-                        None,
-                        None,
-                        "TCP",
+                let user_port: u16 = port_part.parse().unwrap_or(DEFAULT_DIRECT_PORT as u16);
+                // LUODA: 用户输入的端口可能与服务端实际监听端口对不上(被占用回退到+1/+2)。
+                // 并发尝试 [user_port, user_port±5] 共 11 个候选端口,
+                // 用 select_ok 谁先成功用谁, 整体超时受 CONNECT_TIMEOUT 控制。
+                // 这样对内网卡冲突或服务端 invalidate_direct_port 自动回退的场景也能连上。
+                let base = user_port as i32;
+                let ports: Vec<u16> = (base - 5..=base + 5)
+                    .filter(|p| *p > 0 && *p < 65536)
+                    .map(|p| p as u16)
+                    .collect();
+                let futures: Vec<_> = ports
+                    .iter()
+                    .map(|p| {
+                        let host = format!("{}:{}", ip_part, p);
+                        async move {
+                            connect_tcp_local(host.as_str(), None, CONNECT_TIMEOUT).await
+                        }
+                        .boxed()
+                    })
+                    .collect();
+                match select_ok(futures).await {
+                    Ok((conn, _)) => {
+                        return Ok((
+                            (conn, true, None, None, "TCP"),
+                            (0, "".to_owned()),
+                            false,
+                        ));
+                    }
+                    Err(e) => bail!(
+                        "Failed to connect to {} on ports near {}: {}",
+                        ip_part,
+                        user_port,
+                        e
                     ),
-                    (0, "".to_owned()),
-                    false,
-                ));
+                }
             }
         }
         if hbb_common::is_ip_str(peer) {
