@@ -108,7 +108,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     // 客户定制版：限制最大宽度,防止父级 Stack/Row 被撑开导致右侧出现空白
     if (widget.isClientOnly) {
       effectiveChild = SizedBox(
-        width: 360,
+        width: 380,
         child: child,
       );
     }
@@ -121,7 +121,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       return ChangeNotifierProvider.value(
         value: gFFI.serverModel,
         child: SizedBox(
-          width: 276.0,
+          width: 380.0,
           child: Column(
             children: [
               Expanded(
