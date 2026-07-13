@@ -2925,24 +2925,36 @@ Widget dialogButton(String text,
     if (isOutline) {
       return icon == null
           ? OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
               onPressed: onPressed,
               child: Text(translate(text), style: style),
             )
           : OutlinedButton.icon(
               icon: icon,
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
               onPressed: onPressed,
               label: Text(translate(text), style: style),
             );
     } else {
       return icon == null
           ? ElevatedButton(
-              style: ElevatedButton.styleFrom(elevation: 0).merge(buttonStyle),
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ).merge(buttonStyle),
               onPressed: onPressed,
               child: Text(translate(text), style: style),
             )
           : ElevatedButton.icon(
               icon: icon,
-              style: ElevatedButton.styleFrom(elevation: 0).merge(buttonStyle),
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ).merge(buttonStyle),
               onPressed: onPressed,
               label: Text(translate(text), style: style),
             );

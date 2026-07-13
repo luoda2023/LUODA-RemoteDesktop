@@ -49,7 +49,7 @@ class _ButtonState extends State<Button> {
                 minWidth: widget.minWidth ?? 70.0,
               ),
               child: Container(
-                padding: EdgeInsets.all(widget.padding ?? 4.5),
+                padding: EdgeInsets.all(widget.padding ?? 8.0),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: pressed.value
@@ -78,7 +78,7 @@ class _ButtonState extends State<Button> {
                           ? widget.textColor ??
                               Theme.of(context).textTheme.titleLarge?.color
                           : Colors.white),
-                ).marginSymmetric(horizontal: 12),
+                ).marginSymmetric(horizontal: 16),
               )),
         ));
   }
@@ -135,7 +135,7 @@ class _FixedWidthButtonState extends State<FixedWidthButton> {
           onTap: widget.onTap,
           child: Container(
             width: widget.width,
-            padding: EdgeInsets.all(widget.padding ?? 4.5),
+            padding: EdgeInsets.all(widget.padding ?? 8.0),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: pressed.value
@@ -162,7 +162,7 @@ class _FixedWidthButtonState extends State<FixedWidthButton> {
                         size: widget.iconSize ?? (widget.textSize ?? 12.0) * 1.4,
                         color: color,
                       ),
-                      SizedBox(height: 4),
+                      SizedBox(height: 8),
                       AutoSizeText(
                         translate(widget.text),
                         maxLines: widget.maxLines ?? 1,
@@ -187,7 +187,7 @@ class _FixedWidthButtonState extends State<FixedWidthButton> {
                           style: TextStyle(
                               fontSize: widget.textSize ?? 12.0,
                               color: color),
-                        ).marginSymmetric(horizontal: 12),
+                        ).marginSymmetric(horizontal: 16),
                       ),
                     ],
                   ),

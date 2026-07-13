@@ -77,13 +77,19 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final isIncomingOnly = bind.isIncomingOnly();
     // 客户端专用版：只显示左侧内容，不包含右侧输入框和历史列表
     if (widget.isClientOnly) {
+      // 客户定制版用 Align+mainAxisSize.min 锁定到左侧,防止 Stack/Row
+      // 被父级 AvailableWidth 撑满导致右侧出现大片空白。
+      // 同时不再绘制 VerticalDivider —— 客户版只有左侧面板,根本不需要分隔线。
       return _buildBlock(
-          child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          buildLeftPane(context),
-          if (!isIncomingOnly) const VerticalDivider(width: 1),
-        ],
+          child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildLeftPane(context),
+          ],
+        ),
       ));
     }
     return _buildBlock(
@@ -305,44 +311,47 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               bottom: 6,
               left: 10,
               right: 10,
-              child: Row(
-                children: [
-                  // 设置按钮
-                  Expanded(
-                    child: Obx(
-                      () => InkWell(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.settings_outlined,
-                              color: _settingsHover.value
-                                  ? textColor
-                                  : Colors.grey.withOpacity(0.5),
-                              size: 18,
-                            ),
-                            Text(
-                              translate("Settings"),
-                              style: TextStyle(
-                                fontSize: 10,
+              // 客户定制版: 底部"设置/网络"按钮一律隐藏,不允许用户打开任何设置面板
+              child: Offstage(
+                offstage: bind.isCustomClient(),
+                child: Row(
+                  children: [
+                    // 设置按钮
+                    Expanded(
+                      child: Obx(
+                        () => InkWell(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.settings_outlined,
                                 color: _settingsHover.value
                                     ? textColor
                                     : Colors.grey.withOpacity(0.5),
+                                size: 18,
                               ),
-                            ),
-                          ],
+                              Text(
+                                translate("Settings"),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: _settingsHover.value
+                                      ? textColor
+                                      : Colors.grey.withOpacity(0.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                          onTap: () {
+                            if (DesktopSettingPage.tabKeys.isNotEmpty) {
+                              DesktopSettingPage.switch2page(
+                                  DesktopSettingPage.tabKeys[0]);
+                            }
+                          },
+                          onHover: (value) =>
+                              _settingsHover.value = value,
                         ),
-                        onTap: () {
-                          if (DesktopSettingPage.tabKeys.isNotEmpty) {
-                            DesktopSettingPage.switch2page(
-                                DesktopSettingPage.tabKeys[0]);
-                          }
-                        },
-                        onHover: (value) =>
-                            _settingsHover.value = value,
                       ),
                     ),
-                  ),
                   // 中继服务器按钮
                   Expanded(
                     child: Obx(
@@ -613,7 +622,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           ).workaroundFreezeLinuxMint(),
                         ),
                       ),
-                      if (showOneTime)
+                      // 客户端版: 刷新和编辑按钮一律隐藏,不允许用户改任何设置
+                      if (showOneTime && !bind.isCustomClient())
                         AnimatedRotationWidget(
                           onPressed: () => bind.mainUpdateTemporaryPassword(),
                           child: Tooltip(
@@ -818,8 +828,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildHelpCards(String updateUrl) {
-    if (!bind.isCustomClient() &&
-        updateUrl.isNotEmpty &&
+    // 客户定制版: 完全不显示任何帮助卡片(更新提示、安装提示、错误提示等)
+    if (bind.isCustomClient()) {
+      return Container();
+    }
+    if (updateUrl.isNotEmpty &&
         !isCardClosed &&
         bind.mainUriPrefixSync().contains('luoda')) {
       final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();

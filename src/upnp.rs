@@ -59,6 +59,47 @@ fn try_add_mapping(port: u16) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn get_local_lan_ip() -> Option<std::net::Ipv4Addr> {
+    // 优先方案：用 direct_access 模块智能选择内网 IP
+    // 枚举所有网卡 + 评分（192.168.x.x >> 10.x.x.x > 172.16-31.x.x），
+    // 避开 VPN/WSL/Docker/Hyper-V 等虚拟网卡。UDP connect 法只能拿默认路由
+    // 出口 IP，多网卡/VPN 环境下会拿错（例如真实网卡是 192.168.x.x 但默认路由
+    // 走的是 10.x.x.x 网卡，UDP connect 法返回的就只能是 10.x.x.x）。
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let ifaces: Vec<default_net::interface::Interface> =
+            default_net::interface::get_interfaces();
+        let candidates: Vec<crate::direct_access::LanAddressCandidate> = ifaces
+            .iter()
+            .flat_map(|iface| {
+                iface.ipv4.iter().map(move |ipnet| {
+                    let name_lower = iface.name.to_lowercase();
+                    let virtual_markers = [
+                        "virtual", "vethernet", "vmware", "virtualbox",
+                        "vbox", "hyper-v", "hyperv", "wsl", "docker",
+                        "tailscale", "wireguard", "vpn", "tunnel",
+                        "loopback", "bluetooth", "bt", "pseudo",
+                        "tun", "tap", "ppp", "pppoe",
+                        "isatap", "teredo", "6to4",
+                    ];
+                    let is_physical = !virtual_markers.iter().any(|m| name_lower.contains(m));
+                    crate::direct_access::LanAddressCandidate {
+                        address: ipnet.addr,
+                        name: iface.name.clone(),
+                        is_default: false,
+                        has_gateway: iface.gateway.is_some(),
+                        is_physical,
+                    }
+                })
+            })
+            .collect();
+
+        if let Some(ip) = crate::direct_access::choose_lan_ipv4(&candidates) {
+            info!("UPnP: LAN IP detected via direct_access: {}", ip);
+            return Some(ip);
+        }
+    }
+
+    // 兜底方案：UDP connect 8.8.8.8 取默认路由出口 IP
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:80").ok()?;
     let addr = socket.local_addr().ok()?;

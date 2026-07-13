@@ -368,6 +368,9 @@ class LoginWidgetUserPass extends StatelessWidget {
                 height: 50,
                 width: 200,
                 child: Obx(() => ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,

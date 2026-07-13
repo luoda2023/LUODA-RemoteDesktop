@@ -1182,8 +1182,18 @@ pub fn main_check_connect_status() {
                         // default_net 当前版本没有 is_default() API，设为 false
                         is_default: false,
                         has_gateway: iface.gateway.is_some(),
-                        is_physical: !iface.name.to_lowercase().contains("virtual")
-                            && !iface.name.to_lowercase().contains("loopback"),
+                        is_physical: {
+                            let name_lower = iface.name.to_lowercase();
+                            let virtual_markers = [
+                                "virtual", "vethernet", "vmware", "virtualbox",
+                                "vbox", "hyper-v", "hyperv", "wsl", "docker",
+                                "tailscale", "wireguard", "vpn", "tunnel",
+                                "loopback", "bluetooth", "bt", "pseudo",
+                                "tun", "tap", "ppp", "pppoe",
+                                "isatap", "teredo", "6to4",
+                            ];
+                            !virtual_markers.iter().any(|m| name_lower.contains(m))
+                        },
                     }
                 })
             })

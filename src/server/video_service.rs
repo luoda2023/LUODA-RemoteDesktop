@@ -395,7 +395,46 @@ fn get_capturer_monitor(
         }
     }
 
-    let mut displays = Display::all()?;
+    let mut displays = match Display::all() {
+        Ok(d) => d,
+        Err(e) => {
+            // VPS 无显示器场景: Display::all() 枚举失败 (例如 headless VPS, RDP 未连接)
+            // 尝试 plug-in headless 虚拟显示器后重试
+            #[cfg(windows)]
+            {
+                if crate::virtual_display_manager::is_virtual_display_supported() {
+                    log::warn!("Display::all() failed ({}), trying headless display", e);
+                    if let Err(plug_err) = crate::virtual_display_manager::plug_in_headless() {
+                        log::error!("plug in headless failed: {}", plug_err);
+                    }
+                    if let Ok(d) = Display::all() {
+                        d
+                    } else {
+                        return Err(e.into());
+                    }
+                } else {
+                    return Err(e.into());
+                }
+            }
+            #[cfg(not(windows))]
+            {
+                return Err(e.into());
+            }
+        }
+    };
+
+    // 显示器列表为空时再次尝试 plug-in headless (VPS场景,Display::all() 返回空 Vec)
+    if displays.is_empty() {
+        #[cfg(windows)]
+        if crate::virtual_display_manager::is_virtual_display_supported() {
+            log::warn!("no display available, trying to plug in headless display");
+            if let Err(plug_err) = crate::virtual_display_manager::plug_in_headless() {
+                log::error!("plug in headless failed: {}", plug_err);
+            }
+            displays = Display::all()?;
+        }
+    }
+
     let ndisplay = displays.len();
     if ndisplay <= current {
         bail!(
