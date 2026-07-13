@@ -171,6 +171,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         ],
                       ),
                     ),
+                    // 客户端定制版: 远程ID输入框 —— 输入对方ID或IP:端口号,回车直接连接
+                    _buildClientIDField(),
                     // 本机ID
                     buildIDBoard(context),
                     SizedBox(height: 4),
@@ -426,7 +428,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           filled: true,
           fillColor: Theme.of(context)
               .colorScheme
-              .background
+              .surface
               .withOpacity(0.5),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
