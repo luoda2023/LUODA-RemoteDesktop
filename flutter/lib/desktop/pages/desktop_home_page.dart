@@ -389,6 +389,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 ],
               ),
             ),
+            ),
           ],
         ),
       ),
