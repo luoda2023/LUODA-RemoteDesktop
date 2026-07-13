@@ -118,8 +118,11 @@ android {
 
     signingConfigs {
         create("release") {
+            // storeFile 路径相对于 app 目录 (即 flutter/android/app/),
+            // 因为 keystore.jks 实际生成在 flutter/android/app/keystore.jks,
+            // 而 rootProject 是 flutter/android/,不能直接用 rootProject.file("keystore.jks")。
             val storeFilePath = keystoreProperties["storeFile"] as? String
-            val storeFileObj = storeFilePath?.let { rootProject.file(it) }
+            val storeFileObj = storeFilePath?.let { file(it) }
             if (storeFileObj?.exists() == true) {
                 keyAlias = keystoreProperties["keyAlias"] as String?
                 keyPassword = keystoreProperties["keyPassword"] as String?
