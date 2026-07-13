@@ -3706,8 +3706,12 @@ Widget loadIcon(double size) {
           ));
 }
 
-var imcomingOnlyHomeSize = Size(280, 300);
+var imcomingOnlyHomeSize = Size(370, 460);
 Size getIncomingOnlyHomeSize() {
+  // 客户定制版：固定窗口尺寸，清除右侧空白
+  if (isCustomClient) {
+    return const Size(380, 500);
+  }
   final magicWidth = isWindows ? 11.0 : 2.0;
   final magicHeight = 10.0;
   return imcomingOnlyHomeSize +

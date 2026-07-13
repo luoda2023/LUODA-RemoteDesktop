@@ -105,10 +105,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 
   Widget _buildBlock({required Widget child}) {
     Widget effectiveChild = child;
-    // 客户定制版：限制最大宽度，防止父级 Stack/Row 被撑开导致右侧出现空白
+    // 客户定制版：限制最大宽度,防止父级 Stack/Row 被撑开导致右侧出现空白
     if (widget.isClientOnly) {
       effectiveChild = SizedBox(
-        width: 276,
+        width: 360,
         child: child,
       );
     }
