@@ -700,6 +700,25 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       if (lanIP.isNotEmpty) lanAddr = '$lanIP:$directPort';
     }
 
+    // 智能判断内网IP是否值得显示：
+    // 仅当内网IP与本机最常用的内网网段(192.168.x 或 10.x 或 172.16-31.x)匹配时显示,
+    // 否则认为是 NAT 网关/虚拟网卡,直接隐藏避免误导用户。
+    bool shouldShowLan = false;
+    if (lanIP.isNotEmpty) {
+      final parts = lanIP.split('.');
+      if (parts.length >= 2) {
+        final a = int.tryParse(parts[0]) ?? 0;
+        final b = int.tryParse(parts[1]) ?? 0;
+        if (a == 192 && b == 168) {
+          shouldShowLan = true;
+        } else if (a == 10) {
+          shouldShowLan = true;
+        } else if (a == 172 && b >= 16 && b <= 31) {
+          shouldShowLan = true;
+        }
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(left: 20, right: 11),
       child: Column(
@@ -724,17 +743,19 @@ class _DesktopHomePageState extends State<DesktopHomePage>
             upnpOk: upnpOk,
             showUpnp: true,
           ),
-          SizedBox(height: 6),
-          // 内网 IP 卡片 —— 独立蓝色竖线
-          _ipCard(
-            context: context,
-            label: '内网',
-            addr: lanAddr,
-            hasAddr: lanAddr.isNotEmpty,
-            textColor: textColor,
-            upnpOk: false,
-            showUpnp: false,
-          ),
+          // 内网 IP 卡片 —— 仅在常用网段才显示
+          if (shouldShowLan) ...[
+            SizedBox(height: 6),
+            _ipCard(
+              context: context,
+              label: '内网',
+              addr: lanAddr,
+              hasAddr: lanAddr.isNotEmpty,
+              textColor: textColor,
+              upnpOk: false,
+              showUpnp: false,
+            ),
+          ],
         ],
       ),
     );

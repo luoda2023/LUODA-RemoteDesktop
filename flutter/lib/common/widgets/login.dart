@@ -363,8 +363,8 @@ class LoginWidgetUserPass extends StatelessWidget {
                 child:
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Container(
-                height: 50,
-                width: 50,
+                height: 44,
+                width: 44,
                 decoration: BoxDecoration(
                   color: MyTheme.accent,
                   borderRadius: BorderRadius.circular(8),
@@ -374,10 +374,14 @@ class LoginWidgetUserPass extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.all(Radius.circular(8)),
+                        ),
                       ),
                       child: Icon(
-                        Icons.login,
-                        size: 26,
+                        Icons.vpn_key,
+                        size: 24,
                         color: Colors.white,
                       ),
                       onPressed:

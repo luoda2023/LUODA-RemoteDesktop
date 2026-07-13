@@ -509,15 +509,17 @@ class _ConnectionPageState extends State<ConnectionPage>
             Padding(
               padding: const EdgeInsets.only(top: 13.0),
               child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                // 圆形连接按钮: 只显示图标,不显示"Connect"文字,
-                // 普通版按截图要求,按钮上只用图标代替文字。
+                // 方形连接按钮: 只显示图标,不显示"Connect"文字,
+                // 连接图标用"箭头进入"(Icons.arrow_forward_ios),与登录对话框的钥匙图标(Icons.vpn_key)区分。
                 SizedBox(
                   height: 40.0,
                   width: 40.0,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.zero,
-                      shape: const CircleBorder(),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(8)),
+                      ),
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
@@ -525,7 +527,8 @@ class _ConnectionPageState extends State<ConnectionPage>
                     },
                     child: Tooltip(
                       message: translate("Connect"),
-                      child: Icon(Icons.login, size: 22, color: Colors.white),
+                      child: const Icon(Icons.arrow_forward_ios,
+                          size: 18, color: Colors.white),
                     ),
                   ),
                 ),

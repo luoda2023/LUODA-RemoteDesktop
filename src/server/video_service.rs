@@ -431,7 +431,28 @@ fn get_capturer_monitor(
             if let Err(plug_err) = crate::virtual_display_manager::plug_in_headless() {
                 log::error!("plug in headless failed: {}", plug_err);
             }
-            displays = Display::all()?;
+            // amyuni 驱动是异步安装的,虚拟显示器可能需要几秒才被 Windows 识别,
+            // 这里轮询最多 8 秒,每 200ms 重新检测一次,
+            // 给 VPS 无显示器场景自动恢复留足时间。
+            let wait_deadline =
+                std::time::Instant::now() + std::time::Duration::from_secs(8);
+            while displays.is_empty() && std::time::Instant::now() < wait_deadline {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                match Display::all() {
+                    Ok(d) => displays = d,
+                    Err(_) => {}
+                }
+            }
+            if displays.is_empty() {
+                log::error!(
+                    "still no display available after waiting 8s for headless virtual display"
+                );
+            } else {
+                log::info!(
+                    "headless virtual display detected after wait, count={}",
+                    displays.len()
+                );
+            }
         }
     }
 
