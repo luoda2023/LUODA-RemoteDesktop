@@ -400,85 +400,18 @@ fn get_capturer_monitor(
         Err(e) => {
             // VPS 无显示器场景: Display::all() 枚举失败 (例如 headless VPS, RDP 未连接)
             // 尝试 plug-in headless 虚拟显示器后重试
-            #[cfg(windows)]
-            {
-                if crate::virtual_display_manager::is_virtual_display_supported() {
-                    log::warn!("Display::all() failed ({}), trying headless display", e);
-                    if let Err(plug_err) = crate::virtual_display_manager::plug_in_headless() {
-                        log::error!("plug in headless failed: {}", plug_err);
-                    }
-                    // amyuni 驱动是异步安装的,虚拟显示器可能需要几秒才被 Windows 识别,
-                    // 这里轮询等待最多 8 秒,每 200ms 重新检测一次。
-                    let wait_deadline =
-                        std::time::Instant::now() + std::time::Duration::from_secs(8);
-                    let mut last_err = Some(e.to_string());
-                    while std::time::Instant::now() < wait_deadline {
-                        std::thread::sleep(std::time::Duration::from_millis(200));
-                        match Display::all() {
-                            Ok(d) if !d.is_empty() => {
-                                displays = d;
-                                log::info!(
-                                    "headless virtual display detected after {:?}, count={}",
-                                    wait_deadline.elapsed(),
-                                    displays.len()
-                                );
-                                break;
-                            }
-                            Ok(_) => {}
-                            Err(err) => last_err = Some(err.to_string()),
-                        }
-                    }
-                    if displays.is_empty() {
-                        log::error!(
-                            "still no display available after waiting 8s for headless virtual display, last error: {:?}",
-                            last_err
-                        );
-                        return Err(anyhow::anyhow!(
-                            "no display available after waiting 8s, last error: {:?}",
-                            last_err
-                        ));
-                    }
-                } else {
-                    return Err(e.into());
-                }
-            }
-            #[cfg(not(windows))]
-            {
-                return Err(e.into());
+            let recovered_displays = recover_displays_after_headless(Some(&e.to_string()));
+            match recovered_displays {
+                Some(d) => d,
+                None => return Err(e.into()),
             }
         }
     };
 
     // 显示器列表为空时再次尝试 plug-in headless (VPS场景,Display::all() 返回空 Vec)
     if displays.is_empty() {
-        #[cfg(windows)]
-        if crate::virtual_display_manager::is_virtual_display_supported() {
-            log::warn!("no display available, trying to plug in headless display");
-            if let Err(plug_err) = crate::virtual_display_manager::plug_in_headless() {
-                log::error!("plug in headless failed: {}", plug_err);
-            }
-            // amyuni 驱动是异步安装的,虚拟显示器可能需要几秒才被 Windows 识别,
-            // 这里轮询最多 8 秒,每 200ms 重新检测一次,
-            // 给 VPS 无显示器场景自动恢复留足时间。
-            let wait_deadline =
-                std::time::Instant::now() + std::time::Duration::from_secs(8);
-            while displays.is_empty() && std::time::Instant::now() < wait_deadline {
-                std::thread::sleep(std::time::Duration::from_millis(200));
-                match Display::all() {
-                    Ok(d) => displays = d,
-                    Err(_) => {}
-                }
-            }
-            if displays.is_empty() {
-                log::error!(
-                    "still no display available after waiting 8s for headless virtual display"
-                );
-            } else {
-                log::info!(
-                    "headless virtual display detected after wait, count={}",
-                    displays.len()
-                );
-            }
+        if let Some(d) = recover_displays_after_headless(None) {
+            displays = d;
         }
     }
 
@@ -502,6 +435,8 @@ fn get_capturer_monitor(
             );
         }
     }
+
+    // 提取出来供上面调用,避免 borrow checker 死锁
 
     let (origin, width, height) = (display.origin(), display.width(), display.height());
     let name = display.name();
@@ -1492,5 +1427,59 @@ fn handle_screenshot(screenshot: Screenshot, msg: String, w: usize, h: usize, da
         .send((hbb_common::tokio::time::Instant::now(), Arc::new(msg_out)))
     {
         log::error!("Failed to send screenshot, {}", e);
+    }
+}
+
+/// VPS 无显示器场景恢复助手:
+/// 1. 如果平台支持虚拟显示器,先 plug_in_headless 触发 amyuni 异步安装
+/// 2. 轮询等待最多 8 秒,每 200ms 重新检测 Display::all()
+/// 3. 找到显示器立即返回 Some(displays);8秒内找不到返回 None
+///
+/// `initial_err`: 调用方传入 Display::all() 第一次失败的错误,用于日志诊断;如果是空 Vec 场景传 None
+fn recover_displays_after_headless(initial_err: Option<&str>) -> Option<Vec<Display>> {
+    #[cfg(windows)]
+    {
+        if !crate::virtual_display_manager::is_virtual_display_supported() {
+            log::warn!(
+                "virtual display not supported, skip headless recovery, initial error: {:?}",
+                initial_err
+            );
+            return None;
+        }
+        log::warn!(
+            "no display available, trying to plug in headless display, initial error: {:?}",
+            initial_err
+        );
+        if let Err(plug_err) = crate::virtual_display_manager::plug_in_headless() {
+            log::error!("plug in headless failed: {}", plug_err);
+        }
+        // amyuni 驱动是异步安装的,虚拟显示器需要几秒才被 Windows 识别
+        let wait_deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        let mut last_err = initial_err.map(|s| s.to_string());
+        while std::time::Instant::now() < wait_deadline {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            match Display::all() {
+                Ok(d) if !d.is_empty() => {
+                    log::info!(
+                        "headless virtual display detected after {:?}, count={}",
+                        wait_deadline.elapsed(),
+                        d.len()
+                    );
+                    return Some(d);
+                }
+                Ok(_) => {}
+                Err(err) => last_err = Some(err.to_string()),
+            }
+        }
+        log::error!(
+            "still no display available after waiting 8s for headless virtual display, last error: {:?}",
+            last_err
+        );
+        return None;
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = initial_err;
+        None
     }
 }
