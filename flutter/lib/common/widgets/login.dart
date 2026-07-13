@@ -255,17 +255,15 @@ class _WidgetOPState extends State<WidgetOP> {
             offstage: widget.curOP.value != widget.config.op,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: 20),
-              child: ElevatedButton(
+              child: TextButton.icon(
                 onPressed: () {
                   widget.curOP.value = '';
                   _updateTimer?.cancel();
                   _resetState();
                   bind.mainAccountAuthCancel();
                 },
-                child: Text(
-                  translate('Cancel'),
-                  style: TextStyle(fontSize: 15),
-                ),
+                icon: Icon(Icons.close, size: 16),
+                label: Text(translate('Cancel')),
               ),
             ),
           ),
@@ -366,22 +364,21 @@ class LoginWidgetUserPass extends StatelessWidget {
                     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Container(
                 height: 50,
-                width: 200,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: MyTheme.accent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Obx(() => ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        padding: EdgeInsets.zero,
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.login, size: 18),
-                          SizedBox(height: 4),
-                          Text(
-                            translate('Login'),
-                            style: TextStyle(fontSize: 14),
-                          ),
-                        ],
+                      child: Icon(
+                        Icons.login,
+                        size: 26,
+                        color: Colors.white,
                       ),
                       onPressed:
                            curOP.value.isEmpty || curOP.value == 'luoda'

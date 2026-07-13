@@ -551,8 +551,29 @@ pub mod client {
                     if let Err(e) = crate::virtual_display_manager::plug_in_headless() {
                         log::error!("plug in headless failed: {}", e);
                     }
-                    // 重新检测显示器
-                    displays = scrap::Display::all()?;
+                    // amyuni 驱动是异步安装的,首次 plug_in_headless 后
+                    // 显示器可能还没被 Windows 识别激活,
+                    // 这里轮询等待最多 8 秒,每 200ms 重新检测一次,
+                    // 给 VPS 无显示器场景自动恢复留足时间。
+                    let wait_deadline =
+                        std::time::Instant::now() + std::time::Duration::from_secs(8);
+                    while displays.is_empty()
+                        && std::time::Instant::now() < wait_deadline
+                    {
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+                        displays = scrap::Display::all()?;
+                    }
+                    if displays.is_empty() {
+                        log::error!(
+                            "still no display available after waiting 8s for headless virtual display"
+                        );
+                    } else {
+                        log::info!(
+                            "headless virtual display detected after {:?}, count={}",
+                            wait_deadline.elapsed(),
+                            displays.len()
+                        );
+                    }
                 }
                 if displays.is_empty() {
                     bail!("no display available!");

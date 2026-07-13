@@ -104,8 +104,16 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget _buildBlock({required Widget child}) {
+    Widget effectiveChild = child;
+    // 客户定制版：限制最大宽度，防止父级 Stack/Row 被撑开导致右侧出现空白
+    if (widget.isClientOnly) {
+      effectiveChild = SizedBox(
+        width: 276,
+        child: child,
+      );
+    }
     return buildRemoteBlock(
-        block: _block, mask: true, use: canBeBlocked, child: child);
+        block: _block, mask: true, use: canBeBlocked, child: effectiveChild);
   }
 
 	  Widget buildLeftPane(BuildContext context) {
@@ -166,7 +174,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     // 本机ID
                     buildIDBoard(context),
                     SizedBox(height: 4),
-                    // 密码
+                    // 密码(定制版: 单独构建,不带刷新/编辑按钮)
                     buildPasswordBoard(context),
                     SizedBox(height: 4),
                     // IP:端口
@@ -624,7 +632,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         ),
                       ),
                       // 客户端版: 刷新和编辑按钮一律隐藏,不允许用户改任何设置
-                      if (showOneTime && !bind.isCustomClient())
+                      if (showOneTime &&
+                          !bind.isCustomClient() &&
+                          !widget.isClientOnly)
                         AnimatedRotationWidget(
                           onPressed: () => bind.mainUpdateTemporaryPassword(),
                           child: Tooltip(
@@ -642,7 +652,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           onHover: (value) => refreshHover.value = value,
                         ).marginOnly(right: 8, top: 4),
                       // 客户端版：不显示"修改密码"按钮
-                      if (!bind.isDisableSettings() && !bind.isCustomClient())
+                      if (!bind.isDisableSettings() &&
+                          !bind.isCustomClient() &&
+                          !widget.isClientOnly)
                         InkWell(
                           child: Tooltip(
                             message: translate('Change Password'),
@@ -1091,6 +1103,15 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   @override
   void initState() {
     super.initState();
+    if (widget.isClientOnly) {
+      // 定制版窗口尺寸固定为左侧面板宽度 + 一点 padding,不显示右侧面板
+      Future.delayed(const Duration(milliseconds: 50), () async {
+        try {
+          await windowManager.setResizable(false);
+          await windowManager.setSize(getIncomingOnlyHomeSize());
+        } catch (_) {}
+      });
+    }
     _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {
       await gFFI.serverModel.fetchID();
       final error = await bind.mainGetError();
@@ -1261,7 +1282,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   _updateWindowSize() {
-    if (widget.isClientOnly) return;
+    if (widget.isClientOnly) {
+      // 定制版固定窗口尺寸,不跟随内容变化
+      return;
+    }
     RenderObject? renderObject = _childKey.currentContext?.findRenderObject();
     if (renderObject == null) {
       return;

@@ -2026,10 +2026,9 @@ Future<bool> restoreWindowPosition(WindowType type,
         // Center the main window only if no position is saved (on first run).
         if (isWindows || isLinux) {
           if (bind.isCustomClient()) {
-            // 客户端定制版：固定窗口（250 宽×500 高），
-            // IP 显示与在线状态之间预留约 2cm 间距。
+            // 客户端定制版：固定窗口尺寸与内容一致，避免右侧空白
             try {
-              await windowManager.setSize(const Size(250, 500));
+              await windowManager.setSize(getIncomingOnlyHomeSize());
             } catch (e) {
               debugPrint("Failed to set client-only default size: $e");
             }
@@ -3855,8 +3854,19 @@ bool isUnlockPinDisabled() =>
 
 bool? _isCustomClient;
 bool get isCustomClient {
-  _isCustomClient ??= const bool.fromEnvironment('CLIENT_ONLY', defaultValue: false) || bind.isCustomClient();
+  // 缓存逻辑保留,但优先使用编译时 env 标志 (CLIENT_ONLY)
+  // 即使 bind.isCustomClient() 返回 false,
+  // 只要 Dart 编译时传入了 --dart-define=CLIENT_ONLY=true,
+  // 也能正确判定为客户定制版。
+  if (_isCustomClient == null) {
+    _isCustomClient = const bool.fromEnvironment('CLIENT_ONLY', defaultValue: false) || bind.isCustomClient();
+  }
   return _isCustomClient!;
+}
+
+/// 不缓存版本,每次都重新检查,用于密码板等可能晚于初始化加载的地方
+bool isCustomClientFresh() {
+  return const bool.fromEnvironment('CLIENT_ONLY', defaultValue: false) || bind.isCustomClient();
 }
 
 get defaultOptionLang => isCustomClient ? 'default' : '';
