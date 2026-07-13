@@ -481,7 +481,34 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
         if let Err(e) = virtual_display_manager::plug_in_headless() {
             log::error!("plug in headless failed {}", e);
         } else {
-            displays = Display::all()?;
+            // amyuni 驱动是异步安装的,plug_in_headless 后显示器可能还没被 Windows 识别,
+            // 这里轮询等待最多 8 秒,每 200ms 重新检测一次,
+            // 直到检测到显示器或超时。
+            let wait_deadline =
+                std::time::Instant::now() + std::time::Duration::from_secs(8);
+            loop {
+                match Display::all() {
+                    Ok(d) => {
+                        if !d.is_empty() {
+                            displays = d;
+                            log::info!(
+                                "headless virtual display detected after {:?}, count={}",
+                                wait_deadline.elapsed(),
+                                displays.len()
+                            );
+                            break;
+                        }
+                    }
+                    Err(_) => {}
+                }
+                if std::time::Instant::now() >= wait_deadline {
+                    log::error!(
+                        "still no display available after waiting 8s for headless virtual display"
+                    );
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
         }
     }
     Ok(displays)
