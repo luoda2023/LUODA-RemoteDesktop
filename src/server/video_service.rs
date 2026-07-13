@@ -407,10 +407,36 @@ fn get_capturer_monitor(
                     if let Err(plug_err) = crate::virtual_display_manager::plug_in_headless() {
                         log::error!("plug in headless failed: {}", plug_err);
                     }
-                    if let Ok(d) = Display::all() {
-                        d
-                    } else {
-                        return Err(e.into());
+                    // amyuni 驱动是异步安装的,虚拟显示器可能需要几秒才被 Windows 识别,
+                    // 这里轮询等待最多 8 秒,每 200ms 重新检测一次。
+                    let wait_deadline =
+                        std::time::Instant::now() + std::time::Duration::from_secs(8);
+                    let mut last_err = Some(e.to_string());
+                    while std::time::Instant::now() < wait_deadline {
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+                        match Display::all() {
+                            Ok(d) if !d.is_empty() => {
+                                displays = d;
+                                log::info!(
+                                    "headless virtual display detected after {:?}, count={}",
+                                    wait_deadline.elapsed(),
+                                    displays.len()
+                                );
+                                break;
+                            }
+                            Ok(_) => {}
+                            Err(err) => last_err = Some(err.to_string()),
+                        }
+                    }
+                    if displays.is_empty() {
+                        log::error!(
+                            "still no display available after waiting 8s for headless virtual display, last error: {:?}",
+                            last_err
+                        );
+                        return Err(anyhow::anyhow!(
+                            "no display available after waiting 8s, last error: {:?}",
+                            last_err
+                        ));
                     }
                 } else {
                     return Err(e.into());

@@ -286,16 +286,18 @@ jobs:
             echo "OK: Keystore already exists at $KEYSTORE_FILE"
           fi
           # 始终重写 key.properties，避免上次 CI 残留但 key.properties 丢失
-          echo "storeFile=keystore.jks" > flutter/android/key.properties
-          echo "storePassword=rustdesk123" >> flutter/android/key.properties
-          echo "keyAlias=rustdesk" >> flutter/android/key.properties
-          echo "keyPassword=rustdesk123" >> flutter/android/key.properties
+          # build.gradle.kts 使用 rootProject.file("key.properties")，即在 app 目录下查找，
+          # 因此 key.properties 必须生成到 flutter/android/app/key.properties。
+          echo "storeFile=keystore.jks" > flutter/android/app/key.properties
+          echo "storePassword=rustdesk123" >> flutter/android/app/key.properties
+          echo "keyAlias=rustdesk" >> flutter/android/app/key.properties
+          echo "keyPassword=rustdesk123" >> flutter/android/app/key.properties
         shell: bash
 
       - name: Verify signing config
         run: |
           echo "=== key.properties ==="
-          cat flutter/android/key.properties
+          cat flutter/android/app/key.properties
           echo "=== signingConfig in build.gradle.kts ==="
           grep -n 'signingConfig' ./flutter/android/app/build.gradle.kts || true
           echo "=== keystore file ==="
