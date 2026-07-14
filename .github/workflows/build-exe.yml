@@ -82,10 +82,12 @@ jobs:
           head -5 flutter/lib/generated_bridge.dart || echo "ERROR: Cannot read file!"
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgDirectory: C:\vcpkg
-          vcpkgGitCommitId: "120deac3062162151622ca4860575a33844ba10b"
-          vcpkgTriplet: ${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}
+ with:
+ vcpkgDirectory: C:\vcpkg
+ vcpkgGitCommitId: "120deac3062162151622ca4860575a33844ba10b"
+ # vcpkgTriplet 已废弃 (lukka/run-vcpkg v11+ 不再支持),
+ # 改为在 runVcpkgInstall 中通过环境变量 VCPKG_DEFAULT_TRIPLET 指定。
+ VCPKG_DEFAULT_TRIPLET: ${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}
       - name: Cache vcpkg installed packages
         uses: actions/cache@v4
         with:
