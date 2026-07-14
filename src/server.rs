@@ -617,11 +617,11 @@ pub async fn start_server(is_server: bool, no_server: bool) {
         #[cfg(windows)]
         {
             std::thread::spawn(|| {
-                if virtual_display_manager::is_virtual_display_supported() {
+                if crate::virtual_display_manager::is_virtual_display_supported() {
                     log::info!(
                         "Proactive headless virtual display check at server start (VPS optimization)"
                     );
-                    if let Err(e) = virtual_display_manager::plug_in_headless() {
+                    if let Err(e) = crate::virtual_display_manager::plug_in_headless() {
                         log::warn!("Proactive plug_in_headless at server start failed: {}", e);
                     } else {
                         log::info!("Proactive plug_in_headless triggered, driver will load async");
