@@ -72,31 +72,28 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final isIncomingOnly = bind.isIncomingOnly();
-    // 客户端专用版：只显示左侧内容，不包含右侧输入框和历史列表
-    if (widget.isClientOnly) {
-      // 客户定制版用 Align+mainAxisSize.min 锁定到左侧,防止 Stack/Row
-      // 被父级 AvailableWidth 撑满导致右侧出现大片空白。
-      // 同时不再绘制 VerticalDivider —— 客户版只有左侧面板,根本不需要分隔线。
-      return _buildBlock(
-          child: Align(
-        alignment: Alignment.centerLeft,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            buildLeftPane(context),
-          ],
-        ),
-      ));
-    }
-    return _buildBlock(
-        child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        buildLeftPane(context),
+ Widget build(BuildContext context) {
+ super.build(context);
+ final isIncomingOnly = bind.isIncomingOnly();
+ // 客户端专用版：只显示左侧内容，不包含右侧输入框和历史列表
+ if (widget.isClientOnly) {
+ // 客户定制版: 用 SizedBox(width: 380) 包裹并居中, 强制 380 宽度且水平居中,
+ // 避免被父级 buildRemoteBlock 的 Stack/MouseRegion 撑开导致右侧大片空白。
+ // 同时不再绘制 VerticalDivider —— 客户版只有左侧面板,根本不需要分隔线。
+ return _buildBlock(
+ child: Align(
+ alignment: Alignment.center,
+ child: SizedBox(
+ width: 380.0,
+ child: buildLeftPane(context),
+ ),
+ ));
+ }
+ return _buildBlock(
+ child: Row(
+ crossAxisAlignment: CrossAxisAlignment.start,
+ children: [
+ buildLeftPane(context),
         if (!isIncomingOnly) const VerticalDivider(width: 1),
         if (!isIncomingOnly) Expanded(child: buildRightPane(context)),
       ],

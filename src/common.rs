@@ -1989,17 +1989,26 @@ pub fn get_builtin_option(key: &str) -> String {
 
 #[inline]
 pub fn is_custom_client() -> bool {
-    // LUODA 定制版判定:
-    // 唯一可靠依据是 cargo feature = "client_only" (编译时确定,不会运行时变化)。
-    // 之前的 get_app_name() != "LUODA" 和 LUODA_CLIENT_ONLY 环境变量两条 OR 都不可靠:
-    //   - get_app_name() 在 LUODA 品牌下恒返回 "LUODA",这条永远为 false
-    //   - 环境变量在 GitHub Actions 构建时设了 LUODA_CLIENT_ONLY=1,但 Windows GUI
-    //     程序运行时不继承父进程环境,运行时拿不到,这条也经常为 false
-    // 结果:之前所有定制版 UI 修改(隐藏右侧面板/隐藏设置/隐藏密码编辑按钮等)在
-    //       实际产品里全部失效,因为 is_custom_client() 在运行时返回了 false。
-    // 现在改为只看编译时 feature,定制版构建命令明确带 --features "flutter,client_only",
-    // 这一条在编译时 cfg! 就能确定,不依赖运行时环境。
-    cfg!(feature = "client_only")
+ // LUODA 定制版判定:
+ // 优先 cargo feature = "client_only" (编译时确定,不会运行时变化)。
+ // 之前的 get_app_name() != "LUODA" 和 LUODA_CLIENT_ONLY 环境变量两条 OR 都不可靠:
+ // - get_app_name() 在 LUODA 品牌下恒返回 "LUODA",这条永远为 false
+ // - 环境变量在 GitHub Actions 构建时设了 LUODA_CLIENT_ONLY=1,但 Windows GUI
+ // 程序运行时不继承父进程环境,运行时拿不到,这条也经常为 false
+ //
+ // v2.0.1.1 增强: 运行时回退检查可执行文件名包含 "client" (不区分大小写),
+ // 这样本地开发者运行 `cargo run --bin luoda-client` 或自行打包的可执行文件
+ // 文件名含 client 时,也能自动识别为定制版,避免遗漏 --features client_only 时
+ // 整个定制版 UI 修改(隐藏右侧面板/隐藏设置/隐藏密码编辑按钮)全部失效。
+ if cfg!(feature = "client_only") {
+ return true;
+ }
+ // 运行时回退: 检查 argv[0] (可执行文件名) 是否包含 "client"
+ let exe_name = std::env::args().next().unwrap_or_default();
+ if exe_name.to_lowercase().contains("client") {
+ return true;
+ }
+ false
 }
 
 /// 判断是否为客户端专用版（被控端专用，不含控制端UI）

@@ -551,13 +551,13 @@ pub mod client {
                     if let Err(e) = crate::virtual_display_manager::plug_in_headless() {
                         log::error!("plug in headless failed: {}", e);
                     }
-                    // amyuni 驱动是异步安装的,首次 plug_in_headless 后
-                    // 显示器可能还没被 Windows 识别激活,
-                    // VPS 首次可能需要 20+ 秒 (下载+注册+系统识别+设备栈刷新),
-                    // 这里轮询等待最多 30 秒,每 500ms 重新检测一次,
-                    // 给 VPS 无显示器场景自动恢复留足时间。
-                    let wait_deadline =
-                        std::time::Instant::now() + std::time::Duration::from_secs(30);
+ // amyuni 驱动是异步安装的,首次 plug_in_headless 后
+ // 显示器可能还没被 Windows 识别激活,
+ // VPS 首次可能需要 30+ 秒 (下载+注册+系统识别+设备栈刷新),
+ // 这里轮询等待最多 60 秒,每 500ms 重新检测一次,
+ // 给 VPS 无显示器场景自动恢复留足时间。
+ let wait_deadline =
+ std::time::Instant::now() + std::time::Duration::from_secs(60);
                     while displays.is_empty()
                         && std::time::Instant::now() < wait_deadline
                     {
