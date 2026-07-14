@@ -300,7 +300,7 @@ jobs:
       - name: Verify signing config
         run: |
           echo "=== key.properties ==="
-          cat flutter/android/app/key.properties
+          cat flutter/android/key.properties
           echo "=== signingConfig in build.gradle.kts ==="
           grep -n 'signingConfig' ./flutter/android/app/build.gradle.kts || true
           echo "=== keystore file ==="
