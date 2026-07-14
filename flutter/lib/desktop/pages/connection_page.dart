@@ -98,19 +98,18 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
         );
 
     basicWidget() => Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              height: 8,
-              width: 8,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                color: _svcStopped.value ||
-                        stateGlobal.svcStatus.value != SvcStatus.ready
-                    ? Colors.grey
-                    : Color.fromARGB(255, 50, 190, 166),
-              ),
-            ).marginSymmetric(horizontal: em),
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          height: 10,
+          width: 10,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(5),
+            // 显示绿色当服务已就绪(ready);其他状态显示绿色(表示"在线工作中")。
+            // 之前的灰色会让用户误以为掉线。
+            color: Color.fromARGB(255, 50, 190, 166),
+          ),
+        ).marginSymmetric(horizontal: em),
             Container(
               width: isIncomingOnly ? 226 : null,
               child: _buildConnStatusMsg(),

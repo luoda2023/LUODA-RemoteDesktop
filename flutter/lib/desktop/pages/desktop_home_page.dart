@@ -127,15 +127,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               Expanded(
                 child: Column(
                   key: _childKey,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // 圆形头像 + LUODA 远程协助标题
-                    Center(
+                    // 圆形头像 + LUODA 远程协助标题 —— 真正居中
+                    Padding(
+                      padding: const EdgeInsets.only(top: 24),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            margin: const EdgeInsets.only(top: 20, bottom: 8),
                             width: 64,
                             height: 64,
                             decoration: BoxDecoration(
@@ -160,10 +162,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                               ),
                             ),
                           ),
+                          const SizedBox(height: 8),
                           Text(
                             "LUODA 远程协助",
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Theme.of(context).textTheme.titleLarge?.color,
                             ),
@@ -171,8 +174,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         ],
                       ),
                     ),
-                    // 客户端定制版: 远程ID输入框 —— 输入对方ID或IP:端口号,回车直接连接
-                    _buildClientIDField(),
+                    const SizedBox(height: 16),
                     // 本机ID
                     buildIDBoard(context),
                     SizedBox(height: 4),
@@ -181,10 +183,10 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     SizedBox(height: 4),
                     // IP:端口
                     buildDirectAccessBoard(context),
-                    Spacer(flex: 3),
-                    // 底部连接状态 —— 加大间距防止紧贴 IP 栏
-                    SizedBox(
-                      height: 60,
+                    const Spacer(),
+                    // 状态条 —— 上移到红框(左侧栏)底部
+                    Padding(
+                      padding: const EdgeInsets.only(left: 14, right: 14, bottom: 12),
                       child: OnlineStatusWidget(
                         onSvcStatusChanged: () {
                           if (isInHomePage()) {
@@ -195,7 +197,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                           }
                         },
                       ),
-                    ).marginOnly(left: 6, right: 6, bottom: 18),
+                    ),
                   ],
                 ),
               ),
