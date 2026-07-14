@@ -81,14 +81,20 @@ jobs:
           ls -la flutter/lib/generated_bridge.dart || echo "ERROR: generated_bridge.dart not created!"
           head -5 flutter/lib/generated_bridge.dart || echo "ERROR: Cannot read file!"
  - name: Setup vcpkg
- uses: lukka/run-vcpkg@v11
- with:
- vcpkgDirectory: C:\vcpkg
- vcpkgGitCommitId: "120deac3062162151622ca4860575a33844ba10b"
- env:
- # vcpkgTriplet 已废弃 (lukka/run-vcpkg v11+ 不再支持),
- # 改用 env 注入 VCPKG_DEFAULT_TRIPLET, 该环境变量会被 vcpkg 自身读取。
- VCPKG_DEFAULT_TRIPLET: ${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}
+ # lukka/run-vcpkg@v11 已在 GitHub Marketplace unpublished,
+ # 改为直接 git clone vcpkg + 调 vcpkg install (自带 vcpkgGitCommitId)。
+ shell: bash
+ run: |
+ if [ ! -d "C:/vcpkg" ]; then
+ git clone https://github.com/Microsoft/vcpkg.git C:/vcpkg
+ fi
+ cd C:/vcpkg
+ git fetch origin
+ git checkout 120deac3062162151622ca4860575a33844ba10b
+ ./bootstrap-vcpkg.sh -disableMetrics
+ echo "VCPKG_ROOT=C:/vcpkg" >> $GITHUB_ENV
+ echo "VCPKG_INSTALLATION_ROOT=C:/vcpkg" >> $GITHUB_ENV
+ echo "C:/vcpkg" >> $GITHUB_PATH
       - name: Cache vcpkg installed packages
         uses: actions/cache@v4
         with:
