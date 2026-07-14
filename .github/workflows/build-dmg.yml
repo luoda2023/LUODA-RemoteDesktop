@@ -10,7 +10,7 @@ name: Build LUODA macOS DMG
 on:
   workflow_dispatch:
   push:
-    branches: [master,v2.0.0,v2.0.1]
+    branches: [master,v2.0.0,v2.0.1, 2.1.1]
     paths:
       - 'build.rs'
       - 'src/**'
@@ -67,11 +67,11 @@ jobs:
           head -5 flutter/lib/generated_bridge.dart || echo "ERROR: Cannot read file!" 
 
       - name: Install dependencies via vcpkg
-run: |
- # 2025-04 起 Homebrew 要求显式信任 tap (HOMEBREW_TAP_TRUST)。
- # 跳过该检查以避免 build 失败, 详见 https://docs.brew.sh/Tap-Trust
- export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
- # vcpkg replaces homebrew for libyuv (removed from brew)
+        run: |
+          # 2025-04 起 Homebrew 要求显式信任 tap (HOMEBREW_TAP_TRUST)。
+          # 跳过该检查以避免 build 失败, 详见 https://docs.brew.sh/Tap-Trust
+          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+          # vcpkg replaces homebrew for libyuv (removed from brew)
           # Full clone needed (not --depth=1) so vcpkg can resolve baseline commits
           # nasm must be installed BEFORE vcpkg (needed by aom)
           # brew install opus libvpx adds headers to /opt/homebrew/include
