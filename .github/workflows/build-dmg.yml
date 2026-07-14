@@ -158,6 +158,8 @@ jobs:
           flutter build macos --release
 
       - name: Create DMG
+        env:
+          HOMEBREW_NO_REQUIRE_TAP_TRUST: 1
         run: |
           brew install create-dmg
           mkdir -p dmg_folder
