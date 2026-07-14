@@ -33,15 +33,22 @@ class _MyGroupState extends State<MyGroup> {
       if (!gFFI.userModel.isLogin) {
         return Center(
             child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                ),
                 onPressed: loginDialog,
-                child: Column(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.login, size: 18),
-                    SizedBox(height: 4),
+                    Icon(Icons.vpn_key, size: 18, color: Colors.white),
+                    SizedBox(width: 6),
                     Text(translate("Login")),
                   ],
-                )));
+                ),
+                ));
       } else if (gFFI.userModel.networkError.isNotEmpty) {
         return netWorkErrorWidget();
       } else if (gFFI.groupModel.groupLoading.value && gFFI.groupModel.emtpy) {

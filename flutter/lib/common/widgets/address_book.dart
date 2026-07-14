@@ -39,19 +39,27 @@ class _AddressBookState extends State<AddressBook> {
 
   @override
   Widget build(BuildContext context) => Obx(() {
-        if (!gFFI.userModel.isLogin) {
-          return Center(
-              child: ElevatedButton(
-                  onPressed: loginDialog,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.login, size: 18),
-                      SizedBox(height: 4),
-                      Text(translate("Login")),
-                    ],
-                  )));
-        } else if (gFFI.userModel.networkError.isNotEmpty) {
+      if (!gFFI.userModel.isLogin) {
+        // 与连接按钮区分:用钥匙图标(Icons.vpn_key)表示"登录"
+        return Center(
+            child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+          ),
+          onPressed: loginDialog,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.vpn_key, size: 18, color: Colors.white),
+              SizedBox(width: 6),
+              Text(translate("Login")),
+            ],
+          ),
+        ));
+      } else if (gFFI.userModel.networkError.isNotEmpty) {
           return netWorkErrorWidget();
         } else {
           return Column(
