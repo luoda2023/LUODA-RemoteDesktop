@@ -27,7 +27,10 @@ import 'package:url_launcher/url_launcher_string.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/login.dart';
 
-const double _kTabWidth = 200;
+// 设置页左边栏宽度 —— 与主页左 pane 同宽, 视觉对齐.
+// 主页 (desktop_home_page.dart:322) isIncomingOnly ? 300 : 220, 客户版 380.
+// 这里 取 220 跟 主 页 普通 版 一 致, 客 户版 仍 用 380 通 过 实 际 widget 校 正(this const 是 默 认).
+const double _kTabWidth = 220;
 const double _kTabHeight = 42;
 const double _kCardFixedWidth = 540;
 const double _kCardLeftMargin = 15;

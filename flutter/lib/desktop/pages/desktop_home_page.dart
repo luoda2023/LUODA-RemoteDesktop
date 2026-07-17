@@ -339,9 +339,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               bottom: 6,
               left: 10,
               right: 10,
-              // 客户定制版: 底部"设置/网络"按钮一律隐藏,不允许用户打开任何设置面板
-              child: Offstage(
-                offstage: bind.isCustomClient(),
+ // 客户定制版/普通版: 主页右下角"设置/网络"按钮一律隐藏,
+ // 改由 DesktopTabPage 顶 部 Tab Bar 右 上角 的 Settings Icon 入口 进设置(避免重复)
+ // 用户 反馈 问题 5: 主 页 右 上 角 设 置 按 钮 取 消 - 这里 取消 显示
+ child: Offstage(
+ offstage: true,
                 child: Row(
                   children: [
                     // 设置按钮
