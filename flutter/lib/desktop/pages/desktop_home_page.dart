@@ -66,10 +66,28 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   final FocusNode _clientIdFocusNode = FocusNode();
 
   void _onClientConnect(String id, BuildContext buildCtx) {
-    final trimmed = id.trim();
-    if (trimmed.isEmpty) return;
-    connect(buildCtx, trimmed);
+ final trimmed = id.trim();
+ if (trimmed.isEmpty) return;
+ connect(buildCtx, trimmed);
   }
+
+  /// IP:端口 行 右 侧 "直 连" 按 钮 调 用: 一 键 调 起 connect(context, addr)
+  /// addr 例: "1.2.3.4:21118" — connect() 自 动 解析 IP:port + 走 11 候选 端 口 扫 描 (src/client.rs:279)
+  /// 内 网/公 网 都 可 直 连, 由 connect() 自己 处理。
+  void _directConnect(String addr) {
+ if (addr.isEmpty) return;
+ // 灌 进 ID 输 入 框 (ConnectionPage) 让 用 户 看 到 当 前 连 接 的 是 谁
+ try {
+  if (Get.isRegistered<IDTextEditingController>()) {
+   Get.find<IDTextEditingController>().text = addr;
+  }
+  if (Get.isRegistered<TextEditingController>()) {
+   Get.find<TextEditingController>().text = addr;
+  }
+ } catch (_) {}
+ connect(context, addr);
+  }
+
 
   @override
  Widget build(BuildContext context) {
@@ -841,22 +859,59 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                         ),
                       ),
                     ),
-                    if (showUpnp && addr.isNotEmpty) ...[
-                      SizedBox(width: 4),
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: upnpOk ? Colors.green : Colors.orange,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
+ if (showUpnp && addr.isNotEmpty) ...[
+ SizedBox(width: 4),
+ Container(
+ width: 6,
+ height: 6,
+ decoration: BoxDecoration(
+ color: upnpOk ? Colors.green : Colors.orange,
+ shape: BoxShape.circle,
+ ),
+ ),
+ ],
+ // 公 网 / 内 网 IP 行 右 侧 加 "直 连" 按 钮:
+ // 一 键 把 IP:端口 灌 进 ConnectionPage ID 输 入 框 调 起 连 接。
+ // 客 户 定 制 版 尤 其 需 要 — 不 用 手 动 复 制 + 切 回 ID 输 入 框 粘 贴。
+ if (addr.isNotEmpty) ...[
+ SizedBox(width: 6),
+ InkWell(
+ onTap: () => _directConnect(addr),
+ borderRadius: BorderRadius.circular(4),
+ child: Tooltip(
+ message: '直 连 $addr',
+ waitDuration: Duration(milliseconds: 200),
+ child: Container(
+ padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+ decoration: BoxDecoration(
+ color: MyTheme.accent.withOpacity(0.18),
+ borderRadius: BorderRadius.circular(4),
+ border: Border.all(color: MyTheme.accent.withOpacity(0.5), width: 0.7),
+ ),
+ child: Row(
+ mainAxisSize: MainAxisSize.min,
+ children: [
+ Icon(Icons.link, size: 11, color: MyTheme.accent),
+ SizedBox(width: 2),
+ Text(
+ '直连',
+ style: TextStyle(
+ fontSize: 11,
+ fontWeight: FontWeight.w700,
+ color: MyTheme.accent,
+ ),
+ ),
+ ],
+ ),
+ ),
+ ),
+ ),
+ ],
+ ],
+ ),
+ ),
+ ),
+ ),
         ),
       ],
     );
