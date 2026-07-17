@@ -163,6 +163,60 @@ pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;
 pub const WS_RENDEZVOUS_PORT: i32 = 21118;
 pub const WS_RELAY_PORT: i32 = 21119;
+
+/// Detect loopback / obviously-invalid test rendezvous server strings.
+///
+/// Used by [`Config::get_rendezvous_server`] to sanitize legacy config values
+/// left behind by older hot-fix builds that wrote `127.0.0.1:23456` etc. into
+/// `custom-rendezvous-server` / `CONFIG2.rendezvous_server`. Without this guard
+/// the rendezvous mediator tries `ws://127.0.0.1:23458` and the user sees
+/// `OSError [WinError 10061] 由于目标计算机积极拒绝，无法连接。`.
+///
+/// Returns `true` for:
+/// - `127.0.0.1`, `localhost`, `::1`, `0.0.0.0` (loopback / any)
+/// - `192.168.x.x`, `10.x.x.x`, `172.16-31.x.x` (RFC1918 private ranges,
+///   these are not valid public rendezvous servers)
+/// - `1.2.3.4`-style placeholder IPs that clearly aren't real
+/// - common test ports like 23456/23458 us ed by dev fixtures
+pub fn is_loopback_or_test_server(s: &str) -> bool {
+ if s.is_empty() {
+ return false;
+ }
+ let host_port = s.split(':').next().unwrap_or("").to_lowercase();
+ if host_port.is_empty() {
+ return false;
+ }
+ if host_port == "localhost" || host_port == "0.0.0.0" {
+ return true;
+ }
+ // Try-parse as Ipv4 / Ipv6
+ if let Ok(ip) = host_port.parse::<IpAddr>() {
+ if ip.is_loopback() || ip.is_unspecified() {
+ return true;
+ }
+ if let IpAddr::V4(v4) = ip {
+ let oct = v4.octets();
+ // RFC1918 private ranges
+ if oct[0] == 192 && oct[1] == 168 {
+ return true;
+ }
+ if oct[0] == 10 {
+ return true;
+ }
+ if oct[0] == 172 && (oct[1] >= 16 && oct[1] <= 31) {
+ return true;
+ }
+ // link-local 169.254.x.x
+ if oct[0] == 169 && oct[1] == 254 {
+ return true;
+ }
+ }
+ return false;
+ }
+ // Not an IP — must be a domain like "rev.dicad.cn". Accept.
+ false
+}
+
 /// Default port for direct IP access (peer-to-peer without relay).
 /// The direct-access server listens on this port; the client connects to it
 /// when given a bare IP address. Falls back to a random port if unavailable.
@@ -898,27 +952,47 @@ impl Config {
         }
     }
 
-    pub fn get_rendezvous_server() -> String {
-        let mut rendezvous_server = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if rendezvous_server.is_empty() {
-            rendezvous_server = Self::get_option("custom-rendezvous-server");
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = CONFIG2.read().unwrap().rendezvous_server.clone();
-        }
-        if rendezvous_server.is_empty() {
-            rendezvous_server = Self::get_rendezvous_servers()
-                .drain(..)
-                .next()
-                .unwrap_or_default();
-        }
-        if !rendezvous_server.contains(':') {
-            rendezvous_server = format!("{rendezvous_server}:{RENDEZVOUS_PORT}");
-        }
-        rendezvous_server
+ pub fn get_rendezvous_server() -> String {
+ let mut rendezvous_server = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
+ if rendezvous_server.is_empty() {
+ rendezvous_server = Self::get_option("custom-rendezvous-server");
+ }
+ // LUODA hot-fix: 旧版本(v2.2.1 hot-fix round-12)调试残留的 custom-rendezvous-server
+ // 可能是 127.0.0.1:23456 / localhost / 192.168.* 等本机或内网测试值。
+ // 这些值会导致 rendezvous_mediator 试连本机 ws://127.0.0.1:23458,
+ // 报 OSError 10061 积极拒绝。此情况忽略 custom 配置, 走 fallback。
+ if is_loopback_or_test_server(&rendezvous_server) {
+ log::warn!(
+ "get_rendezvous_server: ignoring invalid custom-rendezvous-server='{}' (loopback/test), using fallback",
+ rendezvous_server
+ );
+ rendezvous_server = String::new();
+ }
+ if rendezvous_server.is_empty() {
+ rendezvous_server = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
+ }
+ if rendezvous_server.is_empty() {
+ rendezvous_server = CONFIG2.read().unwrap().rendezvous_server.clone();
+ }
+ // 同样对 CONFIG2.rendezvous_server 做 sanitize,
+ // 防止用户手工或旧版本写入 127.0.0.1:23456.
+ if is_loopback_or_test_server(&rendezvous_server) {
+ log::warn!(
+ "get_rendezvous_server: ignoring invalid CONFIG2.rendezvous_server='{}' (loopback/test), using fallback",
+ rendezvous_server
+ );
+ rendezvous_server = String::new();
+ }
+ if rendezvous_server.is_empty() {
+ rendezvous_server = Self::get_rendezvous_servers()
+ .drain(..)
+ .next()
+ .unwrap_or_default();
+ }
+ if !rendezvous_server.contains(':') {
+ rendezvous_server = format!("{rendezvous_server}:{RENDEZVOUS_PORT}");
+ }
+ rendezvous_server
     }
 
     pub fn get_rendezvous_servers() -> Vec<String> {
