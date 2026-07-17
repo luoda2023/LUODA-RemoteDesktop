@@ -70,27 +70,14 @@ class _DesktopHomePageState extends State<DesktopHomePage>
  final trimmed = id.trim();
  if (trimmed.isEmpty) return;
  connect(buildCtx, trimmed);
-  }
+}
 
-  /// IP:端口 行 右 侧 "直 连" 按 钮 调 用: 一 键 调 起 connect(context, addr)
-  /// addr 例: "1.2.3.4:21118" — connect() 自 动 解析 IP:port + 走 11 候选 端 口 扫 描 (src/client.rs:279)
-  /// 内 网/公 网 都 可 直 连, 由 connect() 自己 处理。
-  void _directConnect(String addr) {
- if (addr.isEmpty) return;
- // 灌 进 ID 输 入 框 (ConnectionPage) 让 用 户 看 到 当 前 连 接 的 是 谁
- try {
-  if (Get.isRegistered<IDTextEditingController>()) {
-   Get.find<IDTextEditingController>().text = addr;
-  }
-  if (Get.isRegistered<TextEditingController>()) {
-   Get.find<TextEditingController>().text = addr;
-  }
- } catch (_) {}
- connect(context, addr);
-  }
+// 用 户 反 馈 round-23: 删 除 _directConnect 函 数 — _ipCard 不 再 显 "直 连" 按钮
+// 该 函 数 之 前 给 公 网 / 内 网 IP 行 右 侧 的 "直 连" InkWell 调 用, 已 删.
+// 用 户 若 要 连 IP, 双 击 IP 行 复 制 后 粘 到 远 程 ID 输 入 框 即 可.
 
 
-  @override
+@override
  Widget build(BuildContext context) {
  super.build(context);
  final isIncomingOnly = bind.isIncomingOnly();
@@ -874,38 +861,9 @@ Positioned(
  ),
  ),
  ],
- // 公 网 / 内 网 IP 行 右 侧 加 "直 连" 按 钮:
- // 一 键 把 IP:端口 灌 进 ConnectionPage ID 输 入 框 调 起 连 接。
- // 客 户 定 制 版 尤 其 需 要 — 不 用 手 动 复 制 + 切 回 ID 输 入 框 粘 贴。
- if (addr.isNotEmpty) ...[
- SizedBox(width: 6),
- InkWell(
- onTap: () => _directConnect(addr),
- borderRadius: BorderRadius.circular(4),
- child: Tooltip(
- message: '直 连 $addr',
- waitDuration: Duration(milliseconds: 200),
- child: Container(
- padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
- decoration: BoxDecoration(
- color: MyTheme.accent.withOpacity(0.18),
- borderRadius: BorderRadius.circular(4),
- border: Border.all(color: MyTheme.accent.withOpacity(0.5), width: 0.7),
- ),
- child: Row(
- mainAxisSize: MainAxisSize.min,
- children: [
- Icon(Icons.link, size: 11, color: MyTheme.accent),
- SizedBox(width: 2),
- Text(
- '直连',
- style: TextStyle(
- fontSize: 11,
- fontWeight: FontWeight.w700,
- color: MyTheme.accent,
- ),
- ),
- ],
+ // 用 户 反 馈 round-23: 公 网 / 内 网 IP 行 右 侧 不 要 "直 连" 按 钮.
+ // 之 前 我 在 每 个 _ipCard 加 了 一 个 直 连 按 钮 → 主 页 多 出 2 个 不 必 要 按 钮
+ // 已 删 除, 用 户 若 要 连 接 IP, 双 击 IP 行 复 制 后 粘 到 远 程 ID 输 入 框 即 可.
  ),
  ),
  ),

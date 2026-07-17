@@ -304,23 +304,33 @@ class _ConnectionPageState extends State<ConnectionPage>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final isOutgoingOnly = bind.isOutgoingOnly();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-            child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildRemoteIDTextField(context).marginOnly(top: 22),
-            SizedBox(height: 12),
-            Expanded(child: PeerTabPage()),
-          ],
-        ).paddingOnly(left: 12.0)),
-      ],
-    );
-  }
+ Widget build(BuildContext context) {
+ final isOutgoingOnly = bind.isOutgoingOnly();
+ return Column(
+ crossAxisAlignment: CrossAxisAlignment.stretch,
+ children: [
+ Expanded(
+ child: Column(
+ crossAxisAlignment: CrossAxisAlignment.stretch,
+ children: [
+ _buildRemoteIDTextField(context).marginOnly(top: 22),
+ SizedBox(height: 12),
+ Expanded(child: PeerTabPage()),
+ ],
+ ).paddingOnly(left: 12.0)),
+ // 普通版右下角状态条 (用户反馈 round-23):
+ // v2.0.1 base 干净上 普通版只在 left pane 有 OnlineStatusWidget
+ // 当 isIncomingOnly=false 时, left pane 不渲染 OnlineStatusWidget,
+ // 因此普通版无任何状态条显示. 这里主动在 right pane 底部 加 一 行.
+ // 客户定制 版 (isIncomingOnly=true) 仍 走 desktop_home_page.dart 的 left pane
+ // OnlineStatusWidget 渲染逻辑, 这里 块 仅 在 正常 输 入 模 式时大 出可见
+ if (!isOutgoingOnly && !bind.isIncomingOnly())
+ OnlineStatusWidget(
+ onSvcStatusChanged: () {},
+ ).paddingOnly(left: 12.0, right: 8.0, bottom: 6.0, top: 2.0),
+ ],
+ );
+ }
 
   /// Callback for the connect button.
   /// Connects to the selected peer.
