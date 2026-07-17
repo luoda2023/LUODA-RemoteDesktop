@@ -335,16 +335,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                 Expanded(child: Container())
               ],
             ),
-            Positioned(
-              bottom: 6,
-              left: 10,
-              right: 10,
- // 客户定制版/普通版: 主页右下角"设置/网络"按钮一律隐藏,
- // 改由 DesktopTabPage 顶 部 Tab Bar 右 上角 的 Settings Icon 入口 进设置(避免重复)
- // 用户 反馈 问题 5: 主 页 右 上 角 设 置 按 钮 取 消 - 这里 取消 显示
+Positioned(
+ bottom: 6,
+ left: 10,
+ right: 10,
+ // 主页左下角"设置/网络"两个按钮: 普通版显示, 客户定制版隐藏
+ // (客户版仅允许通过 ID 输入框 + 远程连, 不开放设置入口)
+ // 注意: round-17 我曾误判用户要求把这里改成 offstage:true 全版隐藏, 那是误读.
+ // 用户实际要删 的是顶部 Tab Bar tail 的 Settings ActionIcon (desktop_tab_page.dart).
  child: Offstage(
- offstage: true,
-                child: Row(
+ offstage: bind.isCustomClient(),
+ child: Row(
                   children: [
                     // 设置按钮
                     Expanded(

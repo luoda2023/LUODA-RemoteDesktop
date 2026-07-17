@@ -102,17 +102,20 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
               showMinimize: !compactClient,
               showMaximize: !compactClient,
               showClose: true,
-              tail: Offstage(
-                offstage: bind.isIncomingOnly() ||
-                    bind.isDisableSettings() ||
-                    isCustomClient,
-                child: ActionIcon(
-                  message: 'Settings',
-                  icon: IconFont.menu,
-                  onTap: DesktopTabPage.onAddSetting,
-                  isClose: false,
-                ),
-              ),
+tail: Offstage(
+ // 用户反馈 (round-17 修正): 顶部 Tab Bar tail 的 Settings ActionIcon 是设置入口,
+ // 与 主页左下角"设置/网络"两个按钮功能重复.
+ // 全 版 (普 通 + 客 户) 均 隐 藏 这里, 设置入口仅保留 主页左下角按钮 一处.
+ // 之前: round-17 我 误 删 了 主 页 左 下 角 按 钮 (A), 这 里 (B) 反 而 还 在 显 示.
+ // 现 在 修 回: A 恢 复显 示, B 全 版 隐 藏.
+ offstage: true,
+ child: ActionIcon(
+ message: 'Settings',
+ icon: IconFont.menu,
+ onTap: DesktopTabPage.onAddSetting,
+ isClose: false,
+ ),
+ ),
             )));
     return isMacOS || kUseCompatibleUiMode
         ? tabWidget
