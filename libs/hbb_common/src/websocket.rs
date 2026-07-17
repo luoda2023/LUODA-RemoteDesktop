@@ -339,17 +339,28 @@ pub fn check_ws(endpoint: &str) -> String {
         let domain_path = if relay { "/ws/relay" } else { "/ws/id" };
         (format!("{}{}", endpoint_host, domain_path), true)
     };
-    let protocol = if is_domain {
-        let api_server = Config::get_option("api-server");
-        if api_server.starts_with("https") {
-            "wss"
-        } else {
-            "ws"
-        }
-    } else {
-        "ws"
-    };
-    format!("{}://{}", protocol, address)
+ let protocol = if is_domain {
+ let api_server = Config::get_option("api-server");
+ if api_server.starts_with("https") {
+ "wss"
+ } else if api_server.starts_with("http") {
+ // 显式 http api-server -> ws. 用户自 建服 务 器 没 TLS 的 兼容.
+ "ws"
+ } else {
+ // api-server 未配置: 默认 生产服 务 器 (rev.dicad.cn) 的 nginx 强制 301
+ // 重定向到 https, ws:// handshake 会被 301 拒 绝.
+ // 现使 用 wss 兼 容nginx.
+ // 见 log: 'WebSocket connection failed with tls_type Plain:
+ // ws://rev.dicad.cn/ws/id, Http(Response { status: 301 ..., location:
+ // https://rev.dicad.cn/ws/id ... })'.
+ // 仅 IP 地 址 仍 用 ws (测 试 部 署 在 内 网).
+ "wss"
+ }
+ } else {
+ // IP ( чис то IP): 一 般 是 本地 测 试 服 务 器 用 ws 即 可.
+ "ws"
+ };
+ format!("{}://{}", protocol, address)
 }
 
 #[cfg(test)]
