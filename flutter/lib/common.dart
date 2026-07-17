@@ -1916,12 +1916,16 @@ Future<Size> _adjustRestoreMainWindowSize(double? width, double? height) async {
   if (restoreHeight > maxHeight) {
     restoreHeight = defaultHeight;
   }
-  // 客户端定制版：窗口固定为截图对应的紧凑信息面板尺寸。
-  if (bind.isCustomClient()) {
-    restoreWidth = 276;
-    restoreHeight = 570;
-  }
-  return Size(restoreWidth, restoreHeight);
+ // 客户端定制版：窗口固定为截图对应的紧凑信息面板尺寸。
+ // 与 getIncomingOnlyHomeSize() (line 3713: Size(380, 500)) 保持一致,
+ // 避免首启动 (lpos==null) 返 380x500 与 二次启动 (lpos!=null) 返 不 同 size
+ // → 用户感知"窗口长宽尺寸不固定"问题.
+ // 之前 hot-fix 写 276x570 与 getIncomingOnlyHomeSize 给 380x500 不一致.
+ if (bind.isCustomClient()) {
+ restoreWidth = 380;
+ restoreHeight = 500;
+ }
+ return Size(restoreWidth, restoreHeight);
 }
 
 // Consider using Rect.contains() instead,
