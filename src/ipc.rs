@@ -396,7 +396,38 @@ pub enum Data {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn start(postfix: &str) -> ResultType<()> {
-    let mut incoming = new_listener(postfix).await?;
+    serve(postfix, new_listener(postfix).await?).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+pub async fn start_with_ready(
+    postfix: &str,
+    ready: std::sync::mpsc::Sender<Result<(), String>>,
+) -> ResultType<()> {
+    let mut last_error = None;
+    for attempt in 1..=3 {
+        match new_listener(postfix).await {
+            Ok(incoming) => {
+                if ready.send(Ok(())).is_err() {
+                    bail!("IPC startup waiter dropped before ownership confirmation");
+                }
+                return serve(postfix, incoming).await;
+            }
+            Err(error) => {
+                log::warn!("IPC ownership attempt {attempt}/3 failed: {error}");
+                last_error = Some(error);
+                if attempt < 3 {
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                }
+            }
+        }
+    }
+    let error = last_error.expect("IPC startup attempted at least once");
+    let _ = ready.send(Err(error.to_string()));
+    Err(error)
+}
+
+async fn serve(postfix: &str, mut incoming: Incoming) -> ResultType<()> {
     loop {
         if let Some(result) = incoming.next().await {
             match result {

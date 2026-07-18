@@ -17,6 +17,8 @@ mod client;
 mod direct_access;
 #[cfg(windows)]
 mod headless_policy;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod host_startup;
 mod lan;
 #[cfg(not(any(target_os = "ios")))]
 mod rendezvous_mediator;

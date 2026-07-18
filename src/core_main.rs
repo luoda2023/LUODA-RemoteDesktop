@@ -125,6 +125,8 @@ pub fn core_main() -> Option<Vec<String>> {
     }
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     if args.is_empty() {
+        #[cfg(target_os = "windows")]
+        crate::tray::recover_incomplete_windows_exit_cleanup();
         #[cfg(target_os = "linux")]
         let should_check_start_tray = crate::check_process("--server", false);
         // We can use `crate::check_process("--server", false)` on Windows.
@@ -196,12 +198,6 @@ pub fn core_main() -> Option<Vec<String>> {
         }
     }
     hbb_common::init_log(false, &log_name);
-
-    #[cfg(windows)]
-    if args.is_empty() && crate::check_process("", true) {
-        log::info!("another main window is already running; skip duplicate host server");
-        no_server = true;
-    }
 
     // linux uni (url) go here.
     #[cfg(all(target_os = "linux", feature = "flutter"))]

@@ -3764,7 +3764,7 @@ pub fn try_kill_luoda_main_window_process() -> ResultType<()> {
     bail!("failed to find luoda main window process");
 }
 
-fn nt_terminate_process(process_id: DWORD) -> ResultType<()> {
+pub(crate) fn nt_terminate_process(process_id: DWORD) -> ResultType<()> {
     type NtTerminateProcess = unsafe extern "system" fn(HANDLE, DWORD) -> DWORD;
     unsafe {
         let h_module = if is_win_10_or_greater() {

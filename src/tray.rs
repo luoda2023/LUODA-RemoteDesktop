@@ -24,15 +24,7 @@ fn spawn_windows_exit_cleanup() -> hbb_common::ResultType<()> {
 }
 
 #[cfg(windows)]
-pub(crate) fn run_windows_exit_cleanup() {
-    use std::os::windows::process::CommandExt;
-
-    log::info!("Tray exit cleanup helper started");
-    crate::ipc::set_option("stop-service", "Y");
-    if let Err(error) = crate::platform::windows::stop_self_service() {
-        log::warn!("Tray exit cleanup: service IPC shutdown failed: {error}");
-    }
-
+fn cleanup_executable_names() -> Vec<String> {
     let exe_name = std::env::current_exe()
         .ok()
         .and_then(|path| {
@@ -40,28 +32,113 @@ pub(crate) fn run_windows_exit_cleanup() {
                 .map(|name| name.to_string_lossy().into_owned())
         })
         .unwrap_or_else(|| "luoda".to_owned());
-    let args = crate::tray_exit::taskkill_other_instances_args(&exe_name, std::process::id());
-    match std::process::Command::new("taskkill")
-        .args(&args)
-        .creation_flags(0x08000000)
-        .output()
-    {
-        Ok(output) if !output.status.success() => log::warn!(
-            "Tray exit cleanup: taskkill failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ),
-        Err(error) => log::warn!("Tray exit cleanup: could not start taskkill: {error}"),
-        _ => {}
+    vec![exe_name, crate::get_app_name()]
+}
+
+#[cfg(windows)]
+fn matching_processes(exe_names: &[String], keep_pid: u32) -> Vec<u32> {
+    use hbb_common::sysinfo::System;
+
+    let mut system = System::new();
+    system.refresh_processes();
+    let processes: Vec<(u32, String)> = system
+        .processes()
+        .values()
+        .map(|process| (process.pid().as_u32(), process.name().to_owned()))
+        .collect();
+    crate::tray_exit::cleanup_target_pids(&processes, exe_names, keep_pid)
+}
+
+#[cfg(windows)]
+pub(crate) fn recover_incomplete_windows_exit_cleanup() {
+    let pending = hbb_common::config::Config::get_option(
+        crate::tray_exit::CLEANUP_PENDING_OPTION,
+    ) == "Y";
+    let has_other_processes =
+        !matching_processes(&cleanup_executable_names(), std::process::id()).is_empty();
+    let service_running = crate::platform::windows::is_self_service_running();
+    if crate::tray_exit::should_recover_stop_service(
+        pending,
+        has_other_processes,
+        service_running,
+    ) {
+        hbb_common::config::Config::set_option("stop-service".to_owned(), "".to_owned());
+        hbb_common::config::Config::set_option(
+            crate::tray_exit::CLEANUP_PENDING_OPTION.to_owned(),
+            "".to_owned(),
+        );
+        log::info!("Recovered a completed tray-exit cleanup on startup");
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn run_windows_exit_cleanup() {
+    use std::os::windows::process::CommandExt;
+
+    log::info!("Tray exit cleanup helper started");
+    hbb_common::config::Config::set_option(
+        crate::tray_exit::CLEANUP_PENDING_OPTION.to_owned(),
+        "Y".to_owned(),
+    );
+    hbb_common::config::Config::set_option("stop-service".to_owned(), "Y".to_owned());
+    crate::ipc::set_option("stop-service", "Y");
+    if let Err(error) = crate::platform::windows::stop_self_service() {
+        log::warn!("Tray exit cleanup: service IPC shutdown failed: {error}");
+    }
+
+    let exe_names = cleanup_executable_names();
+    let keep_pid = std::process::id();
+    for pid in matching_processes(&exe_names, keep_pid) {
+        let result = std::process::Command::new("taskkill")
+            .args(["/f", "/pid", &pid.to_string()])
+            .creation_flags(0x08000000)
+            .output();
+        if !matches!(result, Ok(ref output) if output.status.success()) {
+            if let Err(error) = crate::platform::windows::nt_terminate_process(pid) {
+                log::warn!("Tray exit cleanup: could not terminate PID {pid}: {error}");
+            }
+        }
     }
 
     if crate::platform::windows::is_self_service_running() {
         let _ = std::process::Command::new("sc")
             .args(["stop", &crate::get_app_name()])
             .creation_flags(0x08000000)
-            .spawn();
+            .output();
     }
-    hbb_common::config::Config::set_option("stop-service".to_owned(), "".to_owned());
-    log::info!("Tray exit cleanup helper finished");
+    for _ in 0..20 {
+        if matching_processes(&exe_names, keep_pid).is_empty()
+            && !crate::platform::windows::is_self_service_running()
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    let processes_terminated = matching_processes(&exe_names, keep_pid).is_empty();
+    let service_stopped = !crate::platform::windows::is_self_service_running();
+    if crate::tray_exit::should_clear_stop_service(processes_terminated, service_stopped) {
+        hbb_common::config::Config::set_option("stop-service".to_owned(), "".to_owned());
+        hbb_common::config::Config::set_option(
+            crate::tray_exit::CLEANUP_PENDING_OPTION.to_owned(),
+            "".to_owned(),
+        );
+        log::info!("Tray exit cleanup helper finished");
+    } else {
+        log::error!(
+            "Tray exit cleanup incomplete: processes_terminated={processes_terminated}, service_stopped={service_stopped}; keeping stop-service=Y"
+        );
+    }
+}
+
+#[cfg(windows)]
+fn terminate_current_process() -> ! {
+    unsafe {
+        winapi::um::processthreadsapi::TerminateProcess(
+            winapi::um::processthreadsapi::GetCurrentProcess(),
+            0,
+        );
+    }
+    std::process::abort();
 }
 
 pub fn start_tray() {
@@ -273,6 +350,9 @@ fn make_tray() -> hbb_common::ResultType<()> {
                 if let Ok(mut guard) = _tray_icon.lock() {
                     *guard = None;
                 }
+                #[cfg(target_os = "windows")]
+                terminate_current_process();
+                #[cfg(not(target_os = "windows"))]
                 std::process::exit(0);
             } else if event.id == open_i.id() {
                 open_func();

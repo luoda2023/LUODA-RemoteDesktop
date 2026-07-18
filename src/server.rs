@@ -610,37 +610,25 @@ pub async fn start_server(is_server: bool, no_server: bool) {
     });
 
     if is_server {
-        crate::common::set_server_running(true);
+        let (ipc_ready_tx, ipc_ready_rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            // Retry IPC start up to 3 times before giving up.
-            // A common failure reason is that an old `--server` process
-            // still holds the named pipe / Unix domain socket.
-            let mut attempts = 0;
-            loop {
-                attempts += 1;
-                if let Err(err) = crate::ipc::start("") {
-                    log::error!("Failed to start ipc (attempt {}): {}", attempts, err);
-                    if crate::is_server() && attempts < 3 {
-                        log::error!("ipc is occupied by another process, try kill it");
-                        std::thread::spawn(stop_main_window_process).join().ok();
-                        // Give the old process time to release the pipe/socket.
-                        std::thread::sleep(std::time::Duration::from_millis(1500));
-                        continue;
-                    }
-                    log::error!(
-                        "Failed to start ipc after {} attempts, NOT exiting – rendezvous will still run",
-                        attempts
-                    );
-                    // Do NOT exit here. Previously exit(-1) killed the entire
-                    // --server process, which prevented RendezvousMediator from
-                    // starting and caused Flutter UI to show "generating" forever.
-                    // The Windows service manager would then restart the process in
-                    // a loop, creating a crash loop.
-                    break;
-                }
-                // ipc::start() loops forever on success – we never reach here.
+            if let Err(error) = crate::ipc::start_with_ready("", ipc_ready_tx) {
+                log::error!("Primary IPC server stopped: {error}");
             }
         });
+        let ipc_ready = ipc_ready_rx
+            .recv_timeout(std::time::Duration::from_secs(4))
+            .ok();
+        if !crate::host_startup::can_start_rendezvous(ipc_ready.clone()) {
+            match ipc_ready {
+                Some(Err(error)) => {
+                    log::warn!("Host server deferred to the primary IPC owner: {error}")
+                }
+                _ => log::error!("Host server aborted: primary IPC ownership timed out"),
+            }
+            return;
+        }
+        crate::common::set_server_running(true);
         input_service::fix_key_down_timeout_loop();
         #[cfg(target_os = "linux")]
         if input_service::wayland_use_uinput() {
