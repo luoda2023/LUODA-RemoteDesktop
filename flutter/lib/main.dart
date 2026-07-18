@@ -1,7 +1,9 @@
-import 'runtime_logger.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'runtime_logger.dart';
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -38,9 +40,39 @@ int? kWindowId;
 WindowType? kWindowType;
 late List<String> kBootArgs;
 
+void _installRuntimeErrorLogging(RuntimeLogger logger) {
+  final previousFlutterHandler = FlutterError.onError;
+  FlutterError.onError = (details) {
+    logger.error(
+      'FLUTTER',
+      '${details.exceptionAsString()}\n${details.stack ?? StackTrace.current}',
+    );
+    if (previousFlutterHandler != null) {
+      previousFlutterHandler(details);
+    } else {
+      FlutterError.presentError(details);
+    }
+  };
+
+  final previousPlatformHandler = ui.PlatformDispatcher.instance.onError;
+  ui.PlatformDispatcher.instance.onError = (error, stack) {
+    logger.error('DART', '$error\n$stack');
+    return previousPlatformHandler?.call(error, stack) ?? false;
+  };
+}
+
 Future<void> main(List<String> args) async {
   earlyAssert();
   WidgetsFlutterBinding.ensureInitialized();
+  if (!isWeb) {
+    final runtimeLogger = RuntimeLogger.instance;
+    await runtimeLogger.init();
+    _installRuntimeErrorLogging(runtimeLogger);
+    runtimeLogger.info(
+      'APP',
+      'launch; os=${Platform.operatingSystem}; argument_count=${args.length}',
+    );
+  }
 
   debugPrint("launch args: $args");
   kBootArgs = List.from(args);

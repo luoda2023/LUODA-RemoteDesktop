@@ -18,6 +18,7 @@ import 'package:luoda_flutter/models/platform_model.dart';
 import 'package:luoda_flutter/models/server_model.dart';
 import 'package:luoda_flutter/models/state_model.dart';
 import 'package:luoda_flutter/plugin/ui_manager.dart';
+import 'package:luoda_flutter/runtime_logger.dart';
 import 'package:luoda_flutter/utils/multi_window_manager.dart';
 import 'package:luoda_flutter/utils/platform_channel.dart';
 import 'package:get/get.dart';
@@ -1327,6 +1328,13 @@ Positioned(
         port != _lastPort ||
         publicPort != _lastPublicPort ||
         upnpStatus != _lastUpnpStatus) {
+      if (upnpStatus != _lastUpnpStatus) {
+        RuntimeLogger.instance.info(
+          'UPNP',
+          'status=${upnpStatus.isEmpty ? 'unknown' : upnpStatus}; '
+              'external_port=${publicPort.isEmpty ? 'none' : publicPort}',
+        );
+      }
       _lastIp = ip;
       _lastPort = port;
       _lastPublicPort = publicPort;

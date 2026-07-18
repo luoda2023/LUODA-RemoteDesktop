@@ -362,7 +362,13 @@ pub fn check_ws(endpoint: &str) -> String {
     } else {
         "ws"
     };
-    format!("{}://{}", protocol, address)
+    let websocket_url = format!("{}://{}", protocol, address);
+    log::debug!(
+        "WebSocket endpoint selected: {} -> {}",
+        endpoint,
+        websocket_url
+    );
+    websocket_url
 }
 
 #[cfg(test)]

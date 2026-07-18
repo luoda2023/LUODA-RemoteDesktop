@@ -9,6 +9,7 @@ import 'package:luoda_flutter/common/widgets/connection_page_title.dart';
 import 'package:luoda_flutter/consts.dart';
 import 'package:luoda_flutter/desktop/widgets/popup_menu.dart';
 import 'package:luoda_flutter/models/state_model.dart';
+import 'package:luoda_flutter/runtime_logger.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:window_manager/window_manager.dart';
@@ -37,6 +38,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
       ? Get.find<RxBool>(tag: 'stop-service')
       : Get.put<RxBool>(false.obs, tag: 'stop-service');
   Timer? _updateTimer;
+  bool _statusReadFailed = false;
 
   double get em => 14.0;
   double get emForStatus =>
@@ -149,13 +151,33 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
           : statusNum == 0
               ? SvcStatus.connecting
               : SvcStatus.notReady;
-      if (stateGlobal.svcStatus.value != nextStatus) {
+      final previousStatus = stateGlobal.svcStatus.value;
+      if (previousStatus != nextStatus) {
         stateGlobal.svcStatus.value = nextStatus;
+        final configuredServer =
+            bind.mainGetOptionSync(key: 'custom-rendezvous-server').trim();
+        final server =
+            configuredServer.isEmpty ? 'rev.dicad.cn' : configuredServer;
+        RuntimeLogger.instance.info(
+          'NETWORK',
+          'service ${previousStatus.name} -> ${nextStatus.name}; server=$server',
+        );
         widget.onSvcStatusChanged?.call();
       }
       stateGlobal.videoConnCount.value = status['video_conn_count'] as int;
-    } catch (_) {
+      if (_statusReadFailed) {
+        RuntimeLogger.instance.info('NETWORK', 'connect status reader recovered');
+        _statusReadFailed = false;
+      }
+    } catch (error) {
       // Preserve the last verified state on a transient IPC/JSON failure.
+      if (!_statusReadFailed) {
+        RuntimeLogger.instance.warn(
+          'NETWORK',
+          'connect status read failed: $error',
+        );
+        _statusReadFailed = true;
+      }
     }
   }
 }

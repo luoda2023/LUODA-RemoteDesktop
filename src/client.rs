@@ -4047,7 +4047,11 @@ pub mod peer_online {
                     f(onlines, offlines);
                 }
                 Err(e) => {
-                    log::debug!("query onlines, {}", &e);
+                    log::warn!(
+                        "Failed to query online states for {} peers: {}",
+                        ids.len(),
+                        e
+                    );
                 }
             }
         }
