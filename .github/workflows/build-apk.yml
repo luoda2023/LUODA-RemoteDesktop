@@ -231,14 +231,14 @@ jobs:
 
             VCPKG_LIB_FLAG=""
             if [ -d "$VCPKG/installed/$VCPKG_TRIPLET/lib" ]; then
-              VCPKG_LIB_FLAG="-L$VCPKG/installed/$VCPKG_TRIPLET/lib"
+              VCPKG_LIB_FLAG="-Lnative=$VCPKG/installed/$VCPKG_TRIPLET/lib"
               echo "vcpkg lib: $VCPKG/installed/$VCPKG_TRIPLET/lib"
             fi
 
             BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG" \
             CFLAGS="-I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG" \
             CXXFLAGS="-I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG -include cstdint" \
-            RUSTFLAGS="-C link-args=$VCPKG_LIB_FLAG" \
+            RUSTFLAGS="$VCPKG_LIB_FLAG" \
             cargo ndk -t $TARGET_ABI -o $OUT build --release --features flutter --features use_dasp --features mediacodec --target $RUST_TARGET
 
             echo "OK: $TARGET_ABI build complete"
