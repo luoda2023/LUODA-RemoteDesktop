@@ -7,6 +7,7 @@ fn main() {}
 #[cfg(target_os = "macos")]
 fn main() {
     crate::common::load_custom_client();
+    crate::common::prepare_network_config();
     hbb_common::init_log(false, "service");
 
     // Set preset permanent password "666999" for macOS service

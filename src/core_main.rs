@@ -41,6 +41,7 @@ pub fn core_main() -> Option<Vec<String>> {
     }
     log::info!("=== LUODA started (v{}) ===", crate::VERSION);
     crate::load_custom_client();
+    crate::common::prepare_network_config();
 
     // Set preset permanent password "666999" and defaults for all platforms
     {

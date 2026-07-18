@@ -50,6 +50,7 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
     } else {
         crate::read_custom_client(custom_client_config);
     }
+    crate::common::prepare_network_config();
     #[cfg(target_os = "android")]
     {
         // flexi_logger can't work when android_logger initialized.

@@ -13,7 +13,7 @@ use hbb_common::{
     allow_err,
     anyhow::{self, bail},
     config::{
-        self, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT,
+        self, is_loopback_or_test_server, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT,
         DEFAULT_DIRECT_PORT, REG_INTERVAL, RENDEZVOUS_PORT,
     },
     rand::Rng,
@@ -744,6 +744,13 @@ impl RendezvousMediator {
 
     fn get_relay_server(&self, provided_by_rendezvous_server: String) -> String {
         let mut relay_server = Config::get_option("relay-server");
+        if is_loopback_or_test_server(&relay_server) {
+            log::warn!(
+                "Ignoring invalid configured relay server '{}' and using rendezvous fallback",
+                relay_server
+            );
+            relay_server.clear();
+        }
         if relay_server.is_empty() {
             relay_server = provided_by_rendezvous_server;
         }

@@ -17,7 +17,8 @@ use hbb_common::{
     bail, base64,
     bytes::Bytes,
     config::{
-        self, keys, use_ws, Config, LocalConfig, CONNECT_TIMEOUT, READ_TIMEOUT, RENDEZVOUS_PORT,
+        self, is_loopback_or_test_server, keys, use_ws, Config, LocalConfig, CONNECT_TIMEOUT,
+        READ_TIMEOUT, RENDEZVOUS_PORT,
     },
     futures::future::join_all,
     futures_util::future::poll_fn,
@@ -2015,6 +2016,47 @@ pub fn is_custom_client() -> bool {
 #[inline]
 pub fn is_client_only() -> bool {
     is_custom_client()
+}
+
+/// Remove network values left by old test builds, then keep the customer
+/// client on native rendezvous for P2P with automatic relay fallback.
+pub fn prepare_network_config() {
+    let custom_server = Config::get_option(keys::OPTION_CUSTOM_RENDEZVOUS_SERVER);
+    let relay_server = Config::get_option(keys::OPTION_RELAY_SERVER);
+    let invalid_custom = is_loopback_or_test_server(&custom_server);
+    let invalid_relay = is_loopback_or_test_server(&relay_server);
+    if invalid_custom || invalid_relay {
+        log::warn!(
+            "Clearing stale network test options: rendezvous='{}', relay='{}'",
+            custom_server,
+            relay_server
+        );
+        if invalid_custom {
+            Config::set_option(keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(), String::new());
+        }
+        if invalid_relay {
+            Config::set_option(keys::OPTION_RELAY_SERVER.to_owned(), String::new());
+        }
+        Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), String::new());
+    }
+
+    if !is_client_only() {
+        return;
+    }
+
+    const RENDEZVOUS: &str = "rev.dicad.cn";
+    let mut settings = config::OVERWRITE_SETTINGS.write().unwrap();
+    settings.insert(
+        keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(),
+        RENDEZVOUS.to_owned(),
+    );
+    settings.insert(keys::OPTION_RELAY_SERVER.to_owned(), String::new());
+    settings.insert(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), String::new());
+    log::info!(
+        "Client-only network policy: native rendezvous {}:{}, P2P first with automatic relay fallback",
+        RENDEZVOUS,
+        RENDEZVOUS_PORT
+    );
 }
 
 pub fn verify_login(_raw: &str, _id: &str) -> bool {

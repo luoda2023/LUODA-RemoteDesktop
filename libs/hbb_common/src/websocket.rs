@@ -374,14 +374,42 @@ pub fn check_ws(endpoint: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{keys, Config};
+    use crate::config::{keys, Config, CONFIG_TEST_LOCK};
+
+    const OPTION_KEYS: [&str; 4] = [
+        keys::OPTION_ALLOW_WEBSOCKET,
+        "api-server",
+        "custom-rendezvous-server",
+        "relay-server",
+    ];
+
+    struct OptionSnapshot(Vec<(&'static str, String)>);
+
+    impl OptionSnapshot {
+        fn capture() -> Self {
+            Self(
+                OPTION_KEYS
+                    .iter()
+                    .map(|key| (*key, Config::get_option(key)))
+                    .collect(),
+            )
+        }
+    }
+
+    impl Drop for OptionSnapshot {
+        fn drop(&mut self) {
+            for (key, value) in self.0.drain(..) {
+                Config::set_option(key.to_owned(), value);
+            }
+        }
+    }
 
     #[test]
     fn public_server_uses_wss_with_stale_http_api_setting() {
-        let previous_allow_ws = Config::get_option(keys::OPTION_ALLOW_WEBSOCKET);
-        let previous_api = Config::get_option("api-server");
-        let previous_custom = Config::get_option("custom-rendezvous-server");
-        let previous_relay = Config::get_option("relay-server");
+        let _lock = CONFIG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        let _snapshot = OptionSnapshot::capture();
 
         Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), "Y".to_owned());
         Config::set_option("custom-rendezvous-server".to_owned(), "".to_owned());
@@ -396,15 +424,15 @@ mod tests {
 
         Config::set_option("api-server".to_owned(), "".to_owned());
         assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
-
-        Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), previous_allow_ws);
-        Config::set_option("api-server".to_owned(), previous_api);
-        Config::set_option("custom-rendezvous-server".to_owned(), previous_custom);
-        Config::set_option("relay-server".to_owned(), previous_relay);
     }
 
     #[test]
     fn test_check_ws() {
+        let _lock = CONFIG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        let _snapshot = OptionSnapshot::capture();
+
         // enable websocket
         Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_string(), "Y".to_string());
 
@@ -512,7 +540,7 @@ mod tests {
         // set custom-rendezvous-server with custom port
         Config::set_option(
             "custom-rendezvous-server".to_string(),
-            "203.0.113.10:23456".to_string(),
+            "47.114.75.115:23456".to_string(),
         );
         Config::set_option("relay-server".to_string(), "".to_string());
         Config::set_option("api-server".to_string(), "".to_string());

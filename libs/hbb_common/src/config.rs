@@ -122,6 +122,9 @@ lazy_static::lazy_static! {
     pub static ref BUILTIN_SETTINGS: RwLock<HashMap<String, String>> = Default::default();
 }
 
+#[cfg(test)]
+pub static CONFIG_TEST_LOCK: Mutex<()> = Mutex::new(());
+
 #[cfg(target_os = "android")]
 lazy_static::lazy_static! {
     pub static ref ANDROID_RUSTLS_PLATFORM_VERIFIER_INITIALIZED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -164,7 +167,7 @@ pub const RELAY_PORT: i32 = 21117;
 pub const WS_RENDEZVOUS_PORT: i32 = 21118;
 pub const WS_RELAY_PORT: i32 = 21119;
 
-/// Detect loopback / obviously-invalid test rendezvous server strings.
+/// Detect loopback / private / documentation-only rendezvous server strings.
 ///
 /// Used by [`Config::get_rendezvous_server`] to sanitize legacy config values
 /// left behind by older hot-fix builds that wrote `127.0.0.1:23456` etc. into
@@ -176,45 +179,49 @@ pub const WS_RELAY_PORT: i32 = 21119;
 /// - `127.0.0.1`, `localhost`, `::1`, `0.0.0.0` (loopback / any)
 /// - `192.168.x.x`, `10.x.x.x`, `172.16-31.x.x` (RFC1918 private ranges,
 ///   these are not valid public rendezvous servers)
-/// - `1.2.3.4`-style placeholder IPs that clearly aren't real
-/// - common test ports like 23456/23458 us ed by dev fixtures
+/// - RFC 5737 TEST-NET ranges used by documentation and test fixtures
 pub fn is_loopback_or_test_server(s: &str) -> bool {
- if s.is_empty() {
- return false;
- }
- let host_port = s.split(':').next().unwrap_or("").to_lowercase();
- if host_port.is_empty() {
- return false;
- }
- if host_port == "localhost" || host_port == "0.0.0.0" {
- return true;
- }
- // Try-parse as Ipv4 / Ipv6
- if let Ok(ip) = host_port.parse::<IpAddr>() {
- if ip.is_loopback() || ip.is_unspecified() {
- return true;
- }
- if let IpAddr::V4(v4) = ip {
- let oct = v4.octets();
- // RFC1918 private ranges
- if oct[0] == 192 && oct[1] == 168 {
- return true;
- }
- if oct[0] == 10 {
- return true;
- }
- if oct[0] == 172 && (oct[1] >= 16 && oct[1] <= 31) {
- return true;
- }
- // link-local 169.254.x.x
- if oct[0] == 169 && oct[1] == 254 {
- return true;
- }
- }
- return false;
- }
- // Not an IP — must be a domain like "rev.dicad.cn". Accept.
- false
+    let endpoint = s.trim();
+    if endpoint.is_empty() {
+        return false;
+    }
+
+    let parsed_ip = endpoint
+        .parse::<IpAddr>()
+        .ok()
+        .or_else(|| endpoint.parse::<SocketAddr>().ok().map(|addr| addr.ip()));
+    let host = endpoint
+        .strip_prefix('[')
+        .and_then(|value| value.split_once(']').map(|(host, _)| host))
+        .or_else(|| {
+            endpoint
+                .rsplit_once(':')
+                .filter(|(host, port)| !host.contains(':') && port.parse::<u16>().is_ok())
+                .map(|(host, _)| host)
+        })
+        .unwrap_or(endpoint)
+        .to_lowercase();
+
+    if host == "localhost" || host == "0.0.0.0" {
+        return true;
+    }
+    let Some(ip) = parsed_ip.or_else(|| host.parse::<IpAddr>().ok()) else {
+        return false;
+    };
+    if ip.is_loopback() || ip.is_unspecified() {
+        return true;
+    }
+    if let IpAddr::V4(v4) = ip {
+        let oct = v4.octets();
+        return oct[0] == 10
+            || (oct[0] == 172 && (16..=31).contains(&oct[1]))
+            || (oct[0] == 192 && oct[1] == 168)
+            || (oct[0] == 169 && oct[1] == 254)
+            || (oct[0] == 192 && oct[1] == 0 && oct[2] == 2)
+            || (oct[0] == 198 && oct[1] == 51 && oct[2] == 100)
+            || (oct[0] == 203 && oct[1] == 0 && oct[2] == 113);
+    }
+    false
 }
 
 /// Default port for direct IP access (peer-to-peer without relay).
@@ -996,24 +1003,37 @@ impl Config {
     }
 
     pub fn get_rendezvous_servers() -> Vec<String> {
-        let s = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if !s.is_empty() {
-            return vec![s];
-        }
-        let s = Self::get_option("custom-rendezvous-server");
-        if !s.is_empty() {
-            return vec![s];
-        }
-        let s = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if !s.is_empty() {
-            return vec![s];
+        for (source, server) in [
+            (
+                "executable",
+                EXE_RENDEZVOUS_SERVER.read().unwrap().clone(),
+            ),
+            ("custom option", Self::get_option("custom-rendezvous-server")),
+            (
+                "managed configuration",
+                PROD_RENDEZVOUS_SERVER.read().unwrap().clone(),
+            ),
+        ] {
+            if server.is_empty() {
+                continue;
+            }
+            if is_loopback_or_test_server(&server) {
+                log::warn!(
+                    "Ignoring invalid {} rendezvous server '{}'",
+                    source,
+                    server
+                );
+                continue;
+            }
+            return vec![server];
         }
         let serial_obsolute = CONFIG2.read().unwrap().serial > SERIAL;
         if serial_obsolute {
             let ss: Vec<String> = Self::get_option("rendezvous-servers")
                 .split(',')
-                .filter(|x| x.contains('.'))
-                .map(|x| x.to_owned())
+                .map(str::trim)
+                .filter(|x| x.contains('.') && !is_loopback_or_test_server(x))
+                .map(str::to_owned)
                 .collect();
             if !ss.is_empty() {
                 return ss;
@@ -3290,6 +3310,44 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_rendezvous_placeholder_detection() {
+        for server in [
+            "localhost:21116",
+            "[::1]:21116",
+            "192.0.2.10:21116",
+            "198.51.100.20:21116",
+            "203.0.113.10:23456",
+        ] {
+            assert!(
+                is_loopback_or_test_server(server),
+                "documentation-only address must not become a live rendezvous server: {}",
+                server
+            );
+        }
+        assert!(!is_loopback_or_test_server("rev.dicad.cn:21116"));
+        assert!(!is_loopback_or_test_server("47.114.75.115:21116"));
+    }
+
+    #[test]
+    fn test_rendezvous_server_list_rejects_placeholder() {
+        let _lock = CONFIG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        let previous = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
+        *EXE_RENDEZVOUS_SERVER.write().unwrap() = "203.0.113.10:23456".to_owned();
+        let servers = Config::get_rendezvous_servers();
+        *EXE_RENDEZVOUS_SERVER.write().unwrap() = previous;
+
+        assert!(
+            servers
+                .iter()
+                .all(|server| !is_loopback_or_test_server(server)),
+            "placeholder rendezvous server escaped sanitization: {:?}",
+            servers
+        );
+    }
+
+    #[test]
     fn test_serialize() {
         let cfg: Config = Default::default();
         let res = toml::to_string_pretty(&cfg);
@@ -3343,6 +3401,9 @@ mod tests {
 
     #[test]
     fn test_overwrite_settings() {
+        let _lock = CONFIG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         DEFAULT_SETTINGS
             .write()
             .unwrap()
