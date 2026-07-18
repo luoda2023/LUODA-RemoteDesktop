@@ -4079,20 +4079,14 @@ pub mod peer_online {
             ..Default::default()
         });
 
-        let mut socket = match create_online_stream().await {
-            Ok(s) => s,
-            Err(e) => {
-                log::debug!("Failed to create peers online stream, {e}");
-                return Ok((vec![], ids.clone()));
-            }
-        };
+        let mut socket = create_online_stream().await?;
         // TODO: Use long connections to avoid socket creation
         // If we use a Arc<Mutex<Option<FramedStream>>> to hold and reuse the previous socket,
         // we may face the following error:
         // An established connection was aborted by the software in your host machine. (os error 10053)
         if let Err(e) = socket.send(&msg_out).await {
             log::debug!("Failed to send peers online states query, {e}");
-            return Ok((vec![], ids.clone()));
+            return Err(e);
         }
         // Retry for 2 times to get the online response
         for _ in 0..2 {
@@ -4131,7 +4125,29 @@ pub mod peer_online {
 
     #[cfg(test)]
     mod tests {
-        use hbb_common::tokio;
+        use hbb_common::{
+            config::{keys::OPTION_CUSTOM_RENDEZVOUS_SERVER, Config},
+            tokio,
+        };
+
+        #[tokio::test]
+        async fn transport_failure_does_not_report_every_peer_offline() {
+            let previous = Config::get_option(OPTION_CUSTOM_RENDEZVOUS_SERVER);
+            Config::set_option(
+                OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(),
+                "203.0.113.1:2".to_owned(),
+            );
+
+            let ids = vec!["423156".to_owned(), "980966".to_owned()];
+            let result =
+                super::query_online_states_(&ids, std::time::Duration::from_millis(100)).await;
+
+            Config::set_option(OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(), previous);
+            assert!(
+                result.is_err(),
+                "a transport failure must preserve the previous UI state, not mark every peer offline"
+            );
+        }
 
         #[tokio::test]
         async fn test_query_onlines() {

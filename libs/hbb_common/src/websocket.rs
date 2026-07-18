@@ -1,6 +1,7 @@
 use crate::{
     config::{
         keys::OPTION_RELAY_SERVER, use_ws, Config, Socks5Server, RELAY_PORT, RENDEZVOUS_PORT,
+        RENDEZVOUS_SERVERS,
     },
     protobuf::Message,
     socket_client::split_host_port,
@@ -339,34 +340,62 @@ pub fn check_ws(endpoint: &str) -> String {
         let domain_path = if relay { "/ws/relay" } else { "/ws/id" };
         (format!("{}{}", endpoint_host, domain_path), true)
     };
- let protocol = if is_domain {
- let api_server = Config::get_option("api-server");
- if api_server.starts_with("https") {
- "wss"
- } else if api_server.starts_with("http") {
- // 显式 http api-server -> ws. 用户自 建服 务 器 没 TLS 的 兼容.
- "ws"
- } else {
- // api-server 未配置: 默认 生产服 务 器 (rev.dicad.cn) 的 nginx 强制 301
- // 重定向到 https, ws:// handshake 会被 301 拒 绝.
- // 现使 用 wss 兼 容nginx.
- // 见 log: 'WebSocket connection failed with tls_type Plain:
- // ws://rev.dicad.cn/ws/id, Http(Response { status: 301 ..., location:
- // https://rev.dicad.cn/ws/id ... })'.
- // 仅 IP 地 址 仍 用 ws (测 试 部 署 在 内 网).
- "wss"
- }
- } else {
- // IP ( чис то IP): 一 般 是 本地 测 试 服 务 器 用 ws 即 可.
- "ws"
- };
- format!("{}://{}", protocol, address)
+    let protocol = if is_domain {
+        let api_server = Config::get_option("api-server");
+        let endpoint_host = endpoint_host.trim_end_matches('.');
+        let is_tls_only_public_server = RENDEZVOUS_SERVERS.iter().any(|server| {
+            let server_host = split_host_port(server)
+                .map(|(host, _)| host)
+                .unwrap_or_else(|| (*server).to_owned());
+            let server_host = server_host.trim_end_matches('.');
+            endpoint_host.eq_ignore_ascii_case(server_host)
+        });
+
+        if is_tls_only_public_server || api_server.starts_with("https://") {
+            "wss"
+        } else {
+            // Self-hosted HTTP domains and IP endpoints may legitimately be
+            // plain WebSocket servers. Only the public LUODA endpoint is
+            // forced to TLS regardless of a stale API setting.
+            "ws"
+        }
+    } else {
+        "ws"
+    };
+    format!("{}://{}", protocol, address)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::{keys, Config};
+
+    #[test]
+    fn public_server_uses_wss_with_stale_http_api_setting() {
+        let previous_allow_ws = Config::get_option(keys::OPTION_ALLOW_WEBSOCKET);
+        let previous_api = Config::get_option("api-server");
+        let previous_custom = Config::get_option("custom-rendezvous-server");
+        let previous_relay = Config::get_option("relay-server");
+
+        Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), "Y".to_owned());
+        Config::set_option("custom-rendezvous-server".to_owned(), "".to_owned());
+        Config::set_option("relay-server".to_owned(), "".to_owned());
+        Config::set_option("api-server".to_owned(), "http://rev.dicad.cn".to_owned());
+
+        assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
+        assert_eq!(
+            check_ws("rev.dicad.cn:21117"),
+            "wss://rev.dicad.cn/ws/relay"
+        );
+
+        Config::set_option("api-server".to_owned(), "".to_owned());
+        assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
+
+        Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), previous_allow_ws);
+        Config::set_option("api-server".to_owned(), previous_api);
+        Config::set_option("custom-rendezvous-server".to_owned(), previous_custom);
+        Config::set_option("relay-server".to_owned(), previous_relay);
+    }
 
     #[test]
     fn test_check_ws() {
@@ -383,6 +412,7 @@ mod tests {
         assert_eq!(check_ws("luoda.com:21115"), "ws://luoda.com/ws/id");
         assert_eq!(check_ws("luoda.com:21116"), "ws://luoda.com/ws/id");
         assert_eq!(check_ws("luoda.com:21117"), "ws://luoda.com/ws/relay");
+
         // set relay-server without port
         Config::set_option("relay-server".to_string(), "127.0.0.1".to_string());
         Config::set_option(
@@ -476,7 +506,7 @@ mod tests {
         // set custom-rendezvous-server with custom port
         Config::set_option(
             "custom-rendezvous-server".to_string(),
-            "127.0.0.1:23456".to_string(),
+            "203.0.113.10:23456".to_string(),
         );
         Config::set_option("relay-server".to_string(), "".to_string());
         Config::set_option("api-server".to_string(), "".to_string());

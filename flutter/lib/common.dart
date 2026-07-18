@@ -1900,7 +1900,7 @@ Future<Size> _adjustRestoreMainWindowSize(double? width, double? height) async {
   // 普通版（非 incoming-only / 非 custom-client）的窗口下限 900×600：
   // 之前若被客户端定制版保存过 300×280 等小尺寸，启动恢复会误把普通版压成小窗口。
   // 这里强制下限，保证普通版至少 900×600 显示完整内容。
-  if (!bind.isIncomingOnly() && !bind.isCustomClient()) {
+  if (!bind.isIncomingOnly() && !isCustomClientFresh()) {
     const double kMinNormalWidth = 900;
     const double kMinNormalHeight = 600;
     if (restoreWidth < kMinNormalWidth) {
@@ -1921,10 +1921,10 @@ Future<Size> _adjustRestoreMainWindowSize(double? width, double? height) async {
  // 避免首启动 (lpos==null) 返 380x500 与 二次启动 (lpos!=null) 返 不 同 size
  // → 用户感知"窗口长宽尺寸不固定"问题.
  // 之前 hot-fix 写 276x570 与 getIncomingOnlyHomeSize 给 380x500 不一致.
- if (bind.isCustomClient()) {
- restoreWidth = 380;
- restoreHeight = 500;
- }
+  if (isCustomClientFresh()) {
+    restoreWidth = kCustomClientHomeSize.width;
+    restoreHeight = kCustomClientHomeSize.height;
+  }
  return Size(restoreWidth, restoreHeight);
 }
 
@@ -2029,7 +2029,7 @@ Future<bool> restoreWindowPosition(WindowType type,
       case WindowType.Main:
         // Center the main window only if no position is saved (on first run).
         if (isWindows || isLinux) {
-          if (bind.isCustomClient()) {
+          if (isCustomClientFresh()) {
             // 客户端定制版：固定窗口尺寸与内容一致，避免右侧空白
             try {
               await windowManager.setSize(getIncomingOnlyHomeSize());
@@ -3710,16 +3710,26 @@ Widget loadIcon(double size) {
           ));
 }
 
+const Size kCustomClientHomeSize = Size(380, 500);
 var imcomingOnlyHomeSize = Size(370, 460);
 Size getIncomingOnlyHomeSize() {
-  // 客户定制版：固定窗口尺寸，清除右侧空白
-  if (isCustomClient) {
-    return const Size(380, 500);
+  if (isCustomClientFresh()) {
+    return kCustomClientHomeSize;
   }
   final magicWidth = isWindows ? 11.0 : 2.0;
   final magicHeight = 10.0;
   return imcomingOnlyHomeSize +
       Offset(magicWidth, kDesktopRemoteTabBarHeight + magicHeight);
+}
+
+Future<void> enforceCustomClientHomeWindowSize() async {
+  if (!isDesktop || !isCustomClientFresh()) {
+    return;
+  }
+  await windowManager.setMinimumSize(kCustomClientHomeSize);
+  await windowManager.setMaximumSize(kCustomClientHomeSize);
+  await windowManager.setSize(kCustomClientHomeSize);
+  setResizable(false);
 }
 
 Size getIncomingOnlySettingsSize() {
@@ -3860,16 +3870,8 @@ bool isChangeIdDisabled() =>
 bool isUnlockPinDisabled() =>
     bind.mainGetBuildinOption(key: kOptionDisableUnlockPin) == 'Y';
 
-bool? _isCustomClient;
 bool get isCustomClient {
-  // 缓存逻辑保留,但优先使用编译时 env 标志 (CLIENT_ONLY)
-  // 即使 bind.isCustomClient() 返回 false,
-  // 只要 Dart 编译时传入了 --dart-define=CLIENT_ONLY=true,
-  // 也能正确判定为客户定制版。
-  if (_isCustomClient == null) {
-    _isCustomClient = const bool.fromEnvironment('CLIENT_ONLY', defaultValue: false) || bind.isCustomClient();
-  }
-  return _isCustomClient!;
+  return isCustomClientFresh();
 }
 
 /// 不缓存版本,每次都重新检查,用于密码板等可能晚于初始化加载的地方

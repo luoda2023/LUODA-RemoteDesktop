@@ -10,15 +10,18 @@ use hbb_common::log::{info, warn};
 
 /// 尝试为指定端口添加 UPnP 端口映射（TCP）。
 /// 返回是否成功添加了映射。
-pub fn add_port_mapping(port: u16) -> bool {
+pub fn add_port_mapping(port: u16) -> Option<u16> {
     match try_add_mapping(port) {
-        Ok(_) => {
-            info!("✅ UPnP: 成功添加端口映射 {} (TCP) → 本机:{}", port, port);
-            true
+        Ok(external_port) => {
+            info!(
+                "UPnP: mapped external TCP:{} to local TCP:{}",
+                external_port, port
+            );
+            Some(external_port)
         }
         Err(e) => {
-            warn!("UPnP: 无法添加端口映射 {}: {} (路由器可能不支持或未开启 UPnP)", port, e);
-            false
+            warn!("UPnP: failed to map local TCP:{}: {}", port, e);
+            None
         }
     }
 }
@@ -37,25 +40,75 @@ pub fn remove_port_mapping(port: u16) -> bool {
     }
 }
 
-fn try_add_mapping(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+fn try_add_mapping(port: u16) -> Result<u16, Box<dyn std::error::Error>> {
     let gateway = igd_next::search_gateway(Default::default())?;
 
     let local_ipv4 = get_local_lan_ip().ok_or("无法获取本机 LAN IP")?;
     let local_addr = std::net::SocketAddr::new(local_ipv4.into(), port);
+    if let Some(external_port) = find_existing_mapping(&gateway, local_ipv4, port) {
+        info!(
+            "UPnP: reusing external TCP:{} mapped to {}:{}",
+            external_port, local_ipv4, port
+        );
+        return Ok(external_port);
+    }
     info!(
         "UPnP: 本机 LAN IP {:?}, 映射外部 TCP:{} -> {}:{}",
         local_ipv4, port, local_ipv4, port
     );
 
-    gateway.add_port(
+    match gateway.add_port(
         igd_next::PortMappingProtocol::TCP,
         port,
         local_addr,
         0,
         "LUODA Remote Desktop",
-    )?;
+    ) {
+        Ok(()) => Ok(port),
+        Err(igd_next::AddPortError::PortInUse) => {
+            let external_port = gateway.add_any_port(
+                igd_next::PortMappingProtocol::TCP,
+                local_addr,
+                0,
+                "LUODA Remote Desktop",
+            )?;
+            info!(
+                "UPnP: preferred external port {} was occupied; router assigned {}",
+                port, external_port
+            );
+            Ok(external_port)
+        }
+        Err(e) => Err(Box::new(e)),
+    }
+}
 
-    Ok(())
+fn find_existing_mapping(
+    gateway: &igd_next::Gateway,
+    local_ipv4: std::net::Ipv4Addr,
+    local_port: u16,
+) -> Option<u16> {
+    let local_ip = local_ipv4.to_string();
+    for index in 0..256 {
+        match gateway.get_generic_port_mapping_entry(index) {
+            Ok(entry)
+                if entry.enabled
+                    && entry.protocol == igd_next::PortMappingProtocol::TCP
+                    && entry.internal_port == local_port
+                    && entry.internal_client == local_ip =>
+            {
+                return Some(entry.external_port);
+            }
+            Ok(_) => {}
+            Err(igd_next::GetGenericPortMappingEntryError::SpecifiedArrayIndexInvalid) => {
+                break;
+            }
+            Err(e) => {
+                warn!("UPnP: could not enumerate existing mappings: {}", e);
+                break;
+            }
+        }
+    }
+    None
 }
 
 fn get_local_lan_ip() -> Option<std::net::Ipv4Addr> {

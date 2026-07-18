@@ -36,13 +36,11 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   final _svcStopped = Get.isRegistered<RxBool>(tag: 'stop-service')
       ? Get.find<RxBool>(tag: 'stop-service')
       : Get.put<RxBool>(false.obs, tag: 'stop-service');
-  final _svcIsUsingPublicServer = true.obs;
   Timer? _updateTimer;
 
   double get em => 14.0;
-  // 客户定制版 / 客户端专用版: 状态文字缩小 (14 -> 11.5) 与上方 "IP直连" 标题 (12px) / 内行 IP 字号 (11px) 同档,
-  // 避免文字突出比公网IP:端口大. 普通 RustDesk 版保持 em = 14.
-  double get emForStatus => (bind.isCustomClient() || bind.isIncomingOnly()) ? 11.5 : em;
+  double get emForStatus =>
+      (isCustomClientFresh() || bind.isIncomingOnly()) ? 11.5 : em;
   double? get height => bind.isIncomingOnly() ? null : em * 3;
 
   void onUsePublicServerGuide() {
@@ -58,7 +56,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   void initState() {
     super.initState();
     _updateTimer = periodic_immediate(Duration(seconds: 1), () async {
-      updateStatus();
+      await updateStatus();
     });
   }
 
@@ -71,6 +69,14 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   @override
   Widget build(BuildContext context) {
     final isIncomingOnly = bind.isIncomingOnly();
+    final status = stateGlobal.svcStatus.value;
+    final isReady = !_svcStopped.value && status == SvcStatus.ready;
+    final statusColor = _svcStopped.value || status == SvcStatus.notReady
+        ? Colors.grey
+        : isReady
+            ? const Color.fromARGB(255, 50, 190, 166)
+            : Colors.orange;
+
     startServiceWidget() => Offstage(
           offstage: !_svcStopped.value,
           child: InkWell(
@@ -83,49 +89,28 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
               .marginOnly(left: em),
         );
 
-  setupServerWidget() => Flexible(
- child: Offstage(
- // 状态条 总 显示 server 名 之 后 (含 custom server)，不只是 public server 才 出.
- // 客 户 定制 版 用 自 建服 rev.dicad.cn, 在 ready 时 应 显 "rev.dicad.cn 已连接"
- offstage: !(!_svcStopped.value &&
- stateGlobal.svcStatus.value == SvcStatus.ready),
- child: Row(
- crossAxisAlignment: CrossAxisAlignment.center,
- children: [
- Text(', ', style: TextStyle(fontSize: emForStatus)),
- Flexible(
- child: _ServerAddressWidget(em: emForStatus, suffix: '已连接'),
- )
- ],
- ),
- ),
- );
-
-  basicWidget() => Row(
- crossAxisAlignment: CrossAxisAlignment.center,
- children: [
- Container(
- height: 10,
- width: 10,
- decoration: BoxDecoration(
- borderRadius: BorderRadius.circular(5),
- // 显示绿色当服务已就绪(ready);其他状态显示绿色(表示"在线工作中")。
- // 之前的灰色会让用户误以为掉线。
- color: Color.fromARGB(255, 50, 190, 166),
- ),
- ).marginSymmetric(horizontal: em),
- Container(
- width: isIncomingOnly ? 226 : null,
- child: _buildConnStatusMsg(),
- // 状态文字 客户版下面 缩 小 与 IP 直 连 同 高
- ),
- // stop
- if (!isIncomingOnly) startServiceWidget(),
- // ready && public
- // 客户定制版 也 显 server 地址 (圆点+文字+server 名)
- setupServerWidget(),
- ],
- );
+    basicWidget() => Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              height: 10,
+              width: 10,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: statusColor,
+              ),
+            ).marginSymmetric(horizontal: em),
+            Flexible(
+              child: SizedBox(
+                width: isIncomingOnly ? 226 : null,
+                child: isReady
+                    ? _ServerAddressWidget(em: emForStatus, suffix: '已连接')
+                    : _buildConnStatusMsg(),
+              ),
+            ),
+            if (!isIncomingOnly) startServiceWidget(),
+          ],
+        );
 
     return Container(
       height: height,
@@ -144,47 +129,34 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   }
 
   _buildConnStatusMsg() {
- widget.onSvcStatusChanged?.call();
- return Text(
- _svcStopped.value
- ? translate("Service is not running")
- : stateGlobal.svcStatus.value == SvcStatus.connecting
- ? translate("connecting_status")
- : stateGlobal.svcStatus.value == SvcStatus.notReady
- ? translate("not_ready_status")
- : translate('Ready'),
- // 状态 文字 用 emForStatus: 14.0 (普通) / 11.5 (客户版) 与上方 IP 直 连 标 题 同 高
- style: TextStyle(fontSize: emForStatus),
- );
+    return Text(
+      _svcStopped.value
+          ? translate("Service is not running")
+          : stateGlobal.svcStatus.value == SvcStatus.connecting
+              ? translate("connecting_status")
+              : translate("not_ready_status"),
+      style: TextStyle(fontSize: emForStatus),
+    );
   }
 
   updateStatus() async {
-    final status =
-        jsonDecode(await bind.mainGetConnectStatus()) as Map<String, dynamic>;
-    final statusNum = status['status_num'] as int;
-    if (statusNum == 0) {
-      stateGlobal.svcStatus.value = SvcStatus.connecting;
-    } else if (statusNum == -1) {
-      // If service is running but backend reports not_ready,
-      // it's likely a temporary IPC issue - show connecting instead
-      if (_svcStopped.value) {
-        stateGlobal.svcStatus.value = SvcStatus.notReady;
-      } else {
-        stateGlobal.svcStatus.value = SvcStatus.connecting;
-      }
-    } else if (statusNum == 1) {
-      stateGlobal.svcStatus.value = SvcStatus.ready;
-    } else {
-      if (_svcStopped.value) {
-        stateGlobal.svcStatus.value = SvcStatus.notReady;
-      } else {
-        stateGlobal.svcStatus.value = SvcStatus.connecting;
-      }
-    }
-    _svcIsUsingPublicServer.value = await bind.mainIsUsingPublicServer();
     try {
+      final status =
+          jsonDecode(await bind.mainGetConnectStatus()) as Map<String, dynamic>;
+      final statusNum = status['status_num'] as int;
+      final nextStatus = statusNum > 0
+          ? SvcStatus.ready
+          : statusNum == 0
+              ? SvcStatus.connecting
+              : SvcStatus.notReady;
+      if (stateGlobal.svcStatus.value != nextStatus) {
+        stateGlobal.svcStatus.value = nextStatus;
+        widget.onSvcStatusChanged?.call();
+      }
       stateGlobal.videoConnCount.value = status['video_conn_count'] as int;
-    } catch (_) {}
+    } catch (_) {
+      // Preserve the last verified state on a transient IPC/JSON failure.
+    }
   }
 }
 
@@ -638,41 +610,41 @@ class _ConnectionPageState extends State<ConnectionPage>
 }
 
 class _ServerAddressWidget extends StatefulWidget {
- final double em;
- // suffix: 连 接 状 态 后 缀 (例 如 '已连接')， null/empty 不 加
- final String? suffix;
- const _ServerAddressWidget({required this.em, this.suffix});
+  final double em;
+  final String? suffix;
 
- @override
- State<_ServerAddressWidget> createState() => _ServerAddressWidgetState();
+  const _ServerAddressWidget({required this.em, this.suffix});
+
+  @override
+  State<_ServerAddressWidget> createState() => _ServerAddressWidgetState();
 }
 
 class _ServerAddressWidgetState extends State<_ServerAddressWidget> {
- String _server = 'rev.dicad.cn';
+  String _server = 'rev.dicad.cn';
 
- @override
- void initState() {
- super.initState();
- _loadServer();
- }
+  @override
+  void initState() {
+    super.initState();
+    _loadServer();
+  }
 
- void _loadServer() {
- final custom = bind.mainGetLocalOption(key: 'custom-rendezvous-server');
- if (custom.isNotEmpty) {
- _server = custom;
- }
- if (mounted) setState(() {});
- }
+  void _loadServer() {
+    final custom =
+        bind.mainGetOptionSync(key: 'custom-rendezvous-server').trim();
+    if (custom.isNotEmpty) {
+      _server = custom;
+    }
+    if (mounted) setState(() {});
+  }
 
- @override
- Widget build(BuildContext context) {
- // 状态 文字 例: 'rev.dicad.cn 已连接' / 默 认 显 server 名 only.
- final suffix = (widget.suffix ?? '').trim();
- final text = suffix.isNotEmpty ? '$_server $suffix' : _server;
- return Text(
- text,
- style: TextStyle(fontSize: widget.em),
- overflow: TextOverflow.ellipsis,
- );
- }
+  @override
+  Widget build(BuildContext context) {
+    final suffix = (widget.suffix ?? '').trim();
+    final text = suffix.isNotEmpty ? '$_server $suffix' : _server;
+    return Text(
+      text,
+      style: TextStyle(fontSize: widget.em),
+      overflow: TextOverflow.ellipsis,
+    );
+  }
 }

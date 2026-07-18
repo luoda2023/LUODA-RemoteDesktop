@@ -160,6 +160,7 @@ void runMainApp(bool startService) async {
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     // Restore the location of the main window before window hide or show.
     await restoreWindowPosition(WindowType.Main);
+    await enforceCustomClientHomeWindowSize();
     // Check the startup argument, if we successfully handle the argument, we keep the main window hidden.
     final handledByUniLinks = await initUniLinks();
     debugPrint("handled by uni links: $handledByUniLinks");
@@ -174,7 +175,7 @@ void runMainApp(bool startService) async {
     windowManager.setOpacity(1);
     windowManager.setTitle(getWindowName());
     // Do not use `windowManager.setResizable()` here.
-    setResizable(!bind.isIncomingOnly() && !bind.isCustomClient());
+    setResizable(!bind.isIncomingOnly() && !isCustomClientFresh());
   });
 }
 
@@ -593,4 +594,3 @@ Widget keyListenerBuilder(BuildContext context, Widget? child) {
     },
   );
 }
-

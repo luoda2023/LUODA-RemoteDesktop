@@ -55,6 +55,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   bool isCardClosed = false;
   String _lastIp = '';
   String _lastPort = '';
+  String _lastPublicPort = '';
+  String _lastUpnpStatus = '';
 
   final RxBool _settingsHover = false.obs;
   final RxBool _relayHover = false.obs;
@@ -77,54 +79,35 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 // 用 户 若 要 连 IP, 双 击 IP 行 复 制 后 粘 到 远 程 ID 输 入 框 即 可.
 
 
-@override
- Widget build(BuildContext context) {
- super.build(context);
- final isIncomingOnly = bind.isIncomingOnly();
- // 客户端专用版：只显示左侧内容，不包含右侧输入框和历史列表
- if (widget.isClientOnly) {
- // 客户定制版: 用 SizedBox(width: 380) 包裹并居中, 强制 380 宽度且水平居中,
- // 避免被父级 buildRemoteBlock 的 Stack/MouseRegion 撑开导致右侧大片空白。
- // 同时不再绘制 VerticalDivider —— 客户版只有左侧面板,根本不需要分隔线。
- return _buildBlock(
- child: Align(
- alignment: Alignment.center,
- child: SizedBox(
- width: 380.0,
- child: buildLeftPane(context),
- ),
- ));
- }
- return _buildBlock(
- child: Row(
- crossAxisAlignment: CrossAxisAlignment.start,
- children: [
- buildLeftPane(context),
-        if (!isIncomingOnly) const VerticalDivider(width: 1),
-        if (!isIncomingOnly) Expanded(child: buildRightPane(context)),
-      ],
-    ));
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final isIncomingOnly = bind.isIncomingOnly();
+    if (widget.isClientOnly) {
+      return _buildBlock(child: SizedBox.expand(child: buildLeftPane(context)));
+    }
+    return _buildBlock(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildLeftPane(context),
+          if (!isIncomingOnly) const VerticalDivider(width: 1),
+          if (!isIncomingOnly) Expanded(child: buildRightPane(context)),
+        ],
+      ),
+    );
   }
 
   Widget _buildBlock({required Widget child}) {
-    Widget effectiveChild = child;
-    // 客户定制版：限制最大宽度,防止父级 Stack/Row 被撑开导致右侧出现空白
-    if (widget.isClientOnly) {
-      effectiveChild = SizedBox(
-        width: 380,
-        child: child,
-      );
-    }
     return buildRemoteBlock(
-        block: _block, mask: true, use: canBeBlocked, child: effectiveChild);
+        block: _block, mask: true, use: canBeBlocked, child: child);
   }
 
-	  Widget buildLeftPane(BuildContext context) {
+  Widget buildLeftPane(BuildContext context) {
     if (widget.isClientOnly) {
       return ChangeNotifierProvider.value(
         value: gFFI.serverModel,
-        child: SizedBox(
-          width: 380.0,
+        child: SizedBox.expand(
           child: Column(
             children: [
               Expanded(
@@ -697,7 +680,8 @@ Positioned(
     final publicIP = bind.mainGetOptionSync(key: 'public-ip');
     final lanIP = bind.mainGetOptionSync(key: 'lan-ip');
     final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
-    // UPnP 状态：通过 option "upnp-status" 读取（在 rust 侧 direct_server 启动后设置）
+    final publicPort =
+        bind.mainGetOptionSync(key: 'direct-access-public-port');
     final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
     final upnpOk = upnpStatus == 'ok';
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
@@ -706,7 +690,9 @@ Positioned(
     String publicAddr = publicIP;
     String lanAddr = lanIP;
     if (directPort.isNotEmpty) {
-      if (publicIP.isNotEmpty) publicAddr = '$publicIP:$directPort';
+      if (publicIP.isNotEmpty) {
+        publicAddr = '$publicIP:${upnpOk && publicPort.isNotEmpty ? publicPort : directPort}';
+      }
       if (lanIP.isNotEmpty) lanAddr = '$lanIP:$directPort';
     }
 
@@ -750,7 +736,7 @@ Positioned(
             addr: publicAddr,
             hasAddr: publicAddr.isNotEmpty,
             textColor: textColor,
-            upnpOk: upnpOk,
+            upnpStatus: upnpStatus,
             showUpnp: true,
           ),
           // 内网 IP 卡片 —— 仅在常用网段才显示
@@ -762,7 +748,7 @@ Positioned(
               addr: lanAddr,
               hasAddr: lanAddr.isNotEmpty,
               textColor: textColor,
-              upnpOk: false,
+              upnpStatus: '',
               showUpnp: false,
             ),
           ],
@@ -779,15 +765,18 @@ Positioned(
       required String addr,
       required bool hasAddr,
       required Color? textColor,
-      required bool upnpOk,
+      required String upnpStatus,
       required bool showUpnp}) {
     final naText = translate('Not available');
     final displayText = addr.isNotEmpty ? addr : naText;
-    // Tooltip 完整文本，悬停弹窗显示用，UPnP 状态一并放入弹窗
+    final upnpOk = upnpStatus == 'ok';
+    final upnpPending = upnpStatus.isEmpty || upnpStatus == 'pending';
     final tooltipText = showUpnp && addr.isNotEmpty
-        ? (upnpOk
+        ? upnpOk
             ? '$addr\n端口已映射，外网可直连'
-            : '$addr\n端口映射未成功，需手动配置路由器端口转发')
+            : upnpPending
+                ? '$addr\n正在自动映射端口'
+                : '$addr\n自动映射失败，请检查路由器 UPnP 或配置端口转发'
         : (addr.isNotEmpty ? addr : naText);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -856,7 +845,11 @@ Positioned(
  width: 6,
  height: 6,
  decoration: BoxDecoration(
- color: upnpOk ? Colors.green : Colors.orange,
+ color: upnpOk
+     ? Colors.green
+     : upnpPending
+         ? Colors.orange
+         : Colors.red,
  shape: BoxShape.circle,
  ),
  ),
@@ -1137,15 +1130,6 @@ Positioned(
   @override
   void initState() {
     super.initState();
-    if (widget.isClientOnly) {
-      // 定制版窗口尺寸固定为左侧面板宽度 + 一点 padding,不显示右侧面板
-      Future.delayed(const Duration(milliseconds: 50), () async {
-        try {
-          await windowManager.setResizable(false);
-          await windowManager.setSize(getIncomingOnlyHomeSize());
-        } catch (_) {}
-      });
-    }
     _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {
       await gFFI.serverModel.fetchID();
       final error = await bind.mainGetError();
@@ -1336,12 +1320,18 @@ Positioned(
   _refreshIpDisplay() {
     final ip = bind.mainGetOptionSync(key: 'public-ip');
     final port = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
-    if (ip != _lastIp || port != _lastPort) {
+    final publicPort =
+        bind.mainGetOptionSync(key: 'direct-access-public-port');
+    final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
+    if (ip != _lastIp ||
+        port != _lastPort ||
+        publicPort != _lastPublicPort ||
+        upnpStatus != _lastUpnpStatus) {
       _lastIp = ip;
       _lastPort = port;
-      if (ip.isNotEmpty || port.isNotEmpty) {
-        setState(() {});
-      }
+      _lastPublicPort = publicPort;
+      _lastUpnpStatus = upnpStatus;
+      setState(() {});
     }
   }
 

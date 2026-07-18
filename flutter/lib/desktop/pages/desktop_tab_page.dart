@@ -51,10 +51,14 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
         closable: false,
         page: DesktopHomePage(
           key: const ValueKey(kTabLabelHomePage),
-          isClientOnly: isCustomClient,
+          isClientOnly: isCustomClientFresh(),
         )));
     if (bind.isIncomingOnly()) {
       tabController.onSelected = (key) {
+        if (isCustomClientFresh()) {
+          enforceCustomClientHomeWindowSize();
+          return;
+        }
         if (key == kTabLabelHomePage) {
           windowManager.setSize(getIncomingOnlyHomeSize());
           setResizable(false);
@@ -93,7 +97,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   @override
   Widget build(BuildContext context) {
     // 客户端定制版只保留关闭按钮，不显示最小化和最大化。
-    final bool compactClient = isCustomClient;
+    final bool compactClient = isCustomClientFresh();
     final tabWidget = Container(
         child: Scaffold(
             backgroundColor: Theme.of(context).colorScheme.background,
@@ -117,7 +121,7 @@ tail: Offstage(
  ),
  ),
             )));
-    return isMacOS || kUseCompatibleUiMode
+    return compactClient || isMacOS || kUseCompatibleUiMode
         ? tabWidget
         : Obx(
             () => DragToResizeArea(
