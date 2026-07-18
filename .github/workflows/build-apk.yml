@@ -238,6 +238,7 @@ jobs:
             BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG" \
             CFLAGS="-I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG" \
             CXXFLAGS="-I$OPUS_INCLUDE -I$VPX_INCLUDE $VCPKG_INCLUDE_FLAG -include cstdint" \
+            VCPKG_INSTALLED_ROOT="$VCPKG/installed/$VCPKG_TRIPLET" \
             RUSTFLAGS="$VCPKG_LIB_FLAG" \
             cargo ndk -t $TARGET_ABI -o $OUT build --release --features flutter --features use_dasp --features mediacodec --target $RUST_TARGET
 
