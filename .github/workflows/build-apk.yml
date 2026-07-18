@@ -284,34 +284,43 @@ jobs:
           LUODA_ANDROID_KEY_PASSWORD: ${{ secrets.LUODA_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          missing_secret=false
           for name in LUODA_ANDROID_KEYSTORE_BASE64 LUODA_ANDROID_STORE_PASSWORD LUODA_ANDROID_KEY_ALIAS LUODA_ANDROID_KEY_PASSWORD; do
             if [ -z "${!name:-}" ]; then
-              echo "ERROR: required Android signing secret $name is missing"
-              exit 1
+              missing_secret=true
             fi
           done
 
-          KEYSTORE_FILE="flutter/android/app/keystore.jks"
-          printf '%s' "$LUODA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
-          echo "storeFile=keystore.jks" > flutter/android/key.properties
-          echo "storePassword=$LUODA_ANDROID_STORE_PASSWORD" >> flutter/android/key.properties
-          echo "keyAlias=$LUODA_ANDROID_KEY_ALIAS" >> flutter/android/key.properties
-          echo "keyPassword=$LUODA_ANDROID_KEY_PASSWORD" >> flutter/android/key.properties
-          test -s "$KEYSTORE_FILE"
-          echo "OK: Stable Android signing keystore restored"
+          if [ "$missing_secret" = false ]; then
+            KEYSTORE_FILE="flutter/android/app/keystore.jks"
+            printf '%s' "$LUODA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+            echo "storeFile=keystore.jks" > flutter/android/key.properties
+            echo "storePassword=$LUODA_ANDROID_STORE_PASSWORD" >> flutter/android/key.properties
+            echo "keyAlias=$LUODA_ANDROID_KEY_ALIAS" >> flutter/android/key.properties
+            echo "keyPassword=$LUODA_ANDROID_KEY_PASSWORD" >> flutter/android/key.properties
+            test -s "$KEYSTORE_FILE"
+            echo "OK: Stable Android signing keystore restored from Actions secrets"
+          else
+            echo "WARN: Android signing secrets are incomplete; using the repository stable keystore"
+            test -s flutter/android/app/luoda-release.keystore
+            test -s flutter/android/key.properties
+          fi
         shell: bash
 
       - name: Verify signing config
-        env:
-          LUODA_ANDROID_STORE_PASSWORD: ${{ secrets.LUODA_ANDROID_STORE_PASSWORD }}
-          LUODA_ANDROID_KEY_ALIAS: ${{ secrets.LUODA_ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
           grep -E '^(storeFile|keyAlias)=' flutter/android/key.properties
+          KEYSTORE_NAME="$(sed -n 's/^storeFile=//p' flutter/android/key.properties | tr -d '\r')"
+          STORE_PASSWORD="$(sed -n 's/^storePassword=//p' flutter/android/key.properties | tr -d '\r')"
+          KEY_ALIAS="$(sed -n 's/^keyAlias=//p' flutter/android/key.properties | tr -d '\r')"
+          test -n "$KEYSTORE_NAME"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
           keytool -list \
-            -keystore flutter/android/app/keystore.jks \
-            -storepass "$LUODA_ANDROID_STORE_PASSWORD" \
-            -alias "$LUODA_ANDROID_KEY_ALIAS" > /dev/null
+            -keystore "flutter/android/app/$KEYSTORE_NAME" \
+            -storepass "$STORE_PASSWORD" \
+            -alias "$KEY_ALIAS" > /dev/null
           echo "OK: Android signing key verified"
         shell: bash
 
