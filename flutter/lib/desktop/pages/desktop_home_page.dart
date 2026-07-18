@@ -715,7 +715,6 @@ Positioned(
     final publicPort =
         bind.mainGetOptionSync(key: 'direct-access-public-port');
     final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
-    final upnpError = bind.mainGetOptionSync(key: 'upnp-error');
     final upnpOk = upnpStatus == 'ok';
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
 
@@ -770,7 +769,6 @@ Positioned(
             hasAddr: publicAddr.isNotEmpty,
             textColor: textColor,
             upnpStatus: upnpStatus,
-            upnpError: upnpError,
             showUpnp: true,
           ),
           // 内网 IP 卡片 —— 仅在常用网段才显示
@@ -783,7 +781,6 @@ Positioned(
               hasAddr: lanAddr.isNotEmpty,
               textColor: textColor,
               upnpStatus: '',
-              upnpError: '',
               showUpnp: false,
             ),
           ],
@@ -801,19 +798,14 @@ Positioned(
       required bool hasAddr,
       required Color? textColor,
       required String upnpStatus,
-      required String upnpError,
       required bool showUpnp}) {
     final naText = translate('Not available');
     final displayText = addr.isNotEmpty ? addr : naText;
     final upnpOk = upnpStatus == 'ok';
-    final upnpPending = upnpStatus.isEmpty || upnpStatus == 'pending';
     final tooltipText = showUpnp && addr.isNotEmpty
         ? upnpOk
-            ? '$addr\n端口已映射，外网可直连'
-            : upnpPending
-                ? '$addr\n正在自动映射端口'
-                : '$addr\n自动映射失败，请检查路由器 UPnP 或配置端口转发'
-                    '${upnpError.isEmpty ? '' : '\n$upnpError'}'
+            ? '$addr\n已自动开放公网直连端口'
+            : '$addr\n直连服务已启动；公网可达性由当前网络决定'
         : (addr.isNotEmpty ? addr : naText);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -894,11 +886,7 @@ Positioned(
  width: 6,
  height: 6,
  decoration: BoxDecoration(
- color: upnpOk
-     ? Colors.green
-     : upnpPending
-         ? Colors.orange
-         : Colors.red,
+ color: upnpOk ? Colors.green : MyTheme.accent,
  shape: BoxShape.circle,
  ),
  ),

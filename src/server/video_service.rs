@@ -1441,7 +1441,7 @@ fn handle_screenshot(screenshot: Screenshot, msg: String, w: usize, h: usize, da
 
 /// VPS 无显示器场景恢复助手:
 /// 1. 如果平台支持虚拟显示器,先 plug_in_headless 触发 amyuni 异步安装
-/// 2. 轮询等待最多 8 秒,每 200ms 重新检测 Display::all()
+/// 2. 轮询等待最多 30 秒,每 500ms 重新检测 Display::all()
 /// 3. 找到显示器立即返回 Some(displays);30秒内找不到返回 None
 ///
 /// `initial_err`: 调用方传入 Display::all() 第一次失败的错误,用于日志诊断;如果是空 Vec 场景传 None
@@ -1459,12 +1459,15 @@ fn recover_displays_after_headless(initial_err: Option<&str>) -> Option<Vec<Disp
             "no display available, trying to plug in headless display, initial error: {:?}",
             initial_err
         );
-        if let Err(plug_err) = crate::virtual_display_manager::plug_in_headless() {
-            log::error!("plug in headless failed: {}", plug_err);
+        match crate::virtual_display_manager::plug_in_headless_if_needed() {
+            Ok(true) => {}
+            Ok(false) => log::info!("active display detected, skip headless virtual display"),
+            Err(plug_err) => log::error!("plug in headless failed: {}", plug_err),
         }
         // amyuni 驱动是异步安装的,首次在 VPS 上安装驱动可能需要 20+ 秒
         // (下载+注册+系统识别+设备栈刷新),轮询等待最多 30 秒,每 500ms 重新检测
-        let wait_deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        let wait_started = std::time::Instant::now();
+        let wait_deadline = wait_started + std::time::Duration::from_secs(30);
         let mut last_err = initial_err.map(|s| s.to_string());
         while std::time::Instant::now() < wait_deadline {
             std::thread::sleep(std::time::Duration::from_millis(500));
@@ -1472,7 +1475,7 @@ fn recover_displays_after_headless(initial_err: Option<&str>) -> Option<Vec<Disp
                 Ok(d) if !d.is_empty() => {
                     log::info!(
                         "headless virtual display detected after {:?}, count={}",
-                        wait_deadline.elapsed(),
+                        wait_started.elapsed(),
                         d.len()
                     );
                     return Some(d);

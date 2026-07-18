@@ -542,36 +542,53 @@ pub mod client {
             bail!("already running");
         }
         if SHMEM.lock().unwrap().is_none() {
-            let mut displays = scrap::Display::all()?;
+            let mut _last_display_error = String::new();
+            let mut displays = match scrap::Display::all() {
+                Ok(displays) => displays,
+                Err(error) => {
+                    _last_display_error = error.to_string();
+                    log::warn!(
+                        "display enumeration failed before headless recovery: {}",
+                        error
+                    );
+                    Vec::new()
+                }
+            };
             if displays.is_empty() {
                 // VPS 无显示器: 尝试创建虚拟显示器 (仅 Windows 支持)
                 #[cfg(windows)]
                 if crate::virtual_display_manager::is_virtual_display_supported() {
                     log::warn!("no display available, trying to plug in headless display");
-                    if let Err(e) = crate::virtual_display_manager::plug_in_headless() {
-                        log::error!("plug in headless failed: {}", e);
+                    match crate::virtual_display_manager::plug_in_headless_if_needed() {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            log::info!("active display detected, skip headless virtual display")
+                        }
+                        Err(e) => log::error!("plug in headless failed: {}", e),
                     }
- // amyuni 驱动是异步安装的,首次 plug_in_headless 后
- // 显示器可能还没被 Windows 识别激活,
- // VPS 首次可能需要 30+ 秒 (下载+注册+系统识别+设备栈刷新),
- // 这里轮询等待最多 60 秒,每 500ms 重新检测一次,
- // 给 VPS 无显示器场景自动恢复留足时间。
- let wait_deadline =
- std::time::Instant::now() + std::time::Duration::from_secs(60);
-                    while displays.is_empty()
-                        && std::time::Instant::now() < wait_deadline
-                    {
+                    // amyuni 驱动是异步安装的,首次 plug_in_headless 后
+                    // 显示器可能还没被 Windows 识别激活,
+                    // VPS 首次可能需要 30+ 秒 (下载+注册+系统识别+设备栈刷新),
+                    // 这里轮询等待最多 60 秒,每 500ms 重新检测一次,
+                    // 给 VPS 无显示器场景自动恢复留足时间。
+                    let wait_started = std::time::Instant::now();
+                    let wait_deadline = wait_started + std::time::Duration::from_secs(60);
+                    while displays.is_empty() && std::time::Instant::now() < wait_deadline {
                         std::thread::sleep(std::time::Duration::from_millis(500));
-                        displays = scrap::Display::all()?;
+                        match scrap::Display::all() {
+                            Ok(found) => displays = found,
+                            Err(error) => _last_display_error = error.to_string(),
+                        }
                     }
                     if displays.is_empty() {
                         log::error!(
-                            "still no display available after waiting 30s for headless virtual display"
+                            "still no display available after waiting 60s for headless virtual display: {}",
+                            _last_display_error
                         );
                     } else {
                         log::info!(
                             "headless virtual display detected after {:?}, count={}",
-                            wait_deadline.elapsed(),
+                            wait_started.elapsed(),
                             displays.len()
                         );
                     }

@@ -1,4 +1,4 @@
-use hbb_common::{bail, platform::windows::is_windows_version_or_greater, ResultType};
+use hbb_common::{bail, log, platform::windows::is_windows_version_or_greater, ResultType};
 
 // This string is defined here.
 //  https://github.com/luoda-org/LUODAIddDriver/blob/b370aad3f50028b039aad211df60c8051c4a64d6/LUODAIddDriver/LUODAIddDriver.inf#LL73C1-L73C40
@@ -39,6 +39,35 @@ pub fn plug_in_headless() -> ResultType<()> {
         IDD_IMPL_AMYUNI => amyuni_idd::plug_in_headless(),
         _ => bail!("Unsupported virtual display implementation."),
     }
+}
+
+pub fn plug_in_headless_if_needed() -> ResultType<bool> {
+    let mut active_display_samples =
+        Vec::with_capacity(crate::headless_policy::REQUIRED_NO_DISPLAY_SAMPLES);
+    for sample in 0..crate::headless_policy::REQUIRED_NO_DISPLAY_SAMPLES {
+        let active = !windows::get_device_names(None).is_empty();
+        active_display_samples.push(active);
+        if active {
+            log::info!(
+                "active display detected during headless confirmation, skip virtual display"
+            );
+            return Ok(false);
+        }
+        if sample + 1 < crate::headless_policy::REQUIRED_NO_DISPLAY_SAMPLES {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+    }
+
+    if !crate::headless_policy::should_insert_headless(&active_display_samples) {
+        return Ok(false);
+    }
+
+    crate::runtime_logger::warn(
+        "HEADLESS",
+        "no active display confirmed; inserting virtual display",
+    );
+    plug_in_headless()?;
+    Ok(true)
 }
 
 pub fn get_platform_additions() -> serde_json::Map<String, serde_json::Value> {

@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 #[derive(Clone, Debug)]
 pub(crate) struct LanAddressCandidate {
@@ -94,26 +94,17 @@ pub(crate) fn is_public_ipv4(address: Ipv4Addr) -> bool {
 }
 
 pub(crate) fn direct_peer_hosts(peer: &str, default_port: u16) -> Vec<String> {
-    if peer.parse::<Ipv4Addr>().is_ok() {
+    if let Ok(addr) = peer.parse::<SocketAddr>() {
+        return vec![addr.to_string()];
+    }
+
+    if let Ok(ip) = peer.parse::<IpAddr>() {
         return (default_port..=default_port.saturating_add(10))
-            .map(|port| format!("{peer}:{port}"))
+            .map(|port| SocketAddr::new(ip, port).to_string())
             .collect();
     }
 
-    let Some((ip, port)) = peer.rsplit_once(':') else {
-        return Vec::new();
-    };
-    if ip.parse::<Ipv4Addr>().is_err() {
-        return Vec::new();
-    }
-    let Ok(port) = port.parse::<u16>() else {
-        return Vec::new();
-    };
-    let start = port.saturating_sub(5).max(1);
-    let end = port.saturating_add(5);
-    (start..=end)
-        .map(|candidate| format!("{ip}:{candidate}"))
-        .collect()
+    Vec::new()
 }
 
 #[cfg(test)]
@@ -173,13 +164,19 @@ mod tests {
         assert_eq!(bare.last().map(String::as_str), Some("192.168.1.8:21128"));
 
         let explicit = direct_peer_hosts("49.113.34.200:21118", 21118);
+        assert_eq!(explicit, ["49.113.34.200:21118"]);
+
+        let explicit_ipv6 = direct_peer_hosts("[2001:db8::8]:21118", 21118);
+        assert_eq!(explicit_ipv6, ["[2001:db8::8]:21118"]);
+
+        let bare_ipv6 = direct_peer_hosts("2001:db8::8", 21118);
         assert_eq!(
-            explicit.first().map(String::as_str),
-            Some("49.113.34.200:21113")
+            bare_ipv6.first().map(String::as_str),
+            Some("[2001:db8::8]:21118")
         );
         assert_eq!(
-            explicit.last().map(String::as_str),
-            Some("49.113.34.200:21123")
+            bare_ipv6.last().map(String::as_str),
+            Some("[2001:db8::8]:21128")
         );
         assert!(direct_peer_hosts("123456789", 21118).is_empty());
     }

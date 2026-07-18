@@ -566,13 +566,13 @@ class ServerInfo extends StatelessWidget {
                     ])
             ]).marginOnly(left: 40, bottom: 15),
             ConnectionStateNotification(),
-            // IP直连信息：公网+内网+UPnP状态，与桌面端对齐
+            // IP直连信息：公网+内网与直连服务状态，与桌面端对齐
             _buildDirectAccessInfo(context),
           ],
         ));
   }
 
-  /// 显示 IP 直连地址（公网+内网）和 UPnP 映射状态。
+  /// 显示 IP 直连地址（公网+内网）和直连服务状态。
   /// 与桌面端 buildDirectAccessBoard 一致，让手机用户也能
   /// 把自己的 IP 告诉对方进行直连。
   Widget _buildDirectAccessInfo(BuildContext context) {
@@ -613,19 +613,15 @@ class ServerInfo extends StatelessWidget {
                   height: 6,
                   margin: EdgeInsets.only(right: 6, left: 4),
                   decoration: BoxDecoration(
-                    color: upnpStatus == 'unsupported'
-                        ? Colors.grey
-                        : (upnpOk ? Colors.green : Colors.orange),
+                    color: upnpOk ? Colors.green : MyTheme.accent,
                     shape: BoxShape.circle,
                   ),
                 ),
                 Expanded(
                   child: Text(
-                    upnpStatus == 'unsupported'
-                        ? '当前平台不支持 UPnP，可用 ID 模式连接'
-                        : upnpOk
-                            ? '端口已映射，外网可直连'
-                            : '端口映射未成功，需手动配置路由器端口转发',
+                    upnpOk
+                        ? '已自动开放公网直连端口'
+                        : '直连服务已启动；公网可达性由当前网络决定',
                     style: TextStyle(fontSize: 10, color: Colors.grey),
                   ),
                 ),

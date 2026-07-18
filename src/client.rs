@@ -191,10 +191,8 @@ impl Client {
     const CLIENT_CLIPBOARD_NAME: &'static str = "client-clipboard";
 
     /// Start a new connection.
-    /// If `peer` is an IP address, uses a two-phase approach:
-    ///   1. Query `DirectIdQuery` on `IP:DEFAULT_DIRECT_PORT(21118)`
-    ///   2. On success: reconnect via standard ID path (encrypted, with relay fallback)
-    ///   3. On failure: fall back to old direct-connect for backward compatibility
+    /// An explicit `IP:port` connects only to that endpoint. A bare IPv4 or
+    /// IPv6 address tries the direct server's canonical and fallback ports.
     pub async fn start(
         peer: &str,
         key: &str,
@@ -267,57 +265,13 @@ impl Client {
         if config::is_incoming_only() {
             bail!("Incoming only mode");
         }
-        // to-do: remember the port for each peer, so that we can retry easier
-        // Support IP:port format like "192.168.31.39:25488" for direct LAN connection
-        // split once on ':' — safe for IPv4, for IPv6 we check is_ip_str first (no port)
-        if let Some(pos) = peer.rfind(':') {
-            let ip_part = &peer[..pos];
-            let port_part = &peer[pos+1..];
-            if hbb_common::is_ip_str(ip_part) && port_part.chars().all(|c| c.is_ascii_digit()) {
-                let user_port: u16 = port_part.parse().unwrap_or(DEFAULT_DIRECT_PORT as u16);
-                // LUODA: 用户输入的端口可能与服务端实际监听端口对不上(被占用回退到+1/+2)。
-                // 并发尝试 [user_port, user_port±5] 共 11 个候选端口,
-                // 用 select_ok 谁先成功用谁, 整体超时受 CONNECT_TIMEOUT 控制。
-                // 这样对内网卡冲突或服务端 invalidate_direct_port 自动回退的场景也能连上。
-                let base = user_port as i32;
-                let ports: Vec<u16> = (base - 5..=base + 5)
-                    .filter(|p| *p > 0 && *p < 65536)
-                    .map(|p| p as u16)
-                    .collect();
-                let futures: Vec<_> = ports
-                    .iter()
-                    .map(|p| {
-                        let host = format!("{}:{}", ip_part, p);
-                        async move {
-                            connect_tcp_local(host.as_str(), None, CONNECT_TIMEOUT).await
-                        }
-                        .boxed()
-                    })
-                    .collect();
-                match select_ok(futures).await {
-                    Ok((conn, _)) => {
-                        return Ok((
-                            (conn, true, None, None, "TCP"),
-                            (0, "".to_owned()),
-                            false,
-                        ));
-                    }
-                    Err(e) => bail!(
-                        "Failed to connect to {} on ports near {}: {}",
-                        ip_part,
-                        user_port,
-                        e
-                    ),
-                }
-            }
-        }
-        if hbb_common::is_ip_str(peer) {
-            // LUODA 定制版: 裸 IP 直连时并发尝试 21118-21128 共 11 个候选端口，
-            // 解决被控端 21118 被占用导致端口回退到 21119/21120 后客户端硬编码连不上。
-            // 用 select_ok 哪个先成功就用哪个，整体超时仍受 CONNECT_TIMEOUT 控制。
-            let hosts: Vec<String> = (DEFAULT_DIRECT_PORT..DEFAULT_DIRECT_PORT + 11)
-                .map(|p| format!("{}:{}", peer, p))
-                .collect();
+        let hosts = crate::direct_access::direct_peer_hosts(peer, DEFAULT_DIRECT_PORT as u16);
+        if !hosts.is_empty() {
+            log::info!("Direct connection to {peer}, candidates: {hosts:?}");
+            crate::runtime_logger::info(
+                "DIRECT_CONNECT",
+                &format!("peer={peer}; candidates={}", hosts.join(",")),
+            );
             let futures: Vec<_> = hosts
                 .iter()
                 .map(|h| {
@@ -337,10 +291,9 @@ impl Client {
                     ));
                 }
                 Err(e) => bail!(
-                    "Failed to connect to {} on ports {}-{}: {}",
+                    "Failed to connect directly to {} using {}: {}",
                     peer,
-                    DEFAULT_DIRECT_PORT,
-                    DEFAULT_DIRECT_PORT + 10,
+                    hosts.join(", "),
                     e
                 ),
             }

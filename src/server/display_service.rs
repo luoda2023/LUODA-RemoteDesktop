@@ -442,7 +442,16 @@ pub fn try_get_displays_add_amyuni_headless() -> ResultType<Vec<Display>> {
 #[inline]
 #[cfg(windows)]
 pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> {
-    let mut displays = Display::all()?;
+    let (mut displays, initial_error) = match Display::all() {
+        Ok(displays) => (displays, String::new()),
+        Err(error) => {
+            log::warn!(
+                "display enumeration failed before headless recovery: {}",
+                error
+            );
+            (Vec::new(), error.to_string())
+        }
+    };
 
     // Portable builds package the signed driver and can request elevation for
     // its one-time installation, so headless recovery must not require a
@@ -482,7 +491,7 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
         let started = std::time::Instant::now();
         let wait_timeout = std::time::Duration::from_secs(60);
         let mut last_plug_attempt = None;
-        let mut last_error = String::new();
+        let mut last_error = initial_error;
         while started.elapsed() < wait_timeout {
             if last_plug_attempt
                 .map(|attempt: std::time::Instant| {
@@ -491,11 +500,17 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
                 .unwrap_or(true)
             {
                 last_plug_attempt = Some(std::time::Instant::now());
-                if let Err(error) = virtual_display_manager::plug_in_headless() {
-                    last_error = error.to_string();
-                    log::warn!("headless plug attempt is not ready yet: {}", error);
-                    if last_error.contains("Failed to install driver") {
-                        break;
+                match virtual_display_manager::plug_in_headless_if_needed() {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        last_error = "active display detected; virtual display skipped".to_owned();
+                    }
+                    Err(error) => {
+                        last_error = error.to_string();
+                        log::warn!("headless plug attempt is not ready yet: {}", error);
+                        if last_error.contains("Failed to install driver") {
+                            break;
+                        }
                     }
                 }
             }

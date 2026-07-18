@@ -371,6 +371,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
   Widget _buildToolbar(BuildContext context) {
     final List<Widget> toolbarItems = [];
     toolbarItems.add(_PinMenu(state: widget.state));
+    toolbarItems.add(_ConnectionMethodStatus(id: widget.id));
     if (!isWebDesktop) {
       toolbarItems.add(_MobileActionMenu(ffi: widget.ffi));
     }
@@ -466,6 +467,82 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
               backgroundColor:
                   Theme.of(context).menuBarTheme.style?.backgroundColor)),
     );
+  }
+}
+
+class _ConnectionMethodStatus extends StatelessWidget {
+  final String id;
+
+  const _ConnectionMethodStatus({required this.id});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final connectionType = ConnectionTypeState.find(id);
+      if (!connectionType.isValid()) {
+        return const SizedBox.shrink();
+      }
+
+      final secure =
+          connectionType.secure.value == ConnectionType.strSecure;
+      final direct =
+          connectionType.direct.value == ConnectionType.strDirect;
+      final streamType = connectionType.stream_type.value;
+      final protocol = streamType.isEmpty || streamType == 'Relay'
+          ? 'TCP'
+          : streamType;
+      final label = direct
+          ? (protocol == 'UDP' ? 'UDP P2P' : '$protocol 直连')
+          : '$protocol 中继';
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final statusColor = direct
+          ? (isDark ? Colors.greenAccent.shade400 : Colors.green.shade700)
+          : (isDark ? Colors.orange.shade300 : Colors.orange.shade800);
+      final description = getConnectionText(secure, direct, streamType);
+
+      return Tooltip(
+        message: description,
+        child: Semantics(
+          label: '$label，$description',
+          child: Container(
+            height: 32,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: statusColor.withValues(alpha: 0.65)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  direct ? Icons.link : Icons.hub_outlined,
+                  size: 16,
+                  color: statusColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  secure ? Icons.lock_outline : Icons.lock_open_outlined,
+                  size: 14,
+                  color: statusColor,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 }
 

@@ -242,6 +242,13 @@ impl RendezvousMediator {
                     if timeout || (last_register_sent.is_none() && expired) {
                         if timeout {
                             fails += 1;
+                            if crate::rendezvous_transport::should_fallback_to_tcp(fails) {
+                                Config::update_latency(&host, -1);
+                                bail!(
+                                    "UDP rendezvous registration timed out after {} attempts",
+                                    fails
+                                );
+                            }
                             if fails >= MAX_FAILS2 {
                                 Config::update_latency(&host, -1);
                                 old_latency = 0;
@@ -357,6 +364,7 @@ impl RendezvousMediator {
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
         let mut last_register_sent: Option<Instant> = None;
         let mut last_recv_msg = Instant::now();
+        let mut online_reported = false;
         // we won't support connecting to multiple rendzvous servers any more, so we can use a global variable here.
         Config::set_host_key_confirmed(&rz.host_prefix, false);
         loop {
@@ -365,6 +373,13 @@ impl RendezvousMediator {
                     .map(|x| x.elapsed().as_micros() as i64)
                     .unwrap_or(0);
                 Config::update_latency(&host, latency);
+                if !online_reported {
+                    crate::runtime_logger::info(
+                        "NETWORK",
+                        &format!("rendezvous registered over TCP; server={host}"),
+                    );
+                    online_reported = true;
+                }
                 log::debug!("Latency of {}: {}ms", host, latency as f64 / 1000.);
             };
             select! {
@@ -410,7 +425,18 @@ impl RendezvousMediator {
         {
             Self::start_tcp(server, host).await
         } else {
-            Self::start_udp(server, host).await
+            match Self::start_udp(server.clone(), host.clone()).await {
+                Ok(()) => Ok(()),
+                Err(err) if !SHOULD_EXIT.load(Ordering::SeqCst) => {
+                    log::warn!("UDP rendezvous failed for {host}, falling back to TCP: {err}");
+                    crate::runtime_logger::warn(
+                        "NETWORK",
+                        &format!("UDP rendezvous failed; server={host}; fallback=TCP; error={err}"),
+                    );
+                    Self::start_tcp(server, host).await
+                }
+                Err(err) => Err(err),
+            }
         }
     }
 

@@ -516,16 +516,12 @@ class _ConnectionPageState extends State<ConnectionPage>
                     );
                   },
                 )),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 13.0),
-              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                const SizedBox(width: 8),
                 // 方形连接按钮: 只显示图标,不显示"Connect"文字,
                 // 连接图标用"登入箭头"(Icons.login),与登录对话框的钥匙图标(Icons.vpn_key)区分。
                 SizedBox(
-                  height: 40.0,
-                  width: 40.0,
+                  height: 48.0,
+                  width: 48.0,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.zero,
@@ -546,8 +542,8 @@ class _ConnectionPageState extends State<ConnectionPage>
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  height: 28.0,
-                  width: 28.0,
+                  height: 44.0,
+                  width: 44.0,
                   decoration: BoxDecoration(
                     border: Border.all(color: Theme.of(context).dividerColor),
                     borderRadius: BorderRadius.circular(8),
@@ -623,7 +619,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                     ),
                   ),
                 ),
-              ]),
+              ],
             ),
           ],
         ),

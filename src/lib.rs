@@ -15,9 +15,13 @@ mod server;
 pub use self::server::*;
 mod client;
 mod direct_access;
+#[cfg(windows)]
+mod headless_policy;
 mod lan;
 #[cfg(not(any(target_os = "ios")))]
 mod rendezvous_mediator;
+#[cfg(not(any(target_os = "ios")))]
+mod rendezvous_transport;
 #[cfg(not(any(target_os = "ios")))]
 pub use self::rendezvous_mediator::*;
 /// cbindgen:ignore
