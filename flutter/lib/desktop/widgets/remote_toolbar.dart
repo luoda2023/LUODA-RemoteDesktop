@@ -509,7 +509,7 @@ class _ConnectionMethodStatus extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              border: Border.all(color: statusColor.withValues(alpha: 0.65)),
+              border: Border.all(color: statusColor.withOpacity(0.65)),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Row(
