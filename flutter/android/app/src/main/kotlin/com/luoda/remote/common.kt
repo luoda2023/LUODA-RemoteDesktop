@@ -93,7 +93,7 @@ fun startAction(context: Context, action: String): Boolean {
         return true
     } catch (e: Exception) {
         Log.e("common", "Unable to open Android settings action $action", e)
-        if (ACTION_ACCESSIBILITY_DETAILS_SETTINGS == action) {
+        if ("android.settings.ACCESSIBILITY_DETAILS_SETTINGS" == action) {
             return try {
                 context.startActivity(Intent(ACTION_ACCESSIBILITY_SETTINGS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
