@@ -395,25 +395,10 @@ fn get_capturer_monitor(
         }
     }
 
-    let mut displays = match Display::all() {
-        Ok(d) => d,
-        Err(e) => {
-            // VPS 无显示器场景: Display::all() 枚举失败 (例如 headless VPS, RDP 未连接)
-            // 尝试 plug-in headless 虚拟显示器后重试
-            let recovered_displays = recover_displays_after_headless(Some(&e.to_string()));
-            match recovered_displays {
-                Some(d) => d,
-                None => return Err(e.into()),
-            }
-        }
-    };
-
-    // 显示器列表为空时再次尝试 plug-in headless (VPS场景,Display::all() 返回空 Vec)
-    if displays.is_empty() {
-        if let Some(d) = recover_displays_after_headless(None) {
-            displays = d;
-        }
-    }
+    #[cfg(windows)]
+    let mut displays = super::display_service::try_get_displays_add_amyuni_headless()?;
+    #[cfg(not(windows))]
+    let mut displays = Display::all()?;
 
     let ndisplay = displays.len();
     if ndisplay <= current {
@@ -653,6 +638,10 @@ fn run(vs: VideoService) -> ResultType<()> {
     let mut frame_controller = VideoFrameController::new(display_idx);
 
     let start = time::Instant::now();
+    #[cfg(windows)]
+    let first_frame_wait_started = time::Instant::now();
+    #[cfg(windows)]
+    let mut first_frame_sent = false;
     let mut last_check_displays = time::Instant::now();
     #[cfg(windows)]
     let mut try_gdi = 1;
@@ -798,6 +787,14 @@ fn run(vs: VideoService) -> ResultType<()> {
                         capture_width,
                         capture_height,
                     )?;
+                    #[cfg(windows)]
+                    if !first_frame_sent && !send_conn_ids.is_empty() {
+                        first_frame_sent = true;
+                        log::info!(
+                            "first video frame sent; display={display_idx}; subscribers={}",
+                            send_conn_ids.len()
+                        );
+                    }
                     frame_controller.set_send(now, send_conn_ids);
                     send_counter += 1;
                 }
@@ -866,6 +863,14 @@ fn run(vs: VideoService) -> ResultType<()> {
                             capture_width,
                             capture_height,
                         )?;
+                        #[cfg(windows)]
+                        if !first_frame_sent && !send_conn_ids.is_empty() {
+                            first_frame_sent = true;
+                            log::info!(
+                                "first video frame sent; display={display_idx}; subscribers={}",
+                                send_conn_ids.len()
+                            );
+                        }
                         frame_controller.set_send(now, send_conn_ids);
                         send_counter += 1;
                     }
@@ -899,6 +904,20 @@ fn run(vs: VideoService) -> ResultType<()> {
         let mut fetched_conn_ids = HashSet::new();
         frame_controller.try_wait_next(&mut fetched_conn_ids, 10);
         DISPLAY_CONN_IDS.lock().unwrap().remove(&display_idx);
+
+        #[cfg(windows)]
+        if vs.source.is_monitor()
+            && crate::headless_policy::should_restart_first_frame_capture(
+                first_frame_sent,
+                first_frame_wait_started.elapsed(),
+            )
+        {
+            crate::runtime_logger::warn(
+                "VIDEO",
+                &format!("first frame timeout; display={display_idx}; restarting capturer"),
+            );
+            bail!("First video frame timeout");
+        }
 
         let elapsed = now.elapsed();
         // may need to enable frame(timeout)
@@ -1436,63 +1455,5 @@ fn handle_screenshot(screenshot: Screenshot, msg: String, w: usize, h: usize, da
         .send((hbb_common::tokio::time::Instant::now(), Arc::new(msg_out)))
     {
         log::error!("Failed to send screenshot, {}", e);
-    }
-}
-
-/// VPS 无显示器场景恢复助手:
-/// 1. 如果平台支持虚拟显示器,先 plug_in_headless 触发 amyuni 异步安装
-/// 2. 轮询等待最多 30 秒,每 500ms 重新检测 Display::all()
-/// 3. 找到显示器立即返回 Some(displays);30秒内找不到返回 None
-///
-/// `initial_err`: 调用方传入 Display::all() 第一次失败的错误,用于日志诊断;如果是空 Vec 场景传 None
-fn recover_displays_after_headless(initial_err: Option<&str>) -> Option<Vec<Display>> {
-    #[cfg(windows)]
-    {
-        if !crate::virtual_display_manager::is_virtual_display_supported() {
-            log::warn!(
-                "virtual display not supported, skip headless recovery, initial error: {:?}",
-                initial_err
-            );
-            return None;
-        }
-        log::warn!(
-            "no display available, trying to plug in headless display, initial error: {:?}",
-            initial_err
-        );
-        match crate::virtual_display_manager::plug_in_headless_if_needed() {
-            Ok(true) => {}
-            Ok(false) => log::info!("active display detected, skip headless virtual display"),
-            Err(plug_err) => log::error!("plug in headless failed: {}", plug_err),
-        }
-        // amyuni 驱动是异步安装的,首次在 VPS 上安装驱动可能需要 20+ 秒
-        // (下载+注册+系统识别+设备栈刷新),轮询等待最多 30 秒,每 500ms 重新检测
-        let wait_started = std::time::Instant::now();
-        let wait_deadline = wait_started + std::time::Duration::from_secs(30);
-        let mut last_err = initial_err.map(|s| s.to_string());
-        while std::time::Instant::now() < wait_deadline {
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            match Display::all() {
-                Ok(d) if !d.is_empty() => {
-                    log::info!(
-                        "headless virtual display detected after {:?}, count={}",
-                        wait_started.elapsed(),
-                        d.len()
-                    );
-                    return Some(d);
-                }
-                Ok(_) => {}
-                Err(err) => last_err = Some(err.to_string()),
-            }
-        }
-        log::error!(
-            "still no display available after waiting 30s for headless virtual display, last error: {:?}",
-            last_err
-        );
-        return None;
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = initial_err;
-        None
     }
 }

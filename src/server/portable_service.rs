@@ -306,9 +306,11 @@ pub mod server {
         let mut last_timeout_ms: i32 = 33;
         let mut spf = Duration::from_millis(last_timeout_ms as _);
         let mut first_frame_captured = false;
+        let mut first_frame_would_block_times = 0;
         let mut dxgi_failed_times = 0;
         let mut display_width = 0;
         let mut display_height = 0;
+        let mut last_display_wait_log = None;
         loop {
             if EXIT.lock().unwrap().clone() {
                 break;
@@ -321,15 +323,36 @@ pub mod server {
                 let timeout_ms = (*para).timeout_ms;
                 if c.is_none() {
                     let Ok(mut displays) = display_service::try_get_displays() else {
-                        log::error!("Failed to get displays");
-                        *EXIT.lock().unwrap() = true;
-                        return;
+                        if last_display_wait_log
+                            .map(|logged: std::time::Instant| {
+                                logged.elapsed() >= std::time::Duration::from_secs(5)
+                            })
+                            .unwrap_or(true)
+                        {
+                            log::warn!("portable capture is waiting for display enumeration");
+                            last_display_wait_log = Some(std::time::Instant::now());
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        continue;
                     };
                     if displays.len() <= current_display {
-                        log::error!("Invalid display index:{}", current_display);
-                        *EXIT.lock().unwrap() = true;
-                        return;
+                        if last_display_wait_log
+                            .map(|logged: std::time::Instant| {
+                                logged.elapsed() >= std::time::Duration::from_secs(5)
+                            })
+                            .unwrap_or(true)
+                        {
+                            log::warn!(
+                                "portable capture is waiting for display {}; available={}",
+                                current_display,
+                                displays.len()
+                            );
+                            last_display_wait_log = Some(std::time::Instant::now());
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        continue;
                     }
+                    last_display_wait_log = None;
                     let display = displays.remove(current_display);
                     display_width = display.width();
                     display_height = display.height();
@@ -338,6 +361,7 @@ pub mod server {
                             c = {
                                 last_current_display = current_display;
                                 first_frame_captured = false;
+                                first_frame_would_block_times = 0;
                                 if dxgi_failed_times > MAX_DXGI_FAIL_TIME {
                                     dxgi_failed_times = 0;
                                     v.set_gdi();
@@ -398,6 +422,7 @@ pub mod server {
                             shmem.write(ADDR_CAPTURE_WOULDBLOCK, &utils::i32_to_vec(TRUE));
                             utils::increase_counter(shmem.as_ptr().add(ADDR_CAPTURE_FRAME_COUNTER));
                             first_frame_captured = true;
+                            first_frame_would_block_times = 0;
                             dxgi_failed_times = 0;
                         }
                         Frame::Texture(_) => {
@@ -424,6 +449,23 @@ pub mod server {
                                 std::thread::sleep(spf);
                             }
                         } else {
+                            if !first_frame_captured
+                                && c.as_ref().map(|capturer| !capturer.is_gdi()) == Some(true)
+                            {
+                                first_frame_would_block_times += 1;
+                                if crate::headless_policy::should_fallback_first_frame_capture(
+                                    first_frame_captured,
+                                    first_frame_would_block_times,
+                                ) {
+                                    if c.as_mut().map(|capturer| capturer.set_gdi()) == Some(true) {
+                                        crate::runtime_logger::warn(
+                                            "VIDEO",
+                                            "portable capture produced no first frame; falling back to GDI",
+                                        );
+                                    }
+                                    first_frame_would_block_times = 0;
+                                }
+                            }
                             shmem.write(ADDR_CAPTURE_WOULDBLOCK, &utils::i32_to_vec(TRUE));
                         }
                     }
@@ -542,64 +584,13 @@ pub mod client {
             bail!("already running");
         }
         if SHMEM.lock().unwrap().is_none() {
-            let mut _last_display_error = String::new();
-            let mut displays = match scrap::Display::all() {
-                Ok(displays) => displays,
-                Err(error) => {
-                    _last_display_error = error.to_string();
-                    log::warn!(
-                        "display enumeration failed before headless recovery: {}",
-                        error
-                    );
-                    Vec::new()
-                }
-            };
-            if displays.is_empty() {
-                // VPS 无显示器: 尝试创建虚拟显示器 (仅 Windows 支持)
-                #[cfg(windows)]
-                if crate::virtual_display_manager::is_virtual_display_supported() {
-                    log::warn!("no display available, trying to plug in headless display");
-                    match crate::virtual_display_manager::plug_in_headless_if_needed() {
-                        Ok(true) => {}
-                        Ok(false) => {
-                            log::info!("active display detected, skip headless virtual display")
-                        }
-                        Err(e) => log::error!("plug in headless failed: {}", e),
-                    }
-                    // amyuni 驱动是异步安装的,首次 plug_in_headless 后
-                    // 显示器可能还没被 Windows 识别激活,
-                    // VPS 首次可能需要 30+ 秒 (下载+注册+系统识别+设备栈刷新),
-                    // 这里轮询等待最多 60 秒,每 500ms 重新检测一次,
-                    // 给 VPS 无显示器场景自动恢复留足时间。
-                    let wait_started = std::time::Instant::now();
-                    let wait_deadline = wait_started + std::time::Duration::from_secs(60);
-                    while displays.is_empty() && std::time::Instant::now() < wait_deadline {
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        match scrap::Display::all() {
-                            Ok(found) => displays = found,
-                            Err(error) => _last_display_error = error.to_string(),
-                        }
-                    }
-                    if displays.is_empty() {
-                        log::error!(
-                            "still no display available after waiting 60s for headless virtual display: {}",
-                            _last_display_error
-                        );
-                    } else {
-                        log::info!(
-                            "headless virtual display detected after {:?}, count={}",
-                            wait_started.elapsed(),
-                            displays.len()
-                        );
-                    }
-                }
-                if displays.is_empty() {
-                    bail!("no display available!");
-                }
-            }
+            let displays = display_service::try_get_displays_add_amyuni_headless()
+                .with_context(|| "Failed to prepare a display for portable capture")?;
             let mut max_pixel = 0;
             let align = 64;
             for d in &displays {
+                max_pixel =
+                    max_pixel.max(utils::align(d.width(), align) * utils::align(d.height(), align));
                 let resolutions = crate::platform::resolutions(&d.name());
                 for r in resolutions {
                     let pixel =
@@ -1032,9 +1023,9 @@ pub mod client {
             return Ok(());
         }
         log::info!("Requesting portable service shutdown");
-        ipc_send(Data::DataPortableService(DataPortableService::ConnCount(Some(
-            0,
-        ))))
+        ipc_send(Data::DataPortableService(DataPortableService::ConnCount(
+            Some(0),
+        )))
     }
 }
 

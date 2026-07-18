@@ -197,6 +197,12 @@ pub fn core_main() -> Option<Vec<String>> {
     }
     hbb_common::init_log(false, &log_name);
 
+    #[cfg(windows)]
+    if args.is_empty() && crate::check_process("", true) {
+        log::info!("another main window is already running; skip duplicate host server");
+        no_server = true;
+    }
+
     // linux uni (url) go here.
     #[cfg(all(target_os = "linux", feature = "flutter"))]
     if args.len() > 0 && args[0].starts_with(&crate::get_uri_prefix()) {
@@ -207,6 +213,7 @@ pub fn core_main() -> Option<Vec<String>> {
     if !crate::platform::is_installed()
         && args.is_empty()
         && _is_quick_support
+        && !no_server
         && !_is_elevate
         && !_is_run_as_system
     {

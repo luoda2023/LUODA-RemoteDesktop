@@ -392,29 +392,36 @@ pub fn get_primary_2(all: &Vec<Display>) -> usize {
     all.iter().position(|d| d.is_primary()).unwrap_or(0)
 }
 
-#[inline]
 #[cfg(windows)]
-fn no_displays(displays: &Vec<Display>) -> bool {
-    let display_len = displays.len();
-    if display_len == 0 {
-        true
-    } else if display_len == 1 {
-        let display = &displays[0];
-        if display.width() > DUMMY_DISPLAY_SIDE_MAX_SIZE
-            || display.height() > DUMMY_DISPLAY_SIDE_MAX_SIZE
-        {
-            return false;
-        }
-        let any_real = crate::platform::resolutions(&display.name())
-            .iter()
-            .any(|r| {
-                (r.height as usize) > DUMMY_DISPLAY_SIDE_MAX_SIZE
-                    || (r.width as usize) > DUMMY_DISPLAY_SIDE_MAX_SIZE
-            });
-        !any_real
-    } else {
-        false
+fn retain_usable_displays(displays: &mut Vec<Display>) {
+    let probes = displays
+        .iter()
+        .map(|display| crate::headless_policy::DisplayProbe {
+            online: display.is_online(),
+            width: display.width(),
+            height: display.height(),
+            has_large_mode: crate::platform::resolutions(&display.name()).iter().any(
+                |resolution| {
+                    resolution.height as usize > DUMMY_DISPLAY_SIDE_MAX_SIZE
+                        || resolution.width as usize > DUMMY_DISPLAY_SIDE_MAX_SIZE
+                },
+            ),
+        })
+        .collect::<Vec<_>>();
+    let usable =
+        crate::headless_policy::usable_display_indices(&probes, DUMMY_DISPLAY_SIDE_MAX_SIZE);
+    if usable.len() != displays.len() {
+        log::warn!(
+            "ignoring {} offline or unusable display(s) before capture",
+            displays.len() - usable.len()
+        );
     }
+    let mut index = 0;
+    displays.retain(|_| {
+        let keep = usable.contains(&index);
+        index += 1;
+        keep
+    });
 }
 
 #[inline]
@@ -452,6 +459,7 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
             (Vec::new(), error.to_string())
         }
     };
+    retain_usable_displays(&mut displays);
 
     // Portable builds package the signed driver and can request elevation for
     // its one-time installation, so headless recovery must not require a
@@ -485,8 +493,7 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
     //     return Ok(displays);
     // }
 
-    let no_displays_v = no_displays(&displays);
-    if no_displays_v {
+    if displays.is_empty() {
         log::warn!("no usable displays, starting on-demand headless recovery");
         let started = std::time::Instant::now();
         let wait_timeout = std::time::Duration::from_secs(60);
@@ -516,7 +523,12 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
             }
 
             match Display::all() {
-                Ok(found) if !no_displays(&found) => {
+                Ok(mut found) => {
+                    retain_usable_displays(&mut found);
+                    if found.is_empty() {
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        continue;
+                    }
                     displays = found;
                     log::info!(
                         "headless display recovered after {:?}, count={}",
@@ -525,13 +537,12 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
                     );
                     break;
                 }
-                Ok(_) => {}
                 Err(error) => last_error = error.to_string(),
             }
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
 
-        if no_displays(&displays) {
+        if displays.is_empty() {
             log::error!(
                 "headless display recovery failed after {:?}: {}",
                 started.elapsed(),
