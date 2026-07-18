@@ -1009,6 +1009,16 @@ pub mod client {
     pub fn running() -> bool {
         RUNNING.lock().unwrap().clone()
     }
+
+    pub fn stop() -> ResultType<()> {
+        if !running() {
+            return Ok(());
+        }
+        log::info!("Requesting portable service shutdown");
+        ipc_send(Data::DataPortableService(DataPortableService::ConnCount(Some(
+            0,
+        ))))
+    }
 }
 
 #[repr(C)]

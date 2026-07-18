@@ -3687,6 +3687,14 @@ pub fn is_self_service_running() -> bool {
     is_service_running(&crate::get_app_name())
 }
 
+pub fn stop_self_service() -> ResultType<()> {
+    if !is_self_service_running() {
+        return Ok(());
+    }
+    log::info!("Requesting Windows service shutdown through IPC");
+    send_close(crate::POSTFIX_SERVICE)
+}
+
 pub fn is_service_running(service_name: &str) -> bool {
     unsafe {
         let service_name = wide_string(service_name);

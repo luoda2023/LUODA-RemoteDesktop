@@ -187,27 +187,47 @@ fn make_tray() -> hbb_common::ResultType<()> {
 
         if let Ok(event) = menu_channel.try_recv() {
             if event.id == exit_i.id() {
-                // 先停止后台服务，防止任务栏残留进程
+                log::info!("Tray exit requested");
+                // Stop the rendezvous mediator before shutting down worker processes.
                 crate::ipc::set_option("stop-service", "Y");
-                std::thread::sleep(std::time::Duration::from_millis(500));
 
-                // 停止Windows服务（如已安装），确保服务进程退出
                 #[cfg(target_os = "windows")]
                 {
                     use std::os::windows::process::CommandExt;
+
+                    if let Err(err) = crate::portable_service::client::stop() {
+                        log::warn!("Tray exit: failed to request portable service shutdown: {err}");
+                    }
+                    for _ in 0..20 {
+                        if !crate::portable_service::client::running() {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+
                     let app_name = crate::get_app_name();
-                    log::info!("Tray exit: stopping Windows service '{}' with sc stop", app_name);
-                    let _ = std::process::Command::new("sc")
-                        .args(["stop", &app_name])
-                        .creation_flags(0x08000000)
-                        .output();
-                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    if let Err(err) = crate::platform::windows::stop_self_service() {
+                        log::warn!("Tray exit: Windows service IPC shutdown failed: {err}");
+                    }
+                    for _ in 0..30 {
+                        if !crate::platform::windows::is_self_service_running() {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                    if crate::platform::windows::is_self_service_running() {
+                        log::warn!(
+                            "Tray exit: service still running, falling back to sc stop '{}'",
+                            app_name
+                        );
+                        let _ = std::process::Command::new("sc")
+                            .args(["stop", &app_name])
+                            .creation_flags(0x08000000)
+                            .output();
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                    }
                 }
 
-                // 移除stop-service标志，让下次启动时自动连接
-                // 直接写入本地配置即可（无需走IPC），仅移除stop-service这一项
-                // ⚠️ 注意：不要调用 set_options(HashMap::new())，那会清空所有已保存的配置！
-                hbb_common::config::Config::set_option("stop-service".to_string(), "".to_string());
                 // Kill main GUI process(es) using taskkill (much faster than PowerShell).
                 #[cfg(target_os = "windows")]
                 {
@@ -218,10 +238,20 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .unwrap_or_else(|| "luoda".to_owned());
                     log::info!("Tray exit: killing GUI with: taskkill /F /FI PID ne {} /IM {}.exe",
                         std::process::id(), exe_name);
-                    let _ = std::process::Command::new("taskkill")
+                    let result = std::process::Command::new("taskkill")
                         .args(["/f", "/im", &format!("{}.exe", exe_name), "/fi", &format!("PID ne {}", std::process::id())])
                         .creation_flags(0x08000000)
                         .output();
+                    match result {
+                        Ok(output) if !output.status.success() => log::warn!(
+                            "Tray exit: taskkill fallback failed: {}",
+                            String::from_utf8_lossy(&output.stderr).trim()
+                        ),
+                        Err(err) => {
+                            log::warn!("Tray exit: failed to start taskkill fallback: {err}")
+                        }
+                        _ => {}
+                    }
                     // 补杀可能残留的服务/命名进程
                     for stray in &["service.exe", "luoda_svc.exe", "naming.exe"] {
                         let _ = std::process::Command::new("taskkill")
@@ -239,6 +269,11 @@ fn make_tray() -> hbb_common::ResultType<()> {
                         .arg(&*exe_name)
                         .output();
                 }
+                // Clear only at the final moment so the running mediator cannot restart.
+                hbb_common::config::Config::set_option(
+                    "stop-service".to_string(),
+                    "".to_string(),
+                );
                 // 手动析构托盘图标，确保Windows通知区域图标被清除
                 // 注意：exit(0)不会运行Drop析构函数，必须显式清理
                 if let Ok(mut guard) = _tray_icon.lock() {

@@ -167,6 +167,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
                     SizedBox(height: 4),
                     // 密码(定制版: 单独构建,不带刷新/编辑按钮)
                     buildPasswordBoard(context),
+                    SizedBox(height: 4),
+                    // IP:端口
+                    buildDirectAccessBoard(context),
                     const Spacer(),
                     // 状态条 —— 上移到红框(左侧栏)底部
                     Padding(
