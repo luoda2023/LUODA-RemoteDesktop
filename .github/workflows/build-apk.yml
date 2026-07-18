@@ -291,17 +291,33 @@ jobs:
             fi
           done
 
+          use_secret=false
           if [ "$missing_secret" = false ]; then
             KEYSTORE_FILE="flutter/android/app/keystore.jks"
-            printf '%s' "$LUODA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+            TEMP_KEYSTORE_FILE="${KEYSTORE_FILE}.tmp"
+            if printf '%s' "$LUODA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$TEMP_KEYSTORE_FILE" \
+              && test -s "$TEMP_KEYSTORE_FILE" \
+              && keytool -list \
+                -keystore "$TEMP_KEYSTORE_FILE" \
+                -storepass "$LUODA_ANDROID_STORE_PASSWORD" \
+                -alias "$LUODA_ANDROID_KEY_ALIAS" > /dev/null 2>&1; then
+              mv "$TEMP_KEYSTORE_FILE" "$KEYSTORE_FILE"
+              use_secret=true
+            else
+              echo "WARN: Android signing secrets are invalid; using the repository stable keystore"
+            fi
+          fi
+
+          if [ "$use_secret" = true ]; then
             echo "storeFile=keystore.jks" > flutter/android/key.properties
             echo "storePassword=$LUODA_ANDROID_STORE_PASSWORD" >> flutter/android/key.properties
             echo "keyAlias=$LUODA_ANDROID_KEY_ALIAS" >> flutter/android/key.properties
             echo "keyPassword=$LUODA_ANDROID_KEY_PASSWORD" >> flutter/android/key.properties
-            test -s "$KEYSTORE_FILE"
             echo "OK: Stable Android signing keystore restored from Actions secrets"
           else
-            echo "WARN: Android signing secrets are incomplete; using the repository stable keystore"
+            if [ "$missing_secret" = true ]; then
+              echo "WARN: Android signing secrets are incomplete; using the repository stable keystore"
+            fi
             test -s flutter/android/app/luoda-release.keystore
             test -s flutter/android/key.properties
           fi
