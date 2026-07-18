@@ -314,13 +314,15 @@ jobs:
         timeout-minutes: 30
         run: |
           cd flutter
-          flutter build apk --release --split-per-abi
+          flutter build apk --release --split-per-abi \
+            --build-number "$GITHUB_RUN_NUMBER"
 
       - name: Build APK (universal)
         timeout-minutes: 15
         run: |
           cd flutter
-          flutter build apk --release
+          flutter build apk --release \
+            --build-number "$GITHUB_RUN_NUMBER"
 
       - name: Collect APK outputs
         run: |
@@ -370,4 +372,3 @@ jobs:
         with:
           name: runtime-logs-apk
           path: .auto_build_logs/
-
