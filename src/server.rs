@@ -611,24 +611,6 @@ pub async fn start_server(is_server: bool, no_server: bool) {
 
     if is_server {
         crate::common::set_server_running(true);
-        // VPS 优化:被控端主进程启动后立即预插 headless 虚拟显示器,
-        // 不等控制端连接过来才触发,这样首次连接时 amyuni 驱动
-        // 已就绪,避免"没有显示器"错弹。
-        #[cfg(windows)]
-        {
-            std::thread::spawn(|| {
-                if crate::virtual_display_manager::is_virtual_display_supported() {
-                    log::info!(
-                        "Proactive headless virtual display check at server start (VPS optimization)"
-                    );
-                    if let Err(e) = crate::virtual_display_manager::plug_in_headless() {
-                        log::warn!("Proactive plug_in_headless at server start failed: {}", e);
-                    } else {
-                        log::info!("Proactive plug_in_headless triggered, driver will load async");
-                    }
-                }
-            });
-        }
         std::thread::spawn(move || {
             // Retry IPC start up to 3 times before giving up.
             // A common failure reason is that an old `--server` process

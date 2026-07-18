@@ -1681,21 +1681,8 @@ impl Connection {
 
             match super::display_service::update_get_sync_displays_on_login().await {
                 Err(err) => {
-                    log::warn!(
-                        "display discovery failed; sending empty PeerInfo instead of stalling login: {}",
-                        err
-                    );
-                    pi.displays = Vec::new();
-                    pi.current_display = self.display_idx as _;
-                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-                    {
-                        pi.resolutions = Some(SupportedResolutions {
-                            resolutions: vec![],
-                            ..Default::default()
-                        })
-                        .into();
-                    }
-                    res.set_peer_info(pi);
+                    log::error!("display discovery failed after headless recovery: {}", err);
+                    res.set_error(err.to_string());
                 }
                 Ok(displays) => {
                     // For compatibility with old versions, we need to send the displays to the peer.

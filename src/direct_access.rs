@@ -93,9 +93,32 @@ pub(crate) fn is_public_ipv4(address: Ipv4Addr) -> bool {
         && first < 240
 }
 
+pub(crate) fn direct_peer_hosts(peer: &str, default_port: u16) -> Vec<String> {
+    if peer.parse::<Ipv4Addr>().is_ok() {
+        return (default_port..=default_port.saturating_add(10))
+            .map(|port| format!("{peer}:{port}"))
+            .collect();
+    }
+
+    let Some((ip, port)) = peer.rsplit_once(':') else {
+        return Vec::new();
+    };
+    if ip.parse::<Ipv4Addr>().is_err() {
+        return Vec::new();
+    }
+    let Ok(port) = port.parse::<u16>() else {
+        return Vec::new();
+    };
+    let start = port.saturating_sub(5).max(1);
+    let end = port.saturating_add(5);
+    (start..=end)
+        .map(|candidate| format!("{ip}:{candidate}"))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{choose_lan_ipv4, is_public_ipv4, LanAddressCandidate};
+    use super::{choose_lan_ipv4, direct_peer_hosts, is_public_ipv4, LanAddressCandidate};
     use std::net::Ipv4Addr;
 
     fn candidate(
@@ -141,6 +164,24 @@ mod tests {
             choose_lan_ipv4(&candidates),
             Some(Ipv4Addr::new(10, 16, 1, 20))
         );
+    }
+
+    #[test]
+    fn direct_peer_hosts_cover_bare_ip_and_explicit_port() {
+        let bare = direct_peer_hosts("192.168.1.8", 21118);
+        assert_eq!(bare.first().map(String::as_str), Some("192.168.1.8:21118"));
+        assert_eq!(bare.last().map(String::as_str), Some("192.168.1.8:21128"));
+
+        let explicit = direct_peer_hosts("49.113.34.200:21118", 21118);
+        assert_eq!(
+            explicit.first().map(String::as_str),
+            Some("49.113.34.200:21113")
+        );
+        assert_eq!(
+            explicit.last().map(String::as_str),
+            Some("49.113.34.200:21123")
+        );
+        assert!(direct_peer_hosts("123456789", 21118).is_empty());
     }
 
     #[test]

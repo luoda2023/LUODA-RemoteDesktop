@@ -478,37 +478,51 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
 
     let no_displays_v = no_displays(&displays);
     if no_displays_v {
-        log::debug!("no displays, create virtual display");
-        if let Err(e) = virtual_display_manager::plug_in_headless() {
-            log::error!("plug in headless failed {}", e);
-        } else {
-            // amyuni 驱动是异步安装的,plug_in_headless 后显示器可能还没被 Windows 识别,
-            // 首次在 VPS 上安装驱动可能需要 30+ 秒 (下载+注册+系统识别+设备栈刷新)。
-            // 这里轮询等待最多 60 秒,每 500ms 重新检测一次。
-            let wait_deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
-            loop {
-                match Display::all() {
-                    Ok(d) => {
-                        if !d.is_empty() {
-                            displays = d;
-                            log::info!(
-                                "headless virtual display detected after {:?}, count={}",
-                                wait_deadline.elapsed(),
-                                displays.len()
-                            );
-                            break;
-                        }
+        log::warn!("no usable displays, starting on-demand headless recovery");
+        let started = std::time::Instant::now();
+        let wait_timeout = std::time::Duration::from_secs(60);
+        let mut last_plug_attempt = None;
+        let mut last_error = String::new();
+        while started.elapsed() < wait_timeout {
+            if last_plug_attempt
+                .map(|attempt: std::time::Instant| {
+                    attempt.elapsed() >= std::time::Duration::from_secs(4)
+                })
+                .unwrap_or(true)
+            {
+                last_plug_attempt = Some(std::time::Instant::now());
+                if let Err(error) = virtual_display_manager::plug_in_headless() {
+                    last_error = error.to_string();
+                    log::warn!("headless plug attempt is not ready yet: {}", error);
+                    if last_error.contains("Failed to install driver") {
+                        break;
                     }
-                    Err(_) => {}
                 }
-                if std::time::Instant::now() >= wait_deadline {
-                    log::error!(
-                        "still no display available after waiting 30s for headless virtual display"
+            }
+
+            match Display::all() {
+                Ok(found) if !no_displays(&found) => {
+                    displays = found;
+                    log::info!(
+                        "headless display recovered after {:?}, count={}",
+                        started.elapsed(),
+                        displays.len()
                     );
                     break;
                 }
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                Ok(_) => {}
+                Err(error) => last_error = error.to_string(),
             }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+
+        if no_displays(&displays) {
+            log::error!(
+                "headless display recovery failed after {:?}: {}",
+                started.elapsed(),
+                last_error
+            );
+            bail!("No displays");
         }
     }
     Ok(displays)

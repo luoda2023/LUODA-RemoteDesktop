@@ -8,6 +8,62 @@ use std::sync::{Arc, Mutex};
 #[cfg(windows)]
 use std::time::Duration;
 
+#[cfg(windows)]
+fn spawn_windows_exit_cleanup() -> hbb_common::ResultType<()> {
+    use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+
+    std::process::Command::new(std::env::current_exe()?)
+        .arg(crate::tray_exit::CLEANUP_ARG)
+        .creation_flags(0x00000008 | 0x08000000)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    Ok(())
+}
+
+#[cfg(windows)]
+pub(crate) fn run_windows_exit_cleanup() {
+    use std::os::windows::process::CommandExt;
+
+    log::info!("Tray exit cleanup helper started");
+    crate::ipc::set_option("stop-service", "Y");
+    if let Err(error) = crate::platform::windows::stop_self_service() {
+        log::warn!("Tray exit cleanup: service IPC shutdown failed: {error}");
+    }
+
+    let exe_name = std::env::current_exe()
+        .ok()
+        .and_then(|path| {
+            path.file_stem()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| "luoda".to_owned());
+    let args = crate::tray_exit::taskkill_other_instances_args(&exe_name, std::process::id());
+    match std::process::Command::new("taskkill")
+        .args(&args)
+        .creation_flags(0x08000000)
+        .output()
+    {
+        Ok(output) if !output.status.success() => log::warn!(
+            "Tray exit cleanup: taskkill failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
+        Err(error) => log::warn!("Tray exit cleanup: could not start taskkill: {error}"),
+        _ => {}
+    }
+
+    if crate::platform::windows::is_self_service_running() {
+        let _ = std::process::Command::new("sc")
+            .args(["stop", &crate::get_app_name()])
+            .creation_flags(0x08000000)
+            .spawn();
+    }
+    hbb_common::config::Config::set_option("stop-service".to_owned(), "".to_owned());
+    log::info!("Tray exit cleanup helper finished");
+}
+
 pub fn start_tray() {
     log::info!("Tray started");
     if crate::ui_interface::get_builtin_option(hbb_common::config::keys::OPTION_HIDE_TRAY) == "Y" {
@@ -188,92 +244,30 @@ fn make_tray() -> hbb_common::ResultType<()> {
         if let Ok(event) = menu_channel.try_recv() {
             if event.id == exit_i.id() {
                 log::info!("Tray exit requested");
-                // Stop the rendezvous mediator before shutting down worker processes.
-                crate::ipc::set_option("stop-service", "Y");
-
                 #[cfg(target_os = "windows")]
                 {
-                    use std::os::windows::process::CommandExt;
-
-                    if let Err(err) = crate::portable_service::client::stop() {
-                        log::warn!("Tray exit: failed to request portable service shutdown: {err}");
-                    }
-                    for _ in 0..20 {
-                        if !crate::portable_service::client::running() {
-                            break;
-                        }
-                        std::thread::sleep(std::time::Duration::from_millis(100));
-                    }
-
-                    let app_name = crate::get_app_name();
-                    if let Err(err) = crate::platform::windows::stop_self_service() {
-                        log::warn!("Tray exit: Windows service IPC shutdown failed: {err}");
-                    }
-                    for _ in 0..30 {
-                        if !crate::platform::windows::is_self_service_running() {
-                            break;
-                        }
-                        std::thread::sleep(std::time::Duration::from_millis(100));
-                    }
-                    if crate::platform::windows::is_self_service_running() {
-                        log::warn!(
-                            "Tray exit: service still running, falling back to sc stop '{}'",
-                            app_name
-                        );
-                        let _ = std::process::Command::new("sc")
-                            .args(["stop", &app_name])
-                            .creation_flags(0x08000000)
-                            .output();
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                    }
-                }
-
-                // Kill main GUI process(es) using taskkill (much faster than PowerShell).
-                #[cfg(target_os = "windows")]
-                {
-                    use std::os::windows::process::CommandExt;
-                    let exe_name = std::env::current_exe()
-                        .ok()
-                        .and_then(|p| p.file_stem().map(|n| n.to_string_lossy().into_owned()))
-                        .unwrap_or_else(|| "luoda".to_owned());
-                    log::info!("Tray exit: killing GUI with: taskkill /F /FI PID ne {} /IM {}.exe",
-                        std::process::id(), exe_name);
-                    let result = std::process::Command::new("taskkill")
-                        .args(["/f", "/im", &format!("{}.exe", exe_name), "/fi", &format!("PID ne {}", std::process::id())])
-                        .creation_flags(0x08000000)
-                        .output();
-                    match result {
-                        Ok(output) if !output.status.success() => log::warn!(
-                            "Tray exit: taskkill fallback failed: {}",
-                            String::from_utf8_lossy(&output.stderr).trim()
-                        ),
-                        Err(err) => {
-                            log::warn!("Tray exit: failed to start taskkill fallback: {err}")
-                        }
-                        _ => {}
-                    }
-                    // 补杀可能残留的服务/命名进程
-                    for stray in &["service.exe", "luoda_svc.exe", "naming.exe"] {
-                        let _ = std::process::Command::new("taskkill")
-                            .args(["/f", "/im", stray])
-                            .creation_flags(0x08000000)
-                            .output();
+                    hbb_common::config::Config::set_option(
+                        "stop-service".to_owned(),
+                        "Y".to_owned(),
+                    );
+                    if let Err(error) = spawn_windows_exit_cleanup() {
+                        log::error!("Tray exit: could not start cleanup helper: {error}");
                     }
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
+                    crate::ipc::set_option("stop-service", "Y");
                     let exe = std::env::current_exe().unwrap_or_default();
                     let exe_name = exe.file_name().unwrap_or_default().to_string_lossy();
                     let _ = std::process::Command::new("pkill")
                         .arg("-f")
                         .arg(&*exe_name)
                         .output();
+                    hbb_common::config::Config::set_option(
+                        "stop-service".to_owned(),
+                        "".to_owned(),
+                    );
                 }
-                // Clear only at the final moment so the running mediator cannot restart.
-                hbb_common::config::Config::set_option(
-                    "stop-service".to_string(),
-                    "".to_string(),
-                );
                 // 手动析构托盘图标，确保Windows通知区域图标被清除
                 // 注意：exit(0)不会运行Drop析构函数，必须显式清理
                 if let Ok(mut guard) = _tray_icon.lock() {

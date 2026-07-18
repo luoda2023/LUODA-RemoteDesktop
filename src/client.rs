@@ -4025,11 +4025,12 @@ async fn hc_connection_(
 pub mod peer_online {
     use hbb_common::{
         anyhow::bail,
-        config::{Config, CONNECT_TIMEOUT, READ_TIMEOUT},
+        config::{Config, CONNECT_TIMEOUT, DEFAULT_DIRECT_PORT, READ_TIMEOUT},
+        futures::{future::join_all, FutureExt},
         log,
         rendezvous_proto::*,
         sleep,
-        socket_client::connect_tcp,
+        socket_client::{connect_tcp, connect_tcp_local},
         ResultType, Stream,
     };
 
@@ -4041,17 +4042,60 @@ pub mod peer_online {
             let offlines = onlines.drain((onlines.len() / 2)..).collect();
             f(onlines, offlines)
         } else {
+            let (direct_ids, rendezvous_ids): (Vec<_>, Vec<_>) = ids
+                .into_iter()
+                .partition(|id| {
+                    !crate::direct_access::direct_peer_hosts(
+                        id,
+                        DEFAULT_DIRECT_PORT as u16,
+                    )
+                    .is_empty()
+                });
+            let direct_states = join_all(direct_ids.into_iter().map(|id| async move {
+                let hosts = crate::direct_access::direct_peer_hosts(
+                    &id,
+                    DEFAULT_DIRECT_PORT as u16,
+                );
+                let attempts: Vec<_> = hosts.into_iter().map(|host| {
+                    async move { connect_tcp_local(&host, None, 1_200).await }
+                        .boxed()
+                }).collect();
+                let online = hbb_common::futures::future::select_ok(attempts)
+                    .await
+                    .is_ok();
+                (id, online)
+            }))
+            .await;
+            let mut direct_onlines = Vec::new();
+            let mut direct_offlines = Vec::new();
+            for (id, online) in direct_states {
+                if online {
+                    direct_onlines.push(id);
+                } else {
+                    direct_offlines.push(id);
+                }
+            }
+
+            if rendezvous_ids.is_empty() {
+                f(direct_onlines, direct_offlines);
+                return;
+            }
             let query_timeout = std::time::Duration::from_millis(3_000);
-            match query_online_states_(&ids, query_timeout).await {
-                Ok((onlines, offlines)) => {
+            match query_online_states_(&rendezvous_ids, query_timeout).await {
+                Ok((mut onlines, mut offlines)) => {
+                    onlines.append(&mut direct_onlines);
+                    offlines.append(&mut direct_offlines);
                     f(onlines, offlines);
                 }
                 Err(e) => {
                     log::warn!(
                         "Failed to query online states for {} peers: {}",
-                        ids.len(),
+                        rendezvous_ids.len(),
                         e
                     );
+                    if !direct_onlines.is_empty() || !direct_offlines.is_empty() {
+                        f(direct_onlines, direct_offlines);
+                    }
                 }
             }
         }

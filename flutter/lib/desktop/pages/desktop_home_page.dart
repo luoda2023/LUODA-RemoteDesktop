@@ -502,6 +502,20 @@ Positioned(
                         contentPadding:
                             EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                         isDense: true,
+                        suffixIcon: IconButton(
+                          tooltip: translate('Copy'),
+                          padding: EdgeInsets.zero,
+                          constraints:
+                              BoxConstraints.tightFor(width: 30, height: 30),
+                          icon: Icon(Icons.copy_outlined, size: 16),
+                          onPressed: () {
+                            if (model.serverId.text.isNotEmpty) {
+                              Clipboard.setData(
+                                  ClipboardData(text: model.serverId.text));
+                              showToast(translate("Copied"));
+                            }
+                          },
+                        ),
                       ),
                       style: TextStyle(
                         fontSize: 16,
@@ -616,6 +630,22 @@ Positioned(
                               contentPadding:
                                   EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                               isDense: true,
+                              suffixIcon: IconButton(
+                                tooltip: translate('Copy'),
+                                padding: EdgeInsets.zero,
+                                constraints:
+                                    BoxConstraints.tightFor(width: 30, height: 30),
+                                icon: Icon(Icons.copy_outlined, size: 16),
+                                onPressed: showOneTime
+                                    ? () {
+                                        if (model.serverPasswd.text.isNotEmpty) {
+                                          Clipboard.setData(ClipboardData(
+                                              text: model.serverPasswd.text));
+                                          showToast(translate("Copied"));
+                                        }
+                                      }
+                                    : null,
+                              ),
                             ),
                             style: TextStyle(
                               fontSize: 14,
@@ -846,6 +876,18 @@ Positioned(
                         ),
                       ),
                     ),
+                    if (hasAddr)
+                      IconButton(
+                        tooltip: translate('Copy'),
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            BoxConstraints.tightFor(width: 24, height: 24),
+                        icon: Icon(Icons.copy_outlined, size: 14),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: addr));
+                          showToast(translate("Copied"));
+                        },
+                      ),
  if (showUpnp && addr.isNotEmpty) ...[
  SizedBox(width: 4),
  Container(

@@ -64,6 +64,8 @@ pub mod plugin;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tray;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod tray_exit;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod whiteboard;
