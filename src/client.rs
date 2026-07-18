@@ -4057,7 +4057,7 @@ pub mod peer_online {
                     DEFAULT_DIRECT_PORT as u16,
                 );
                 let attempts: Vec<_> = hosts.into_iter().map(|host| {
-                    async move { connect_tcp_local(&host, None, 1_200).await }
+                    async move { connect_tcp_local(host, None, 1_200).await }
                         .boxed()
                 }).collect();
                 let online = hbb_common::futures::future::select_ok(attempts)
