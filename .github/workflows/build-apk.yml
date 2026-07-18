@@ -271,40 +271,43 @@ jobs:
         run: python3 flutter/android/fix_plugin_agp8_compat.py
         shell: bash
 
-      - name: Generate signing keystore for APK
+      - name: Restore stable signing keystore
+        env:
+          LUODA_ANDROID_KEYSTORE_BASE64: ${{ secrets.LUODA_ANDROID_KEYSTORE_BASE64 }}
+          LUODA_ANDROID_STORE_PASSWORD: ${{ secrets.LUODA_ANDROID_STORE_PASSWORD }}
+          LUODA_ANDROID_KEY_ALIAS: ${{ secrets.LUODA_ANDROID_KEY_ALIAS }}
+          LUODA_ANDROID_KEY_PASSWORD: ${{ secrets.LUODA_ANDROID_KEY_PASSWORD }}
         run: |
-          # 按官方 rustdesk 方式：生成测试用的 keystore（签名一致性保持一版一版相同）
-          # 如果后续有正式 keystore，替换 key.properties 和 keystore.jks 文件即可
+          set -euo pipefail
+          for name in LUODA_ANDROID_KEYSTORE_BASE64 LUODA_ANDROID_STORE_PASSWORD LUODA_ANDROID_KEY_ALIAS LUODA_ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "ERROR: required Android signing secret $name is missing"
+              exit 1
+            fi
+          done
+
           KEYSTORE_FILE="flutter/android/app/keystore.jks"
-          if [ ! -f "$KEYSTORE_FILE" ]; then
-            keytool -genkey -v -keystore "$KEYSTORE_FILE" \
-              -alias rustdesk -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass rustdesk123 -keypass rustdesk123 \
-              -dname "CN=RustDesk, OU=RustDesk, O=RustDesk, L=Unknown, ST=Unknown, C=CN" 2>/dev/null
-            echo "OK: Generated keystore at $KEYSTORE_FILE"
-          else
-            echo "OK: Keystore already exists at $KEYSTORE_FILE"
-          fi
-          # 始终重写 key.properties，避免上次 CI 残留但 key.properties 丢失
-          # build.gradle.kts 中 key.properties 使用 rootProject.file("key.properties"),
-          # 即在 flutter/android/ 目录下查找;
-          # storeFile 使用 file(it) (相对 app/ 目录),
-          # keystore.jks 实际生成在 flutter/android/app/keystore.jks,
-          # 因此 key.properties 中 storeFile 写成 "keystore.jks" (相对 app/).
+          printf '%s' "$LUODA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
           echo "storeFile=keystore.jks" > flutter/android/key.properties
-          echo "storePassword=rustdesk123" >> flutter/android/key.properties
-          echo "keyAlias=rustdesk" >> flutter/android/key.properties
-          echo "keyPassword=rustdesk123" >> flutter/android/key.properties
+          echo "storePassword=$LUODA_ANDROID_STORE_PASSWORD" >> flutter/android/key.properties
+          echo "keyAlias=$LUODA_ANDROID_KEY_ALIAS" >> flutter/android/key.properties
+          echo "keyPassword=$LUODA_ANDROID_KEY_PASSWORD" >> flutter/android/key.properties
+          test -s "$KEYSTORE_FILE"
+          echo "OK: Stable Android signing keystore restored"
         shell: bash
 
       - name: Verify signing config
+        env:
+          LUODA_ANDROID_STORE_PASSWORD: ${{ secrets.LUODA_ANDROID_STORE_PASSWORD }}
+          LUODA_ANDROID_KEY_ALIAS: ${{ secrets.LUODA_ANDROID_KEY_ALIAS }}
         run: |
-          echo "=== key.properties ==="
-          cat flutter/android/key.properties
-          echo "=== signingConfig in build.gradle.kts ==="
-          grep -n 'signingConfig' ./flutter/android/app/build.gradle.kts || true
-          echo "=== keystore file ==="
-          ls -lh flutter/android/app/keystore.jks
+          set -euo pipefail
+          grep -E '^(storeFile|keyAlias)=' flutter/android/key.properties
+          keytool -list \
+            -keystore flutter/android/app/keystore.jks \
+            -storepass "$LUODA_ANDROID_STORE_PASSWORD" \
+            -alias "$LUODA_ANDROID_KEY_ALIAS" > /dev/null
+          echo "OK: Android signing key verified"
         shell: bash
 
       - name: Build APK (split per ABI)
@@ -367,5 +370,4 @@ jobs:
         with:
           name: runtime-logs-apk
           path: .auto_build_logs/
-
 

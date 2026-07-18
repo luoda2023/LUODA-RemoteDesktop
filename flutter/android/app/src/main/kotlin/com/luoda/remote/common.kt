@@ -72,18 +72,16 @@ fun requestPermission(context: Context, type: String) {
     XXPermissions.with(context)
         .permission(type)
         .request { _, all ->
-            if (all) {
-                Handler(Looper.getMainLooper()).post {
-                    MainActivity.flutterMethodChannel?.invokeMethod(
-                        "on_android_permission_result",
-                        mapOf("type" to type, "result" to all)
-                    )
-                }
+            Handler(Looper.getMainLooper()).post {
+                MainActivity.flutterMethodChannel?.invokeMethod(
+                    "on_android_permission_result",
+                    mapOf("type" to type, "result" to all)
+                )
             }
         }
 }
 
-fun startAction(context: Context, action: String) {
+fun startAction(context: Context, action: String): Boolean {
     try {
         context.startActivity(Intent(action).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -92,8 +90,21 @@ fun startAction(context: Context, action: String) {
                 data = Uri.parse("package:" + context.packageName)
             }
         })
+        return true
     } catch (e: Exception) {
-        e.printStackTrace()
+        Log.e("common", "Unable to open Android settings action $action", e)
+        if (ACTION_ACCESSIBILITY_DETAILS_SETTINGS == action) {
+            return try {
+                context.startActivity(Intent(ACTION_ACCESSIBILITY_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+                true
+            } catch (fallbackError: Exception) {
+                Log.e("common", "Unable to open accessibility settings", fallbackError)
+                false
+            }
+        }
+        return false
     }
 }
 

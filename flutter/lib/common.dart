@@ -1476,18 +1476,26 @@ class AndroidPermissionManager {
   }
 
   // startActivity goto Android Setting's page to request permission manually by user
-  static void startAction(String action) {
-    gFFI.invokeMethod(AndroidChannel.kStartAction, action);
+  static Future<bool> startAction(String action) async {
+    if (isDesktop || isWeb) {
+      return false;
+    }
+    return await gFFI.invokeMethod(AndroidChannel.kStartAction, action) == true;
+  }
+
+  static Future<bool> checkAccessibility() async {
+    if (isDesktop || isWeb) {
+      return true;
+    }
+    return await gFFI.invokeMethod("check_input_permission") == true;
   }
 
   /// We use XXPermissions to request permissions,
   /// for supported types, see https://github.com/getActivity/XXPermissions/blob/e46caea32a64ad7819df62d448fb1c825481cd28/library/src/main/java/com/hjq/permissions/Permission.java
-  static Future<bool> request(String type) {
+  static Future<bool> request(String type) async {
     if (isDesktop || isWeb) {
       return Future.value(true);
     }
-
-    gFFI.invokeMethod("request_permission", type);
 
     // clear last task
     if (_completer?.isCompleted == false) {
@@ -1497,6 +1505,7 @@ class AndroidPermissionManager {
 
     _current = type;
     _completer = Completer<bool>();
+    final completer = _completer!;
 
     _timer = Timer(Duration(seconds: 120), () {
       if (_completer == null) return;
@@ -1506,15 +1515,25 @@ class AndroidPermissionManager {
       _completer = null;
       _current = "";
     });
-    return _completer!.future;
+    try {
+      final started = await gFFI.invokeMethod("request_permission", type);
+      if (started != true) {
+        complete(type, false);
+      }
+    } catch (_) {
+      complete(type, false);
+    }
+    return completer.future;
   }
 
   static complete(String type, bool res) {
-    if (type != _current) {
-      res = false;
+    final completer = _completer;
+    if (type != _current || completer == null || completer.isCompleted) {
+      return;
     }
     _timer?.cancel();
-    _completer?.complete(res);
+    completer.complete(res);
+    _completer = null;
     _current = "";
   }
 }

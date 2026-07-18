@@ -1,13 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:luoda_flutter/mobile/pages/server_page.dart';
 import 'package:luoda_flutter/mobile/pages/settings_page.dart';
+import 'package:luoda_flutter/runtime_logger.dart';
 import 'package:luoda_flutter/web/settings_page.dart';
 import 'package:get/get.dart';
 import '../../common.dart';
 import '../../common/widgets/chat_page.dart';
+import '../../consts.dart';
 import '../../models/platform_model.dart';
 import '../../models/state_model.dart';
+import '../first_run_permission_flow.dart';
 import 'connection_page.dart';
+
+const _kFirstRunAuthorization = 'android-first-run-authorization-v1';
 
 abstract class PageShape extends Widget {
   final String title = "";
@@ -24,11 +31,14 @@ class HomePage extends StatefulWidget {
   HomePageState createState() => HomePageState();
 }
 
-class HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   var _selectedIndex = 0;
   int get selectedIndex => _selectedIndex;
   final List<PageShape> _pages = [];
   int _chatPageTabIndex = -1;
+  late final FirstRunPermissionFlow _firstRunPermissionFlow;
+  Completer<void>? _accessibilityReturn;
+  bool _leftForAccessibilitySettings = false;
   bool get isChatPageCurrentTab => isAndroid
       ? _selectedIndex == _chatPageTabIndex
       : false; // change this when ios have chat page
@@ -42,7 +52,126 @@ class HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _firstRunPermissionFlow = FirstRunPermissionFlow([
+      () async {
+        await gFFI.serverModel.checkRequestNotificationPermission();
+      },
+      () => _requestPermissionIfMissing(kRecordAudio),
+      () => _requestPermissionIfMissing(kRequestIgnoreBatteryOptimizations),
+      () async {
+        await gFFI.serverModel.checkFloatingWindowPermission();
+      },
+      () => _requestPermissionIfMissing(kManageExternalStorage),
+      _requestAccessibilityPermission,
+      _ensureScreenCaptureStarted,
+    ]);
     initPages();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _runFirstLaunchAuthorization();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    final waiting = _accessibilityReturn;
+    if (waiting != null && !waiting.isCompleted) {
+      waiting.complete();
+    }
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final waiting = _accessibilityReturn;
+    if (waiting == null || waiting.isCompleted) {
+      return;
+    }
+    if (state == AppLifecycleState.resumed && _leftForAccessibilitySettings) {
+      waiting.complete();
+    } else if (state != AppLifecycleState.resumed) {
+      _leftForAccessibilitySettings = true;
+    }
+  }
+
+  Future<void> _runFirstLaunchAuthorization() async {
+    if (!isAndroid || bind.isOutgoingOnly() || !mounted) {
+      return;
+    }
+    try {
+      if (bind.mainGetLocalOption(key: _kFirstRunAuthorization) != 'Y') {
+        RuntimeLogger.instance
+            .info('ANDROID', 'first-run authorization sequence started');
+        await _firstRunPermissionFlow.run();
+        await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
+        RuntimeLogger.instance
+            .info('ANDROID', 'first-run authorization sequence finished');
+      } else {
+        await _ensureScreenCaptureStarted();
+      }
+    } catch (error, stackTrace) {
+      RuntimeLogger.instance.error(
+          'ANDROID', 'first-run authorization failed: $error\n$stackTrace');
+    }
+  }
+
+  Future<void> _requestPermissionIfMissing(String type) async {
+    if (await AndroidPermissionManager.check(type)) {
+      return;
+    }
+    final granted = await AndroidPermissionManager.request(type);
+    RuntimeLogger.instance.info(
+        'ANDROID', 'permission request completed; type=$type granted=$granted');
+  }
+
+  Future<void> _requestAccessibilityPermission() async {
+    if (await AndroidPermissionManager.checkAccessibility()) {
+      return;
+    }
+
+    final waiting = Completer<void>();
+    _accessibilityReturn = waiting;
+    _leftForAccessibilitySettings = false;
+    final opened = await AndroidPermissionManager.startAction(
+        kActionAccessibilityDetailsSettings);
+    if (!opened && !waiting.isCompleted) {
+      waiting.complete();
+    }
+    try {
+      await waiting.future.timeout(const Duration(minutes: 5));
+    } on TimeoutException {
+      RuntimeLogger.instance.warn(
+          'ANDROID', 'accessibility settings did not return within 5 minutes');
+    } finally {
+      _accessibilityReturn = null;
+      _leftForAccessibilitySettings = false;
+    }
+
+    final granted = await AndroidPermissionManager.checkAccessibility();
+    await gFFI.invokeMethod('check_service');
+    RuntimeLogger.instance
+        .info('ANDROID', 'accessibility request completed; granted=$granted');
+  }
+
+  Future<void> _ensureScreenCaptureStarted() async {
+    if (!mounted || gFFI.serverModel.isStart) {
+      return;
+    }
+    final mediaReady =
+        await gFFI.invokeMethod('check_video_permission') == true;
+    if (mediaReady) {
+      return;
+    }
+
+    await gFFI.serverModel.startService();
+    for (var i = 0; i < 240 && mounted; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (await gFFI.invokeMethod('check_video_permission') == true ||
+          !gFFI.serverModel.isStart) {
+        break;
+      }
+    }
   }
 
   void initPages() {

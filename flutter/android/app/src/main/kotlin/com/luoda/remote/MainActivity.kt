@@ -173,11 +173,13 @@ class MainActivity : FlutterActivity() {
                 }
                 START_ACTION -> {
                     if (call.arguments is String) {
-                        startAction(context, call.arguments as String)
-                        result.success(true)
+                        result.success(startAction(context, call.arguments as String))
                     } else {
                         result.success(false)
                     }
+                }
+                "check_input_permission" -> {
+                    result.success(InputService.isOpen)
                 }
                 "check_video_permission" -> {
                     mainService?.let {

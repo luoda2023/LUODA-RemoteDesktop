@@ -419,6 +419,8 @@ const kMobileDelaySoftKeyboardFocus = Duration(milliseconds: 30);
 const kActionApplicationDetailsSettings =
     "android.settings.APPLICATION_DETAILS_SETTINGS";
 const kActionAccessibilitySettings = "android.settings.ACCESSIBILITY_SETTINGS";
+const kActionAccessibilityDetailsSettings =
+    "android.settings.ACCESSIBILITY_DETAILS_SETTINGS";
 
 const kRecordAudio = "android.permission.RECORD_AUDIO";
 const kManageExternalStorage = "android.permission.MANAGE_EXTERNAL_STORAGE";
