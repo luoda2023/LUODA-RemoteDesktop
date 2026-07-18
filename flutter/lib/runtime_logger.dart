@@ -52,6 +52,9 @@ class RuntimeLogger {
       final home = Platform.environment['HOME'] ?? '/tmp';
       return '$home/Library/Logs/LUODA';
     }
+    if (Platform.isAndroid || Platform.isIOS) {
+      return '${Directory.systemTemp.path}/LUODA/logs';
+    }
     final home = Platform.environment['HOME'] ?? '/tmp';
     return '$home/.config/luoda/logs';
   }

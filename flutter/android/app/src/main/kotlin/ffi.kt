@@ -8,9 +8,15 @@ import java.nio.ByteBuffer
 import com.luoda.remote.RdClipboardManager
 
 object FFI {
-    init {
+    val loadError: Throwable? = try {
         System.loadLibrary("luoda")
+        null
+    } catch (error: Throwable) {
+        error
     }
+
+    val isLoaded: Boolean
+        get() = loadError == null
 
     external fun init(ctx: Context)
     external fun onAppStart(ctx: Context)

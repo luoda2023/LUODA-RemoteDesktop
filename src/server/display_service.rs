@@ -444,9 +444,10 @@ pub fn try_get_displays_add_amyuni_headless() -> ResultType<Vec<Display>> {
 pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> {
     let mut displays = Display::all()?;
 
-    // Do not add virtual display if the platform is not installed or the virtual display is not supported.
-    if !crate::platform::is_installed() || !virtual_display_manager::is_virtual_display_supported()
-    {
+    // Portable builds package the signed driver and can request elevation for
+    // its one-time installation, so headless recovery must not require a
+    // previously installed LUODA service.
+    if !virtual_display_manager::is_virtual_display_supported() {
         return Ok(displays);
     }
 
@@ -481,11 +482,10 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
         if let Err(e) = virtual_display_manager::plug_in_headless() {
             log::error!("plug in headless failed {}", e);
         } else {
- // amyuni 驱动是异步安装的,plug_in_headless 后显示器可能还没被 Windows 识别,
- // 首次在 VPS 上安装驱动可能需要 30+ 秒 (下载+注册+系统识别+设备栈刷新)。
- // 这里轮询等待最多 60 秒,每 500ms 重新检测一次。
- let wait_deadline =
- std::time::Instant::now() + std::time::Duration::from_secs(60);
+            // amyuni 驱动是异步安装的,plug_in_headless 后显示器可能还没被 Windows 识别,
+            // 首次在 VPS 上安装驱动可能需要 30+ 秒 (下载+注册+系统识别+设备栈刷新)。
+            // 这里轮询等待最多 60 秒,每 500ms 重新检测一次。
+            let wait_deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
             loop {
                 match Display::all() {
                     Ok(d) => {

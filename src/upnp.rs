@@ -9,19 +9,19 @@
 use hbb_common::log::{info, warn};
 
 /// 尝试为指定端口添加 UPnP 端口映射（TCP）。
-/// 返回是否成功添加了映射。
-pub fn add_port_mapping(port: u16) -> Option<u16> {
+/// Returns the external port or a diagnostic error for the UI/runtime log.
+pub fn add_port_mapping(port: u16) -> Result<u16, String> {
     match try_add_mapping(port) {
         Ok(external_port) => {
             info!(
                 "UPnP: mapped external TCP:{} to local TCP:{}",
                 external_port, port
             );
-            Some(external_port)
+            Ok(external_port)
         }
         Err(e) => {
             warn!("UPnP: failed to map local TCP:{}: {}", port, e);
-            None
+            Err(e.to_string())
         }
     }
 }
@@ -119,6 +119,9 @@ fn get_local_lan_ip() -> Option<std::net::Ipv4Addr> {
     // 走的是 10.x.x.x 网卡，UDP connect 法返回的就只能是 10.x.x.x）。
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
+        let default_interface_index = default_net::get_default_interface()
+            .ok()
+            .map(|interface| interface.index);
         let ifaces: Vec<default_net::interface::Interface> =
             default_net::interface::get_interfaces();
         let candidates: Vec<crate::direct_access::LanAddressCandidate> = ifaces
@@ -138,7 +141,7 @@ fn get_local_lan_ip() -> Option<std::net::Ipv4Addr> {
                     crate::direct_access::LanAddressCandidate {
                         address: ipnet.addr,
                         name: iface.name.clone(),
-                        is_default: false,
+                        is_default: default_interface_index == Some(iface.index),
                         has_gateway: iface.gateway.is_some(),
                         is_physical,
                     }

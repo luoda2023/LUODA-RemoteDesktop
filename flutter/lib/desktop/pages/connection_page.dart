@@ -57,6 +57,9 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   @override
   void initState() {
     super.initState();
+    if (!_svcStopped.value) {
+      stateGlobal.svcStatus.value = SvcStatus.connecting;
+    }
     _updateTimer = periodic_immediate(Duration(seconds: 1), () async {
       await updateStatus();
     });
@@ -71,13 +74,6 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   @override
   Widget build(BuildContext context) {
     final isIncomingOnly = bind.isIncomingOnly();
-    final status = stateGlobal.svcStatus.value;
-    final isReady = !_svcStopped.value && status == SvcStatus.ready;
-    final statusColor = _svcStopped.value || status == SvcStatus.notReady
-        ? Colors.grey
-        : isReady
-            ? const Color.fromARGB(255, 50, 190, 166)
-            : Colors.orange;
 
     startServiceWidget() => Offstage(
           offstage: !_svcStopped.value,
@@ -91,50 +87,61 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
               .marginOnly(left: em),
         );
 
-    basicWidget() => Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              height: 10,
-              width: 10,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(5),
-                color: statusColor,
-              ),
-            ).marginSymmetric(horizontal: em),
-            Flexible(
-              child: SizedBox(
-                width: isIncomingOnly ? 226 : null,
-                child: isReady
-                    ? _ServerAddressWidget(em: emForStatus, suffix: '已连接')
-                    : _buildConnStatusMsg(),
-              ),
+    basicWidget(SvcStatus status) {
+      final isReady = !_svcStopped.value && status == SvcStatus.ready;
+      final statusColor = _svcStopped.value || status == SvcStatus.notReady
+          ? Colors.grey
+          : isReady
+              ? const Color.fromARGB(255, 50, 190, 166)
+              : Colors.orange;
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            height: 10,
+            width: 10,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(5),
+              color: statusColor,
             ),
-            if (!isIncomingOnly) startServiceWidget(),
-          ],
-        );
+          ).marginSymmetric(horizontal: em),
+          Flexible(
+            child: SizedBox(
+              width: isIncomingOnly ? 226 : null,
+              child: isReady
+                  ? _ServerAddressWidget(em: emForStatus, suffix: '已连接')
+                  : _buildConnStatusMsg(status),
+            ),
+          ),
+          if (!isIncomingOnly) startServiceWidget(),
+        ],
+      );
+    }
 
     return Container(
       height: height,
-      child: Obx(() => isIncomingOnly
-          ? Column(
-              children: [
-                basicWidget(),
-                Align(
-                        child: startServiceWidget(),
-                        alignment: Alignment.centerLeft)
-                    .marginOnly(top: 2.0, left: 22.0),
-              ],
-            )
-          : basicWidget()),
+      child: Obx(() {
+        final status = stateGlobal.svcStatus.value;
+        return isIncomingOnly
+            ? Column(
+                children: [
+                  basicWidget(status),
+                  Align(
+                          child: startServiceWidget(),
+                          alignment: Alignment.centerLeft)
+                      .marginOnly(top: 2.0, left: 22.0),
+                ],
+              )
+            : basicWidget(status);
+      }),
     ).paddingOnly(right: isIncomingOnly ? 8 : 0);
   }
 
-  _buildConnStatusMsg() {
+  _buildConnStatusMsg(SvcStatus status) {
     return Text(
       _svcStopped.value
           ? translate("Service is not running")
-          : stateGlobal.svcStatus.value == SvcStatus.connecting
+          : status == SvcStatus.connecting
               ? translate("connecting_status")
               : translate("not_ready_status"),
       style: TextStyle(fontSize: emForStatus),
@@ -146,11 +153,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
       final status =
           jsonDecode(await bind.mainGetConnectStatus()) as Map<String, dynamic>;
       final statusNum = status['status_num'] as int;
-      final nextStatus = statusNum > 0
-          ? SvcStatus.ready
-          : statusNum == 0
-              ? SvcStatus.connecting
-              : SvcStatus.notReady;
+      final nextStatus = statusNum > 0 ? SvcStatus.ready : SvcStatus.connecting;
       final previousStatus = stateGlobal.svcStatus.value;
       if (previousStatus != nextStatus) {
         stateGlobal.svcStatus.value = nextStatus;

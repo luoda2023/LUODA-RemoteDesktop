@@ -63,20 +63,20 @@ fn lan_candidate_score(candidate: &LanAddressCandidate) -> i32 {
         score += 50;
     }
 
-    // 默认路由网卡（系统偏好）
-    if candidate.is_default {
-        score += 100;
+    // UPnP must use the gateway-facing adapter, except when the default route
+    // is a VPN or another virtual tunnel.
+    if candidate.is_default && !is_virtual {
+        score += 10_000;
     }
 
-    // IP 段优先级：192.168.x.x >> 10.x.x.x >> 172.16-31.x.x
-    // 大幅拉开差距，确保 192.168 在任何情况下都能胜出
+    // Prefer common home-LAN ranges when no physical default route is known.
     let oct = candidate.address.octets();
     if oct[0] == 192 && oct[1] == 168 {
-        score += 5000;  // 家用网络 — 极高优先级
+        score += 5000; // 家用网络 — 极高优先级
     } else if oct[0] == 10 {
-        score += 200;   // 企业网络
+        score += 200; // 企业网络
     } else if oct[0] == 172 && (16..=31).contains(&oct[1]) {
-        score += 100;   // 其他私有地址
+        score += 100; // 其他私有地址
     }
     score
 }
@@ -139,7 +139,7 @@ mod tests {
 
         assert_eq!(
             choose_lan_ipv4(&candidates),
-            Some(Ipv4Addr::new(192, 168, 2, 10))
+            Some(Ipv4Addr::new(10, 16, 1, 20))
         );
     }
 

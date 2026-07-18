@@ -803,11 +803,20 @@ fn run(vs: VideoService) -> ResultType<()> {
                 }
                 #[cfg(windows)]
                 {
-                    #[cfg(feature = "vram")]
-                    if try_gdi == 1 && !c.is_gdi() {
-                        VRamEncoder::set_fallback_gdi(sp.name(), false);
+                    if frame.valid() {
+                        #[cfg(feature = "vram")]
+                        if try_gdi == 1 && !c.is_gdi() {
+                            VRamEncoder::set_fallback_gdi(sp.name(), false);
+                        }
+                        try_gdi = 0;
+                    } else if try_gdi > 0 && !c.is_gdi() {
+                        try_gdi += 1;
+                        if try_gdi > 3 {
+                            c.set_gdi();
+                            try_gdi = 0;
+                            log::info!("Invalid DXGI frames, fall back to gdi");
+                        }
                     }
-                    try_gdi = 0;
                 }
                 Ok(())
             }
@@ -818,12 +827,12 @@ fn run(vs: VideoService) -> ResultType<()> {
             Err(ref e) if e.kind() == WouldBlock => {
                 #[cfg(windows)]
                 if try_gdi > 0 && !c.is_gdi() {
+                    try_gdi += 1;
                     if try_gdi > 3 {
                         c.set_gdi();
                         try_gdi = 0;
                         log::info!("No image, fall back to gdi");
                     }
-                    try_gdi += 1;
                 }
                 #[cfg(target_os = "linux")]
                 {

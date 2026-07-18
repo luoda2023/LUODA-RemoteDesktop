@@ -466,10 +466,15 @@ pub mod amyuni_idd {
         args.push(0);
         let mut exe_file = INSTALLER_EXE_FILE.bytes().collect::<Vec<_>>();
         exe_file.push(0);
+        let verb = if crate::platform::is_root() {
+            "open\0"
+        } else {
+            "runas\0"
+        };
         let hi = unsafe {
             ShellExecuteA(
                 null_mut(),
-                "open\0".as_ptr() as _,
+                verb.as_ptr() as _,
                 exe_file.as_ptr() as _,
                 args.as_ptr() as _,
                 work_dir.as_ptr() as _,

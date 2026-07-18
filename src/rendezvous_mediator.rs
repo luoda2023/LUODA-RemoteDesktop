@@ -830,13 +830,18 @@ async fn direct_server(server: ServerPtr) {
                     {
                         let upnp_port = port as u16;
                         Config::set_option("upnp-status".to_owned(), "pending".to_owned());
+                        Config::set_option("upnp-error".to_owned(), "".to_owned());
                         Config::set_option("direct-access-public-port".to_owned(), "".to_owned());
                         std::thread::spawn(move || {
                             let mut mapped_port = None;
+                            let mut last_error = String::new();
                             for attempt in 1..=3 {
-                                mapped_port = crate::upnp::add_port_mapping(upnp_port);
-                                if mapped_port.is_some() {
-                                    break;
+                                match crate::upnp::add_port_mapping(upnp_port) {
+                                    Ok(port) => {
+                                        mapped_port = Some(port);
+                                        break;
+                                    }
+                                    Err(error) => last_error = error,
                                 }
                                 if attempt < 3 {
                                     std::thread::sleep(Duration::from_secs(2 * attempt));
@@ -852,8 +857,10 @@ async fn direct_server(server: ServerPtr) {
                                     "direct-access-public-port".to_owned(),
                                     external_port.to_string(),
                                 );
+                                Config::set_option("upnp-error".to_owned(), "".to_owned());
                                 Config::set_option("upnp-status".to_owned(), "ok".to_owned());
                             } else {
+                                Config::set_option("upnp-error".to_owned(), last_error);
                                 Config::set_option("upnp-status".to_owned(), "fail".to_owned());
                             }
                         });

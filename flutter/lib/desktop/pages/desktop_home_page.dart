@@ -58,6 +58,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   String _lastPort = '';
   String _lastPublicPort = '';
   String _lastUpnpStatus = '';
+  String _lastUpnpError = '';
 
   final RxBool _settingsHover = false.obs;
   final RxBool _relayHover = false.obs;
@@ -684,6 +685,7 @@ Positioned(
     final publicPort =
         bind.mainGetOptionSync(key: 'direct-access-public-port');
     final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
+    final upnpError = bind.mainGetOptionSync(key: 'upnp-error');
     final upnpOk = upnpStatus == 'ok';
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
 
@@ -738,6 +740,7 @@ Positioned(
             hasAddr: publicAddr.isNotEmpty,
             textColor: textColor,
             upnpStatus: upnpStatus,
+            upnpError: upnpError,
             showUpnp: true,
           ),
           // 内网 IP 卡片 —— 仅在常用网段才显示
@@ -750,6 +753,7 @@ Positioned(
               hasAddr: lanAddr.isNotEmpty,
               textColor: textColor,
               upnpStatus: '',
+              upnpError: '',
               showUpnp: false,
             ),
           ],
@@ -767,6 +771,7 @@ Positioned(
       required bool hasAddr,
       required Color? textColor,
       required String upnpStatus,
+      required String upnpError,
       required bool showUpnp}) {
     final naText = translate('Not available');
     final displayText = addr.isNotEmpty ? addr : naText;
@@ -778,6 +783,7 @@ Positioned(
             : upnpPending
                 ? '$addr\n正在自动映射端口'
                 : '$addr\n自动映射失败，请检查路由器 UPnP 或配置端口转发'
+                    '${upnpError.isEmpty ? '' : '\n$upnpError'}'
         : (addr.isNotEmpty ? addr : naText);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1324,21 +1330,25 @@ Positioned(
     final publicPort =
         bind.mainGetOptionSync(key: 'direct-access-public-port');
     final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
+    final upnpError = bind.mainGetOptionSync(key: 'upnp-error');
     if (ip != _lastIp ||
         port != _lastPort ||
         publicPort != _lastPublicPort ||
-        upnpStatus != _lastUpnpStatus) {
-      if (upnpStatus != _lastUpnpStatus) {
+        upnpStatus != _lastUpnpStatus ||
+        upnpError != _lastUpnpError) {
+      if (upnpStatus != _lastUpnpStatus || upnpError != _lastUpnpError) {
         RuntimeLogger.instance.info(
           'UPNP',
           'status=${upnpStatus.isEmpty ? 'unknown' : upnpStatus}; '
-              'external_port=${publicPort.isEmpty ? 'none' : publicPort}',
+              'external_port=${publicPort.isEmpty ? 'none' : publicPort}; '
+              'error=${upnpError.isEmpty ? 'none' : upnpError}',
         );
       }
       _lastIp = ip;
       _lastPort = port;
       _lastPublicPort = publicPort;
       _lastUpnpStatus = upnpStatus;
+      _lastUpnpError = upnpError;
       setState(() {});
     }
   }

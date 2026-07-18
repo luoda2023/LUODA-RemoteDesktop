@@ -149,6 +149,16 @@ jobs:
             done
           fi
           ls -la Release/sciter.dll 2>/dev/null || echo "WARN: sciter.dll not found!"
+          echo "=== Adding signed headless display driver ==="
+          DRIVER_ZIP="usbmmidd_v2.zip"
+          DRIVER_SHA256="629b51e9944762bae73948171c65d09a79595cf4c771a82ebc003fba5b24f51"
+          curl -fL --retry 3 --retry-delay 3 -o "$DRIVER_ZIP" "https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip"
+          echo "$DRIVER_SHA256  $DRIVER_ZIP" | sha256sum -c -
+          unzip -q "$DRIVER_ZIP" -d Release
+          test -f Release/usbmmidd_v2/usbmmIdd.inf
+          test -f Release/usbmmidd_v2/usbmmidd.cat
+          test -f Release/usbmmidd_v2/x64/usbmmIdd.dll
+          test -f Release/usbmmidd_v2/License.txt
           echo "=== Release directory ==="
           ls -la Release/
           pip3 install brotli

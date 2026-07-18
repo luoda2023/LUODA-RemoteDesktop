@@ -9,6 +9,7 @@ package com.luoda.remote
 
 import ffi.FFI
 
+import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -52,6 +53,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        if (!FFI.isLoaded) {
+            return
+        }
         if (MainService.isReady) {
             Intent(activity, MainService::class.java).also {
                 bindService(it, serviceConnection, Context.BIND_AUTO_CREATE)
@@ -98,6 +102,18 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!FFI.isLoaded) {
+            AlertDialog.Builder(this)
+                .setTitle("LUODA startup failed")
+                .setMessage(
+                    "The native library for this phone could not be loaded. " +
+                        "Please install the universal APK.\n\n${FFI.loadError}"
+                )
+                .setPositiveButton(android.R.string.ok) { _, _ -> finish() }
+                .setCancelable(false)
+                .show()
+            return
+        }
         if (_rdClipboardManager == null) {
             _rdClipboardManager = RdClipboardManager(getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
             FFI.setClipboardManager(_rdClipboardManager!!)

@@ -1681,7 +1681,21 @@ impl Connection {
 
             match super::display_service::update_get_sync_displays_on_login().await {
                 Err(err) => {
-                    res.set_error(format!("{}", err));
+                    log::warn!(
+                        "display discovery failed; sending empty PeerInfo instead of stalling login: {}",
+                        err
+                    );
+                    pi.displays = Vec::new();
+                    pi.current_display = self.display_idx as _;
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    {
+                        pi.resolutions = Some(SupportedResolutions {
+                            resolutions: vec![],
+                            ..Default::default()
+                        })
+                        .into();
+                    }
+                    res.set_peer_info(pi);
                 }
                 Ok(displays) => {
                     // For compatibility with old versions, we need to send the displays to the peer.
@@ -1806,7 +1820,12 @@ impl Connection {
     }
 
     #[cfg(windows)]
-    fn handle_windows_specific_session(&mut self, pi: &mut PeerInfo, wait_session_id_confirm: &mut bool) { }
+    fn handle_windows_specific_session(
+        &mut self,
+        pi: &mut PeerInfo,
+        wait_session_id_confirm: &mut bool,
+    ) {
+    }
 
     fn on_remote_authorized(&self) {
         self.update_codec_on_login();

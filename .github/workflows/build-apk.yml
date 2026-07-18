@@ -82,7 +82,7 @@ jobs:
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: "1.88"
-          targets: aarch64-linux-android,x86_64-linux-android
+          targets: armv7-linux-androideabi,aarch64-linux-android,x86_64-linux-android
 
       - name: Install rustfmt
         run: rustup component add rustfmt
@@ -185,8 +185,12 @@ jobs:
           OPUS_INCLUDE=${{ env.OPUS_INCLUDE_PATH }}
           VPX_INCLUDE=${{ env.VPX_INCLUDE_PATH }}
 
-          for TARGET_ABI in arm64-v8a x86_64; do
+          for TARGET_ABI in armeabi-v7a arm64-v8a x86_64; do
             case $TARGET_ABI in
+              armeabi-v7a)
+                RUST_TARGET=armv7-linux-androideabi
+                VCPKG_TRIPLET=arm-neon-android
+                ;;
               arm64-v8a)
                 RUST_TARGET=aarch64-linux-android
                 VCPKG_TRIPLET=arm64-android
@@ -343,6 +347,7 @@ jobs:
             name="$(basename "$apk")"
             case "$name" in
               app-release.apk) out="LUODA-universal.apk" ;;
+              app-armeabi-v7a-release.apk) out="LUODA-armeabi-v7a.apk" ;;
               app-arm64-v8a-release.apk) out="LUODA-arm64-v8a.apk" ;;
               app-x86_64-release.apk) out="LUODA-x86_64.apk" ;;
               *) out="LUODA-${name#app-}" ;;
@@ -352,6 +357,34 @@ jobs:
 
           echo "=== Collected APK artifacts ==="
           ls -lh "$DIST_DIR"/*.apk
+
+      - name: Verify APK native libraries and signatures
+        run: |
+          set -euo pipefail
+          DIST_DIR=flutter/build/app/outputs/dist-apk
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+          test -x "$APKSIGNER"
+
+          verify_native_lib() {
+            apk="$1"
+            abi="$2"
+            if ! unzip -Z1 "$apk" | grep -Fxq "lib/$abi/libluoda.so"; then
+              echo "ERROR: $(basename "$apk") is missing lib/$abi/libluoda.so"
+              exit 1
+            fi
+          }
+
+          verify_native_lib "$DIST_DIR/LUODA-armeabi-v7a.apk" "armeabi-v7a"
+          verify_native_lib "$DIST_DIR/LUODA-arm64-v8a.apk" "arm64-v8a"
+          verify_native_lib "$DIST_DIR/LUODA-x86_64.apk" "x86_64"
+          verify_native_lib "$DIST_DIR/LUODA-universal.apk" "armeabi-v7a"
+          verify_native_lib "$DIST_DIR/LUODA-universal.apk" "arm64-v8a"
+          verify_native_lib "$DIST_DIR/LUODA-universal.apk" "x86_64"
+
+          for apk in "$DIST_DIR"/*.apk; do
+            "$APKSIGNER" verify --verbose "$apk"
+          done
+          echo "OK: every APK contains its required LUODA native library and has a valid signature"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
