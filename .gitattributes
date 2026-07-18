@@ -22,3 +22,5 @@
 *.pdf binary
 *.dll binary
 *.exe binary
+*.keystore binary
+*.jks binary
