@@ -27,12 +27,14 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.util.DisplayMetrics
 import androidx.annotation.RequiresApi
+import androidx.core.content.FileProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import com.hjq.permissions.XXPermissions
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import kotlin.concurrent.thread
 
 
@@ -248,6 +250,10 @@ class MainActivity : FlutterActivity() {
                     rdClipboardManager?.syncClipboard(true)
                     result.success(true)
                 }
+                "share_runtime_log" -> {
+                    val path = call.arguments as? String
+                    result.success(path != null && shareRuntimeLog(path))
+                }
                 GET_START_ON_BOOT_OPT -> {
                     val prefs = getSharedPreferences(KEY_SHARED_PREFERENCES, MODE_PRIVATE)
                     result.success(prefs.getBoolean(KEY_START_ON_BOOT_OPT, false))
@@ -295,6 +301,34 @@ class MainActivity : FlutterActivity() {
                     result.error("-1", "No such method", null)
                 }
             }
+        }
+    }
+
+    private fun shareRuntimeLog(path: String): Boolean {
+        return try {
+            val logFile = File(path).canonicalFile
+            val cacheRoot = cacheDir.canonicalFile
+            val cachePrefix = cacheRoot.path + File.separator
+            if (!logFile.isFile || !logFile.path.startsWith(cachePrefix)) {
+                Log.e(logTag, "Rejected runtime log path: $path")
+                return false
+            }
+
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                logFile
+            )
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(shareIntent, "导出运行日志"))
+            true
+        } catch (error: Exception) {
+            Log.e(logTag, "Unable to share runtime log", error)
+            false
         }
     }
 

@@ -17,6 +17,7 @@ import '../../common/widgets/login.dart';
 import '../../consts.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
+import '../../runtime_logger.dart';
 import '../widgets/dialog.dart';
 import 'home_page.dart';
 import 'scan_page.dart';
@@ -267,6 +268,15 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
       return true;
     } else {
       return false;
+    }
+  }
+
+  Future<void> _shareRuntimeLog() async {
+    final shared = await RuntimeLogger.instance.share((path) async {
+      return await gFFI.invokeMethod('share_runtime_log', path) == true;
+    });
+    if (!shared) {
+      showToast(translate('Runtime log is unavailable'));
     }
   }
 
@@ -974,6 +984,12 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                     child: Text(_fingerprint),
                   ),
                   leading: Icon(Icons.fingerprint)),
+            if (isAndroid)
+              SettingsTile(
+                title: Text(translate('Export runtime log')),
+                leading: Icon(Icons.file_upload_outlined),
+                onPressed: (_) => _shareRuntimeLog(),
+              ),
             SettingsTile(
               title: Text(translate("Privacy Statement")),
               onPressed: (context) =>

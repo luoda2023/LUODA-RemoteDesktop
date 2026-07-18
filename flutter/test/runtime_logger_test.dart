@@ -16,11 +16,24 @@ Future<void> main() async {
   logger.info('TEST', 'runtime logging works');
   logger.error('TEST', 'line one\nline two');
 
+  String? sharedPath;
+  final shared = await logger.share((path) async {
+    sharedPath = path;
+    return true;
+  });
+
   final contents = file.readAsStringSync();
   if (logger.logPath != file.path ||
+      !shared ||
+      sharedPath != file.path ||
       !contents.contains('[INFO] [TEST] runtime logging works') ||
       !contents.contains('[ERROR] [TEST] line one\n    line two')) {
     throw StateError('runtime logger did not persist the expected entries');
+  }
+
+  final uninitializedLogger = RuntimeLogger.forTesting();
+  if (await uninitializedLogger.share((_) async => true)) {
+    throw StateError('uninitialized runtime logger must not export a file');
   }
 
   file.deleteSync();

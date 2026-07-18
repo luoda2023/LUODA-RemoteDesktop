@@ -100,4 +100,17 @@ class RuntimeLogger {
   void error(String tag, String message) => _write('ERROR', tag, message);
 
   void debug(String tag, String message) => _write('DEBUG', tag, message);
+
+  Future<bool> share(Future<bool> Function(String path) shareFile) async {
+    final file = _logFile;
+    if (!_enabled || file == null || !file.existsSync()) {
+      return false;
+    }
+    try {
+      return await shareFile(file.path);
+    } catch (error) {
+      _write('ERROR', 'SYSTEM', 'runtime log export failed: $error');
+      return false;
+    }
+  }
 }
