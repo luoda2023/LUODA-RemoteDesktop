@@ -743,6 +743,12 @@ pub mod client {
         {
             let mut option = SHMEM.lock().unwrap();
             if let Some(shmem) = option.as_mut() {
+                // Publish recreate only after resetting the old frame. Otherwise the
+                // service can publish a new frame between these writes and lose it.
+                unsafe {
+                    utils::reset_counter(shmem.as_ptr().add(ADDR_CAPTURE_FRAME_COUNTER));
+                }
+                utils::set_i32(shmem, ADDR_CAPTURE_WOULDBLOCK, TRUE);
                 utils::set_para(
                     shmem,
                     CapturerPara {
@@ -751,10 +757,6 @@ pub mod client {
                         timeout_ms: 33,
                     },
                 );
-                utils::set_i32(shmem, ADDR_CAPTURE_WOULDBLOCK, TRUE);
-                unsafe {
-                    utils::reset_counter(shmem.as_ptr().add(ADDR_CAPTURE_FRAME_COUNTER));
-                }
             }
             crate::runtime_logger::info(
                 "VIDEO",
