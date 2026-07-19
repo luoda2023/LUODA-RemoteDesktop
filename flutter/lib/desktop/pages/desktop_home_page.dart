@@ -870,6 +870,15 @@ Positioned(
                     ),
                     if (hasAddr)
                       IconButton(
+                        tooltip: translate('Connect'),
+                        padding: EdgeInsets.zero,
+                        constraints:
+                            BoxConstraints.tightFor(width: 24, height: 24),
+                        icon: Icon(Icons.link_outlined, size: 14),
+                        onPressed: () => connect(context, addr),
+                      ),
+                    if (hasAddr)
+                      IconButton(
                         tooltip: translate('Copy'),
                         padding: EdgeInsets.zero,
                         constraints:

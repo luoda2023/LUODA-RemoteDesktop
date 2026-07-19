@@ -61,6 +61,7 @@ use std::{
 };
 
 pub const OPTION_REFRESH: &'static str = "refresh";
+const OPTION_FIRST_FRAME_ERROR_SENT: &str = "first-frame-error-sent";
 
 type FrameFetchedNotifierSender = UnboundedSender<(i32, Option<Instant>)>;
 type FrameFetchedNotifierReceiver = Arc<TokioMutex<UnboundedReceiver<(i32, Option<Instant>)>>>;
@@ -827,6 +828,7 @@ fn run(vs: VideoService) -> ResultType<()> {
                     #[cfg(windows)]
                     if !first_frame_sent && !send_conn_ids.is_empty() {
                         first_frame_sent = true;
+                        sp.set_option_bool(OPTION_FIRST_FRAME_ERROR_SENT, false);
                         log::info!(
                             "first video frame sent; display={display_idx}; subscribers={}",
                             send_conn_ids.len()
@@ -925,6 +927,7 @@ fn run(vs: VideoService) -> ResultType<()> {
                         #[cfg(windows)]
                         if !first_frame_sent && !send_conn_ids.is_empty() {
                             first_frame_sent = true;
+                            sp.set_option_bool(OPTION_FIRST_FRAME_ERROR_SENT, false);
                             log::info!(
                                 "first video frame sent; display={display_idx}; subscribers={}",
                                 send_conn_ids.len()
@@ -981,9 +984,24 @@ fn run(vs: VideoService) -> ResultType<()> {
                 first_frame_wait_started.elapsed(),
             )
         {
+            if !sp.is_option_true(OPTION_FIRST_FRAME_ERROR_SENT) {
+                let mut msg = Message::new();
+                msg.set_message_box(MessageBox {
+                    msgtype: "error".to_owned(),
+                    title: "Error".to_owned(),
+                    text: "No displays".to_owned(),
+                    link: "".to_owned(),
+                    ..Default::default()
+                });
+                sp.send(msg);
+                sp.set_option_bool(OPTION_FIRST_FRAME_ERROR_SENT, true);
+            }
             crate::runtime_logger::warn(
                 "VIDEO",
-                &format!("first frame timeout; display={display_idx}; restarting capturer"),
+                &format!(
+                    "first frame timeout; display={display_idx}; restarting capturer; notified={}",
+                    sp.is_option_true(OPTION_FIRST_FRAME_ERROR_SENT)
+                ),
             );
             bail!("First video frame timeout");
         }
