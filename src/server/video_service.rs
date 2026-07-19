@@ -742,6 +742,13 @@ fn run(vs: VideoService) -> ResultType<()> {
                 }
                 repeat_encode_counter = 0;
                 if frame.valid() {
+                    #[cfg(windows)]
+                    if !first_frame_sent {
+                        crate::runtime_logger::info(
+                            "VIDEO",
+                            &format!("capturer delivered first frame; display={display_idx}"),
+                        );
+                    }
                     let screenshot = SCREENSHOTS.lock().unwrap().remove(&display_idx);
                     if let Some(mut screenshot) = screenshot {
                         let restore_vram = screenshot.restore_vram;
@@ -786,6 +793,15 @@ fn run(vs: VideoService) -> ResultType<()> {
                     }
 
                     let frame = frame.to(encoder.yuvfmt(), &mut yuv, &mut mid_data)?;
+                    #[cfg(windows)]
+                    if !first_frame_sent {
+                        crate::runtime_logger::info(
+                            "VIDEO",
+                            &format!(
+                                "first frame pixel conversion completed; display={display_idx}"
+                            ),
+                        );
+                    }
                     let send_conn_ids = handle_one_frame(
                         display_idx,
                         &sp,
@@ -798,6 +814,16 @@ fn run(vs: VideoService) -> ResultType<()> {
                         capture_width,
                         capture_height,
                     )?;
+                    #[cfg(windows)]
+                    if !first_frame_sent {
+                        crate::runtime_logger::info(
+                            "VIDEO",
+                            &format!(
+                                "first frame encoding completed; display={display_idx}; subscribers={}",
+                                send_conn_ids.len()
+                            ),
+                        );
+                    }
                     #[cfg(windows)]
                     if !first_frame_sent && !send_conn_ids.is_empty() {
                         first_frame_sent = true;
