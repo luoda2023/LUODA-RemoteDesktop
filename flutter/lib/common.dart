@@ -15,6 +15,7 @@ import 'package:luoda_flutter/main.dart';
 import 'package:luoda_flutter/models/peer_model.dart';
 import 'package:luoda_flutter/models/peer_tab_model.dart';
 import 'package:luoda_flutter/models/state_model.dart';
+import 'package:luoda_flutter/runtime_logger.dart';
 import 'package:luoda_flutter/utils/multi_window_manager.dart';
 import 'package:luoda_flutter/utils/platform_channel.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -1865,8 +1866,19 @@ Future<void> _saveWindowPositionActual(WindowKey key) async {
 
 Future _saveSessionWindowPosition(WindowType windowType, int windowId,
     bool isMaximized, bool isFullscreen, LastWindowPosition pos) async {
-  final remoteList = await DesktopMultiWindow.invokeMethod(
-      windowId, kWindowEventGetRemoteList, null);
+  dynamic remoteList;
+  try {
+    remoteList = await DesktopMultiWindow.invokeMethod(
+        windowId, kWindowEventGetRemoteList, null);
+  } catch (error) {
+    debugPrint(
+        'Skip saving session window position for closed window $windowId: $error');
+    RuntimeLogger.instance.debug(
+      'WINDOW',
+      'skip session position save; window_id=$windowId; error=$error',
+    );
+    return;
+  }
   getPeerPos(String peerId) {
     if (isMaximized || isFullscreen) {
       final peerPos = bind.mainGetPeerFlutterOptionSync(

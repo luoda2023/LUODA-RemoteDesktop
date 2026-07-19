@@ -9,7 +9,9 @@ import 'package:luoda_flutter/common/shared_state.dart';
 import 'package:luoda_flutter/consts.dart';
 import 'package:luoda_flutter/models/input_model.dart';
 import 'package:luoda_flutter/models/state_model.dart';
+import 'package:luoda_flutter/runtime_logger.dart';
 import 'package:luoda_flutter/desktop/pages/remote_page.dart';
+import 'package:luoda_flutter/desktop/session_window_lifecycle.dart';
 import 'package:luoda_flutter/desktop/widgets/remote_toolbar.dart';
 import 'package:luoda_flutter/desktop/widgets/tabbar_widget.dart';
 import 'package:luoda_flutter/desktop/widgets/material_mod_popup_menu.dart'
@@ -358,31 +360,39 @@ class _ConnectionTabPageState extends State<ConnectionTabPage> {
     );
   }
 
-  void onRemoveId(String id) async {
+  void onRemoveId(String id) {
     if (tabController.state.value.tabs.isEmpty) {
-      // Keep calling until the window status is hidden.
-      //
-      // Workaround for Windows:
-      // If you click other buttons and close in msgbox within a very short period of time, the close may fail.
-      // `await WindowController.fromWindowId(windowId()).close();`.
-      Future<void> loopCloseWindow() async {
-        int c = 0;
-        final windowController = WindowController.fromWindowId(windowId());
-        while (c < 20 &&
-            tabController.state.value.tabs.isEmpty &&
-            (!await windowController.isHidden())) {
-          await windowController.close();
-          await Future.delayed(Duration(milliseconds: 100));
-          c++;
-        }
-      }
-
-      loopCloseWindow();
+      unawaited(_deactivateWindowAfterLastSession());
     }
     ConnectionTypeState.delete(id);
     // Clean up relative mouse mode state for this peer.
     stateGlobal.relativeMouseModeState.remove(id);
     _update_remote_count();
+  }
+
+  Future<void> _deactivateWindowAfterLastSession() async {
+    final id = windowId();
+    final windowController = WindowController.fromWindowId(id);
+    RuntimeLogger.instance.info(
+      'WINDOW',
+      'last remote session removed; hiding window_id=$id',
+    );
+    await deactivateEmptySessionWindow(
+      hasSessions: () => tabController.state.value.tabs.isNotEmpty,
+      hide: windowController.hide,
+      unregister: () async {
+        await luodaWinManager
+            .call(WindowType.Main, kWindowEventHide, {'id': id});
+      },
+      reactivate: () => windowOnTop(id),
+      onError: (error, stackTrace) {
+        debugPrint('Failed to deactivate empty remote window $id: $error');
+        RuntimeLogger.instance.warn(
+          'WINDOW',
+          'failed to deactivate empty remote window; window_id=$id; error=$error',
+        );
+      },
+    );
   }
 
   int windowId() {
