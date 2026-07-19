@@ -974,6 +974,22 @@ pub async fn connect(ms_timeout: u64, postfix: &str) -> ResultType<ConnectionTmp
     Ok(ConnectionTmpl::new(client))
 }
 
+/// Read the current rendezvous state from the owning server process.
+///
+/// The Flutter UI normally receives this through the long-lived status
+/// subscription.  A short request/response fallback is needed during startup
+/// and after an IPC reconnect, when the cached value can still be stale.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tokio::main(flavor = "current_thread")]
+pub async fn get_online_status() -> ResultType<(i64, bool)> {
+    let mut c = connect(250, "").await?;
+    c.send(&Data::OnlineStatus(None)).await?;
+    match c.next_timeout(250).await? {
+        Some(Data::OnlineStatus(Some(status))) => Ok(status),
+        _ => bail!("IPC returned no online status"),
+    }
+}
+
 #[cfg(target_os = "linux")]
 #[tokio::main(flavor = "current_thread")]
 pub async fn start_pa() {

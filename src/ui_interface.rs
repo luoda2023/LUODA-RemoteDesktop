@@ -600,6 +600,12 @@ pub fn get_connect_status() -> UiStatus {
 }
 
 #[inline]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub fn set_connect_status_num(status_num: i32) {
+    UI_STATUS.lock().unwrap().status_num = status_num;
+}
+
+#[inline]
 pub fn temporary_password() -> String {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     return password_security::temporary_password();

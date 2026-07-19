@@ -1132,7 +1132,22 @@ pub fn main_get_lan_peers() -> String {
 pub fn main_get_connect_status() -> String {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        serde_json::to_string(&get_connect_status()).unwrap_or("".to_string())
+        let mut status = get_connect_status();
+        if status.status_num <= 0 {
+            match crate::ipc::get_online_status() {
+                Ok((online, _)) if online > 0 => {
+                    status.status_num = 1;
+                    set_connect_status_num(1);
+                    crate::runtime_logger::info(
+                        "NETWORK",
+                        "connect status recovered through direct IPC query",
+                    );
+                }
+                Ok(_) => {}
+                Err(_) => {}
+            }
+        }
+        serde_json::to_string(&status).unwrap_or("".to_string())
     }
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {

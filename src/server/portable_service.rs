@@ -769,6 +769,35 @@ pub mod client {
                 pending_sequence: None,
             }
         }
+
+        fn consume_pending_frame(&mut self) {
+            let Some(sequence) = self.pending_sequence else {
+                return;
+            };
+            let mut option = SHMEM.lock().unwrap();
+            if let Some(shmem) = option.as_mut() {
+                unsafe {
+                    crate::shared_counter::consume_pending(
+                        shmem.as_ptr().add(ADDR_CAPTURE_FRAME_COUNTER),
+                        &mut self.pending_sequence,
+                    );
+                }
+                crate::runtime_logger::info(
+                    "VIDEO",
+                    &format!(
+                        "portable frame released during capturer cleanup; sequence={sequence}"
+                    ),
+                );
+            } else {
+                self.pending_sequence = None;
+            }
+        }
+    }
+
+    impl Drop for CapturerPortable {
+        fn drop(&mut self) {
+            self.consume_pending_frame();
+        }
     }
 
     impl TraitCapturer for CapturerPortable {
@@ -780,9 +809,10 @@ pub mod client {
             ))?;
             unsafe {
                 let base = shmem.as_ptr();
-                if let Some(sequence) = self.pending_sequence.take() {
-                    utils::consume_counter(base.add(ADDR_CAPTURE_FRAME_COUNTER), sequence);
-                }
+                crate::shared_counter::consume_pending(
+                    base.add(ADDR_CAPTURE_FRAME_COUNTER),
+                    &mut self.pending_sequence,
+                );
                 let para = utils::get_para(shmem);
                 if timeout.as_millis() != para.timeout_ms as _ {
                     utils::set_para(

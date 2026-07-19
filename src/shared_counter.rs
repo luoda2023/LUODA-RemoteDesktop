@@ -26,6 +26,12 @@ pub(crate) unsafe fn consume(counter: *mut u8, sequence: i32) {
     slot(counter, 1).store(sequence, Ordering::Release);
 }
 
+pub(crate) unsafe fn consume_pending(counter: *mut u8, pending: &mut Option<i32>) {
+    if let Some(sequence) = pending.take() {
+        consume(counter, sequence);
+    }
+}
+
 pub(crate) unsafe fn equal(counter: *mut u8) -> bool {
     slot(counter, 0).load(Ordering::Acquire) == slot(counter, 1).load(Ordering::Acquire)
 }
@@ -43,7 +49,7 @@ pub(crate) unsafe fn publish(counter: *mut u8) {
 
 #[cfg(test)]
 mod tests {
-    use super::{consume, equal, pending, publish, reset};
+    use super::{consume, consume_pending, equal, pending, publish, reset};
     use std::sync::atomic::AtomicI32;
 
     fn ptr(counter: &[AtomicI32; 2]) -> *mut u8 {
@@ -76,6 +82,21 @@ mod tests {
             assert_eq!(pending(ptr(&counter)), Some(1));
             reset(ptr(&counter));
             assert_eq!(pending(ptr(&counter)), None);
+        }
+    }
+
+    #[test]
+    fn pending_frame_is_consumed_when_reader_is_cleaned_up() {
+        let counter = [AtomicI32::new(0), AtomicI32::new(0)];
+        unsafe {
+            publish(ptr(&counter));
+            let mut reader_pending = pending(ptr(&counter));
+            assert_eq!(reader_pending, Some(1));
+
+            consume_pending(ptr(&counter), &mut reader_pending);
+
+            assert_eq!(reader_pending, None);
+            assert!(equal(ptr(&counter)));
         }
     }
 
