@@ -43,6 +43,18 @@ lazy_static::lazy_static! {
 static SHOULD_EXIT: AtomicBool = AtomicBool::new(false);
 static MANUAL_RESTARTED: AtomicBool = AtomicBool::new(false);
 static SENT_REGISTER_PK: AtomicBool = AtomicBool::new(false);
+const DIRECT_ACCESS_STATUS_OPTION: &str = "direct-access-status";
+
+fn set_direct_access_status(status: &str) {
+    if Config::get_option(DIRECT_ACCESS_STATUS_OPTION) != status {
+        Config::set_option(DIRECT_ACCESS_STATUS_OPTION.to_owned(), status.to_owned());
+        if status != "listening" {
+            Config::set_option("direct-access-public-port".to_owned(), String::new());
+            Config::set_option("upnp-status".to_owned(), status.to_owned());
+        }
+        crate::runtime_logger::info("DIRECT_SERVER", &format!("status={status}"));
+    }
+}
 
 #[derive(Clone)]
 pub struct RendezvousMediator {
@@ -835,16 +847,21 @@ pub fn ensure_direct_port() -> i32 {
 async fn direct_server(server: ServerPtr) {
     let mut listener = None;
     let mut port = 0;
+    set_direct_access_status("starting");
     loop {
         let disabled = !option2bool(
             OPTION_DIRECT_SERVER,
             &Config::get_option(OPTION_DIRECT_SERVER),
         ) || option2bool("stop-service", &Config::get_option("stop-service"));
+        if disabled && listener.is_none() {
+            set_direct_access_status("stopped");
+        }
         if !disabled && listener.is_none() {
             port = get_direct_port();
             match hbb_common::tcp::listen_any(port as _).await {
                 Ok(l) => {
                     listener = Some(l);
+                    set_direct_access_status("listening");
                     log::info!(
                         "Direct server listening on: {:?}",
                         listener.as_ref().map(|l| l.local_addr())
@@ -875,7 +892,9 @@ async fn direct_server(server: ServerPtr) {
                             }
 
                             // Ignore a late result if the direct listener changed ports.
-                            if Config::get_option("direct-access-port") != upnp_port.to_string() {
+                            if Config::get_option("direct-access-port") != upnp_port.to_string()
+                                || Config::get_option(DIRECT_ACCESS_STATUS_OPTION) != "listening"
+                            {
                                 return;
                             }
                             if let Some(external_port) = mapped_port {
@@ -897,6 +916,7 @@ async fn direct_server(server: ServerPtr) {
                     }
                 }
                 Err(err) => {
+                    set_direct_access_status("error");
                     log::error!(
                         "Failed to start direct server on port: {}, error: {}",
                         port,
@@ -911,6 +931,7 @@ async fn direct_server(server: ServerPtr) {
             if disabled || port != get_direct_port() {
                 log::info!("Exit direct access listen");
                 listener = None;
+                set_direct_access_status("stopped");
                 // 重置端口到 21118，下次启动可重新使用默认端口
                 reset_direct_port();
                 continue;

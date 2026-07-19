@@ -57,6 +57,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   String _lastIp = '';
   String _lastPort = '';
   String _lastPublicPort = '';
+  String _lastDirectAccessStatus = '';
   String _lastUpnpStatus = '';
   String _lastUpnpError = '';
 
@@ -714,6 +715,8 @@ Positioned(
     final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
     final publicPort =
         bind.mainGetOptionSync(key: 'direct-access-public-port');
+    final directReady =
+        bind.mainGetOptionSync(key: 'direct-access-status') == 'listening';
     final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
     final upnpOk = upnpStatus == 'ok';
     final textColor = Theme.of(context).textTheme.titleLarge?.color;
@@ -769,6 +772,7 @@ Positioned(
             hasAddr: publicAddr.isNotEmpty,
             textColor: textColor,
             upnpStatus: upnpStatus,
+            directReady: directReady,
             showUpnp: true,
           ),
           // 内网 IP 卡片 —— 仅在常用网段才显示
@@ -781,6 +785,7 @@ Positioned(
               hasAddr: lanAddr.isNotEmpty,
               textColor: textColor,
               upnpStatus: '',
+              directReady: directReady,
               showUpnp: false,
             ),
           ],
@@ -798,14 +803,17 @@ Positioned(
       required bool hasAddr,
       required Color? textColor,
       required String upnpStatus,
+      required bool directReady,
       required bool showUpnp}) {
     final naText = translate('Not available');
     final displayText = addr.isNotEmpty ? addr : naText;
     final upnpOk = upnpStatus == 'ok';
     final tooltipText = showUpnp && addr.isNotEmpty
-        ? upnpOk
-            ? '$addr\n已自动开放公网直连端口'
-            : '$addr\n直连服务已启动；公网可达性由当前网络决定'
+        ? !directReady
+            ? '$addr\n直连服务正在启动'
+            : upnpOk
+                ? '$addr\n已自动开放公网直连端口'
+                : '$addr\n直连服务已启动；公网可达性由当前网络决定'
         : (addr.isNotEmpty ? addr : naText);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -895,7 +903,7 @@ Positioned(
  width: 6,
  height: 6,
  decoration: BoxDecoration(
- color: upnpOk ? Colors.green : MyTheme.accent,
+ color: directReady ? Colors.green : Colors.orange,
  shape: BoxShape.circle,
  ),
  ),
@@ -1368,13 +1376,23 @@ Positioned(
     final port = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
     final publicPort =
         bind.mainGetOptionSync(key: 'direct-access-public-port');
+    final directAccessStatus =
+        bind.mainGetOptionSync(key: 'direct-access-status');
     final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
     final upnpError = bind.mainGetOptionSync(key: 'upnp-error');
     if (ip != _lastIp ||
         port != _lastPort ||
         publicPort != _lastPublicPort ||
+        directAccessStatus != _lastDirectAccessStatus ||
         upnpStatus != _lastUpnpStatus ||
         upnpError != _lastUpnpError) {
+      if (directAccessStatus != _lastDirectAccessStatus) {
+        RuntimeLogger.instance.info(
+          'DIRECT_SERVER',
+          'status=${directAccessStatus.isEmpty ? 'unknown' : directAccessStatus}; '
+              'port=${port.isEmpty ? 'none' : port}',
+        );
+      }
       if (upnpStatus != _lastUpnpStatus || upnpError != _lastUpnpError) {
         RuntimeLogger.instance.info(
           'UPNP',
@@ -1386,6 +1404,7 @@ Positioned(
       _lastIp = ip;
       _lastPort = port;
       _lastPublicPort = publicPort;
+      _lastDirectAccessStatus = directAccessStatus;
       _lastUpnpStatus = upnpStatus;
       _lastUpnpError = upnpError;
       setState(() {});

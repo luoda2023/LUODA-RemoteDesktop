@@ -984,6 +984,7 @@ fn run(vs: VideoService) -> ResultType<()> {
                 first_frame_wait_started.elapsed(),
             )
         {
+            let mut notified = false;
             if !sp.is_option_true(OPTION_FIRST_FRAME_ERROR_SENT) {
                 let mut msg = Message::new();
                 msg.set_message_box(MessageBox {
@@ -995,12 +996,13 @@ fn run(vs: VideoService) -> ResultType<()> {
                 });
                 sp.send(msg);
                 sp.set_option_bool(OPTION_FIRST_FRAME_ERROR_SENT, true);
+                notified = true;
             }
             crate::runtime_logger::warn(
                 "VIDEO",
                 &format!(
                     "first frame timeout; display={display_idx}; restarting capturer; notified={}",
-                    sp.is_option_true(OPTION_FIRST_FRAME_ERROR_SENT)
+                    notified
                 ),
             );
             bail!("First video frame timeout");

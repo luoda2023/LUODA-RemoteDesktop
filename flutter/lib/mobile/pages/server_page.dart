@@ -579,12 +579,19 @@ class ServerInfo extends StatelessWidget {
     final publicIP = bind.mainGetOptionSync(key: 'public-ip');
     final lanIP = bind.mainGetOptionSync(key: 'lan-ip');
     final directPort = bind.mainGetOptionSync(key: kOptionDirectAccessPort);
+    final publicPort =
+        bind.mainGetOptionSync(key: 'direct-access-public-port');
+    final directReady =
+        bind.mainGetOptionSync(key: 'direct-access-status') == 'listening';
     final upnpStatus = bind.mainGetOptionSync(key: 'upnp-status');
     final upnpOk = upnpStatus == 'ok';
     String publicAddr = '';
     String lanAddr = '';
     if (directPort.isNotEmpty) {
-      if (publicIP.isNotEmpty) publicAddr = '$publicIP:$directPort';
+      if (publicIP.isNotEmpty) {
+        publicAddr =
+            '$publicIP:${upnpOk && publicPort.isNotEmpty ? publicPort : directPort}';
+      }
       if (lanIP.isNotEmpty) lanAddr = '$lanIP:$directPort';
     }
     final hasAny = publicAddr.isNotEmpty || lanAddr.isNotEmpty;
@@ -613,15 +620,17 @@ class ServerInfo extends StatelessWidget {
                   height: 6,
                   margin: EdgeInsets.only(right: 6, left: 4),
                   decoration: BoxDecoration(
-                    color: upnpOk ? Colors.green : MyTheme.accent,
+                    color: directReady ? Colors.green : Colors.orange,
                     shape: BoxShape.circle,
                   ),
                 ),
                 Expanded(
                   child: Text(
-                    upnpOk
-                        ? '已自动开放公网直连端口'
-                        : '直连服务已启动；公网可达性由当前网络决定',
+                    !directReady
+                        ? '直连服务正在启动'
+                        : upnpOk
+                            ? '已自动开放公网直连端口'
+                            : '直连服务已启动；公网可达性由当前网络决定',
                     style: TextStyle(fontSize: 10, color: Colors.grey),
                   ),
                 ),
