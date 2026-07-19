@@ -45,6 +45,13 @@ const ADDR_CAPTURE_FRAME_COUNTER: usize = ADDR_CAPTURE_WOULDBLOCK + size_of::<i3
 const ADDR_CAPTURE_FRAME: usize =
     (ADDR_CAPTURE_FRAME_COUNTER + SIZE_COUNTER + FRAME_ALIGN - 1) / FRAME_ALIGN * FRAME_ALIGN;
 
+const _: () = {
+    let atomic_align = std::mem::align_of::<std::sync::atomic::AtomicI32>();
+    assert!(ADDR_CURSOR_COUNTER % atomic_align == 0);
+    assert!(ADDR_CAPTURE_WOULDBLOCK % atomic_align == 0);
+    assert!(ADDR_CAPTURE_FRAME_COUNTER % atomic_align == 0);
+};
+
 const IPC_SUFFIX: &str = "_portable_service";
 pub const SHMEM_NAME: &str = "_portable_service";
 const MAX_NACK: usize = 3;
@@ -132,68 +139,47 @@ impl SharedMemory {
 }
 
 mod utils {
-    use core::slice;
-    use std::mem::size_of;
+    use std::sync::atomic::{AtomicI32, Ordering};
 
     use super::{
         CapturerPara, FrameInfo, SharedMemory, ADDR_CAPTURER_PARA, ADDR_CAPTURE_FRAME_INFO,
     };
 
     #[inline]
-    pub fn i32_to_vec(i: i32) -> Vec<u8> {
-        i.to_ne_bytes().to_vec()
-    }
-
-    #[inline]
-    pub fn ptr_to_i32(ptr: *const u8) -> i32 {
+    pub fn set_i32(shmem: &SharedMemory, addr: usize, value: i32) {
         unsafe {
-            let v = slice::from_raw_parts(ptr, size_of::<i32>());
-            i32::from_ne_bytes([v[0], v[1], v[2], v[3]])
+            (&*(shmem.as_ptr().add(addr) as *const AtomicI32)).store(value, Ordering::Release);
         }
     }
 
     #[inline]
-    pub fn counter_ready(counter: *const u8) -> bool {
-        unsafe {
-            let wptr = counter;
-            let rptr = counter.add(size_of::<i32>());
-            let iw = ptr_to_i32(wptr);
-            let ir = ptr_to_i32(rptr);
-            if ir != iw {
-                std::ptr::copy_nonoverlapping(wptr, rptr as *mut _, size_of::<i32>());
-                true
-            } else {
-                false
-            }
-        }
+    pub fn get_i32(shmem: &SharedMemory, addr: usize) -> i32 {
+        unsafe { (&*(shmem.as_ptr().add(addr) as *const AtomicI32)).load(Ordering::Acquire) }
     }
 
     #[inline]
-    pub fn counter_equal(counter: *const u8) -> bool {
-        unsafe {
-            let wptr = counter;
-            let rptr = counter.add(size_of::<i32>());
-            let iw = ptr_to_i32(wptr);
-            let ir = ptr_to_i32(rptr);
-            iw == ir
-        }
+    pub fn counter_pending(counter: *mut u8) -> Option<i32> {
+        unsafe { crate::shared_counter::pending(counter) }
+    }
+
+    #[inline]
+    pub fn consume_counter(counter: *mut u8, sequence: i32) {
+        unsafe { crate::shared_counter::consume(counter, sequence) }
+    }
+
+    #[inline]
+    pub fn reset_counter(counter: *mut u8) {
+        unsafe { crate::shared_counter::reset(counter) }
+    }
+
+    #[inline]
+    pub fn counter_equal(counter: *mut u8) -> bool {
+        unsafe { crate::shared_counter::equal(counter) }
     }
 
     #[inline]
     pub fn increase_counter(counter: *mut u8) {
-        unsafe {
-            let wptr = counter;
-            let rptr = counter.add(size_of::<i32>());
-            let iw = ptr_to_i32(counter);
-            let ir = ptr_to_i32(rptr);
-            let iw_plus1 = if iw == i32::MAX { 0 } else { iw + 1 };
-            let v = i32_to_vec(iw_plus1);
-            std::ptr::copy_nonoverlapping(v.as_ptr(), wptr, size_of::<i32>());
-            if ir == iw_plus1 {
-                let v = i32_to_vec(iw);
-                std::ptr::copy_nonoverlapping(v.as_ptr(), rptr, size_of::<i32>());
-            }
-        }
+        unsafe { crate::shared_counter::publish(counter) }
     }
 
     #[inline]
@@ -203,22 +189,36 @@ mod utils {
 
     #[inline]
     pub fn set_para(shmem: &SharedMemory, para: CapturerPara) {
-        let para_ptr = &para as *const CapturerPara as *const u8;
-        let para_data;
         unsafe {
-            para_data = slice::from_raw_parts(para_ptr, size_of::<CapturerPara>());
+            std::ptr::write_volatile(
+                shmem.as_ptr().add(ADDR_CAPTURER_PARA) as *mut CapturerPara,
+                para,
+            );
         }
-        shmem.write(ADDR_CAPTURER_PARA, para_data);
+    }
+
+    #[inline]
+    pub fn get_para(shmem: &SharedMemory) -> CapturerPara {
+        unsafe {
+            std::ptr::read_volatile(shmem.as_ptr().add(ADDR_CAPTURER_PARA) as *const CapturerPara)
+        }
     }
 
     #[inline]
     pub fn set_frame_info(shmem: &SharedMemory, info: FrameInfo) {
-        let ptr = &info as *const FrameInfo as *const u8;
-        let data;
         unsafe {
-            data = slice::from_raw_parts(ptr, size_of::<FrameInfo>());
+            std::ptr::write_volatile(
+                shmem.as_ptr().add(ADDR_CAPTURE_FRAME_INFO) as *mut FrameInfo,
+                info,
+            );
         }
-        shmem.write(ADDR_CAPTURE_FRAME_INFO, data);
+    }
+
+    #[inline]
+    pub fn get_frame_info(shmem: &SharedMemory) -> FrameInfo {
+        unsafe {
+            std::ptr::read_volatile(shmem.as_ptr().add(ADDR_CAPTURE_FRAME_INFO) as *const FrameInfo)
+        }
     }
 }
 
@@ -316,11 +316,10 @@ pub mod server {
                 break;
             }
             unsafe {
-                let para_ptr = shmem.as_ptr().add(ADDR_CAPTURER_PARA);
-                let para = para_ptr as *const CapturerPara;
-                let recreate = (*para).recreate;
-                let current_display = (*para).current_display;
-                let timeout_ms = (*para).timeout_ms;
+                let para = utils::get_para(&shmem);
+                let recreate = para.recreate;
+                let current_display = para.current_display;
+                let timeout_ms = para.timeout_ms;
                 if c.is_none() {
                     let Ok(mut displays) = display_service::try_get_displays() else {
                         if last_display_wait_log
@@ -377,8 +376,8 @@ pub mod server {
                                     &shmem,
                                     CapturerPara {
                                         recreate: false,
-                                        current_display: (*para).current_display,
-                                        timeout_ms: (*para).timeout_ms,
+                                        current_display: para.current_display,
+                                        timeout_ms: para.timeout_ms,
                                     },
                                 );
                                 Some(v)
@@ -435,7 +434,7 @@ pub mod server {
                                 },
                             );
                             shmem.write(ADDR_CAPTURE_FRAME, f.data());
-                            shmem.write(ADDR_CAPTURE_WOULDBLOCK, &utils::i32_to_vec(TRUE));
+                            utils::set_i32(&shmem, ADDR_CAPTURE_WOULDBLOCK, TRUE);
                             utils::increase_counter(shmem.as_ptr().add(ADDR_CAPTURE_FRAME_COUNTER));
                             first_frame_captured = true;
                             first_frame_would_block_times = 0;
@@ -461,7 +460,7 @@ pub mod server {
                             }
                             if dxgi_failed_times > MAX_DXGI_FAIL_TIME {
                                 c = None;
-                                shmem.write(ADDR_CAPTURE_WOULDBLOCK, &utils::i32_to_vec(FALSE));
+                                utils::set_i32(&shmem, ADDR_CAPTURE_WOULDBLOCK, FALSE);
                                 std::thread::sleep(spf);
                             }
                         } else {
@@ -490,7 +489,7 @@ pub mod server {
                                     first_frame_would_block_times = 0;
                                 }
                             }
-                            shmem.write(ADDR_CAPTURE_WOULDBLOCK, &utils::i32_to_vec(TRUE));
+                            utils::set_i32(&shmem, ADDR_CAPTURE_WOULDBLOCK, TRUE);
                         }
                     }
                     _ => {
@@ -734,6 +733,7 @@ pub mod client {
         width: usize,
         height: usize,
         mismatch_logged: bool,
+        pending_sequence: Option<i32>,
     }
 
     impl CapturerPortable {
@@ -743,9 +743,6 @@ pub mod client {
         {
             let mut option = SHMEM.lock().unwrap();
             if let Some(shmem) = option.as_mut() {
-                unsafe {
-                    libc::memset(shmem.as_ptr() as _, 0, shmem.len() as _);
-                }
                 utils::set_para(
                     shmem,
                     CapturerPara {
@@ -754,7 +751,10 @@ pub mod client {
                         timeout_ms: 33,
                     },
                 );
-                shmem.write(ADDR_CAPTURE_WOULDBLOCK, &utils::i32_to_vec(TRUE));
+                utils::set_i32(shmem, ADDR_CAPTURE_WOULDBLOCK, TRUE);
+                unsafe {
+                    utils::reset_counter(shmem.as_ptr().add(ADDR_CAPTURE_FRAME_COUNTER));
+                }
             }
             crate::runtime_logger::info(
                 "VIDEO",
@@ -766,6 +766,7 @@ pub mod client {
                 width,
                 height,
                 mismatch_logged: false,
+                pending_sequence: None,
             }
         }
     }
@@ -779,30 +780,33 @@ pub mod client {
             ))?;
             unsafe {
                 let base = shmem.as_ptr();
-                let para_ptr = base.add(ADDR_CAPTURER_PARA);
-                let para = para_ptr as *const CapturerPara;
-                if timeout.as_millis() != (*para).timeout_ms as _ {
+                if let Some(sequence) = self.pending_sequence.take() {
+                    utils::consume_counter(base.add(ADDR_CAPTURE_FRAME_COUNTER), sequence);
+                }
+                let para = utils::get_para(shmem);
+                if timeout.as_millis() != para.timeout_ms as _ {
                     utils::set_para(
                         shmem,
                         CapturerPara {
-                            recreate: (*para).recreate,
-                            current_display: (*para).current_display,
+                            recreate: para.recreate,
+                            current_display: para.current_display,
                             timeout_ms: timeout.as_millis() as _,
                         },
                     );
                 }
-                if utils::counter_ready(base.add(ADDR_CAPTURE_FRAME_COUNTER)) {
-                    let frame_info_ptr = shmem.as_ptr().add(ADDR_CAPTURE_FRAME_INFO);
-                    let frame_info = frame_info_ptr as *const FrameInfo;
-                    if (*frame_info).width != self.width || (*frame_info).height != self.height {
+                if let Some(sequence) = utils::counter_pending(base.add(ADDR_CAPTURE_FRAME_COUNTER))
+                {
+                    let frame_info = utils::get_frame_info(shmem);
+                    if frame_info.width != self.width || frame_info.height != self.height {
+                        utils::consume_counter(base.add(ADDR_CAPTURE_FRAME_COUNTER), sequence);
                         if !self.mismatch_logged {
                             self.mismatch_logged = true;
                             crate::runtime_logger::warn(
                                 "VIDEO",
                                 &format!(
                                     "portable frame dimensions mismatch; captured={}x{}; expected={}x{}",
-                                    (*frame_info).width,
-                                    (*frame_info).height,
+                                    frame_info.width,
+                                    frame_info.height,
                                     self.width,
                                     self.height
                                 ),
@@ -813,16 +817,23 @@ pub mod client {
                             "wouldblock error".to_string(),
                         ));
                     }
+                    if frame_info.length > shmem.len().saturating_sub(ADDR_CAPTURE_FRAME) {
+                        utils::consume_counter(base.add(ADDR_CAPTURE_FRAME_COUNTER), sequence);
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "portable frame exceeds shared memory".to_string(),
+                        ));
+                    }
                     let frame_ptr = base.add(ADDR_CAPTURE_FRAME);
-                    let data = slice::from_raw_parts(frame_ptr, (*frame_info).length);
+                    let data = slice::from_raw_parts(frame_ptr, frame_info.length);
+                    self.pending_sequence = Some(sequence);
                     Ok(Frame::PixelBuffer(PixelBuffer::with_BGRA(
                         data,
                         self.width,
                         self.height,
                     )))
                 } else {
-                    let ptr = base.add(ADDR_CAPTURE_WOULDBLOCK);
-                    let wouldblock = utils::ptr_to_i32(ptr);
+                    let wouldblock = utils::get_i32(shmem, ADDR_CAPTURE_WOULDBLOCK);
                     if wouldblock == TRUE {
                         Err(std::io::Error::new(
                             std::io::ErrorKind::WouldBlock,
@@ -995,8 +1006,10 @@ pub mod client {
     fn get_cursor_info_(shmem: &mut SharedMemory, pci: PCURSORINFO) -> BOOL {
         unsafe {
             let shmem_addr_para = shmem.as_ptr().add(ADDR_CURSOR_PARA);
-            if utils::counter_ready(shmem.as_ptr().add(ADDR_CURSOR_COUNTER)) {
+            if let Some(sequence) = utils::counter_pending(shmem.as_ptr().add(ADDR_CURSOR_COUNTER))
+            {
                 std::ptr::copy_nonoverlapping(shmem_addr_para, pci as _, size_of::<CURSORINFO>());
+                utils::consume_counter(shmem.as_ptr().add(ADDR_CURSOR_COUNTER), sequence);
                 return TRUE;
             }
             FALSE
@@ -1119,6 +1132,7 @@ pub mod client {
     }
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct CapturerPara {
     recreate: bool,
@@ -1126,6 +1140,7 @@ pub struct CapturerPara {
     timeout_ms: i32,
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct FrameInfo {
     length: usize,

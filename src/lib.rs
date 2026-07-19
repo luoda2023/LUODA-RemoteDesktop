@@ -17,6 +17,7 @@ mod client;
 mod direct_access;
 #[cfg(windows)]
 mod headless_policy;
+mod shared_counter;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod host_startup;
 mod lan;
