@@ -24,6 +24,7 @@ windows = { version = "0.61", features = [
     "Win32_System_SystemInformation",
 ] }
 native-windows-gui = {version = "1.0", default-features = false, features = ["animation-timer", "image-decoder"]}
+sysinfo = { git = "https://github.com/luoda2023/sysinfo", branch = "rlim_max" }
 
 [package.metadata.winres]
 LegalCopyright = "Copyright © 2025 LUODA. All rights reserved."
@@ -35,5 +36,4 @@ FileDescription = "LUODA Remote Desktop"
 [target.'cfg(target_os="windows")'.build-dependencies]
 winres = "0.1"
 winapi = { version = "0.3", features = [ "winnt", "pdh", "synchapi" ] }
-
 

@@ -5069,6 +5069,7 @@ dependencies = [
  "dirs 5.0.1",
  "md5",
  "native-windows-gui",
+ "sysinfo",
  "winapi 0.3.9",
  "windows 0.61.3",
  "winres",

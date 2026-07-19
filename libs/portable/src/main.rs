@@ -1,74 +1,31 @@
 #![windows_subsystem = "windows"]
 
-#[cfg(windows)]
-use std::os::windows::ffi::OsStrExt;
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
 use bin_reader::BinaryReader;
 
 pub mod bin_reader;
+mod runtime_layout;
 #[cfg(windows)]
 mod ui;
 
-#[cfg(windows)]
-const APP_METADATA: &[u8] = include_bytes!("../app_metadata.toml");
-#[cfg(not(windows))]
-const APP_METADATA: &[u8] = &[];
 const APP_METADATA_CONFIG: &str = "meta.toml";
-const META_LINE_PREFIX_TIMESTAMP: &str = "timestamp = ";
 const APP_PREFIX: &str = "LUODA";
 const APPNAME_RUNTIME_ENV_KEY: &str = "LUODA_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
 
-fn is_timestamp_matches(dir: &Path, ts: &mut u64) -> bool {
-    let Ok(app_metadata) = std::str::from_utf8(APP_METADATA) else {
-        return true;
-    };
-    for line in app_metadata.lines() {
-        if line.starts_with(META_LINE_PREFIX_TIMESTAMP) {
-            if let Ok(stored_ts) = line.replace(META_LINE_PREFIX_TIMESTAMP, "").parse::<u64>() {
-                *ts = stored_ts;
-                break;
-            }
-        }
-    }
-    if *ts == 0 {
-        return true;
-    }
-
-    if let Ok(content) = std::fs::read_to_string(dir.join(APP_METADATA_CONFIG)) {
-        for line in content.lines() {
-            if line.starts_with(META_LINE_PREFIX_TIMESTAMP) {
-                if let Ok(stored_ts) = line.replace(META_LINE_PREFIX_TIMESTAMP, "").parse::<u64>() {
-                    return *ts == stored_ts;
-                }
-            }
-        }
-    }
-    false
-}
-
-fn write_meta(dir: &Path, ts: u64) {
-    let meta_file = dir.join(APP_METADATA_CONFIG);
-    if ts != 0 {
-        let content = format!("{}{}", META_LINE_PREFIX_TIMESTAMP, ts);
-        // Ignore is ok here
-        let _ = std::fs::write(meta_file, content);
-    }
-}
-
 fn setup(
     reader: BinaryReader,
     dir: Option<PathBuf>,
-    clear: bool,
+    _clear: bool,
     _args: &Vec<String>,
     _ui: &mut bool,
 ) -> Option<PathBuf> {
-    let dir = if let Some(dir) = dir {
+    let root = if let Some(dir) = dir {
         dir
     } else {
         // home dir
@@ -85,9 +42,31 @@ fn setup(
         *_ui = true;
         ui::setup();
     }
-    std::fs::remove_dir_all(&dir).ok();
+    let package_id = reader.package_id();
+    let dir = runtime_layout::runtime_dir(&root, &package_id);
+    #[cfg(windows)]
+    win::terminate_stale_portable_runtimes(&root, &dir.join(&reader.exe));
+    let marker = std::fs::read_to_string(dir.join(APP_METADATA_CONFIG)).unwrap_or_default();
+    if runtime_layout::ready_marker_matches(&marker, &package_id) && reader.files_match(&dir) {
+        return Some(dir.join(&reader.exe));
+    }
+
     for file in reader.files.iter() {
-        file.write_to_file(&dir);
+        if let Err(error) = file.write_to_file(&dir) {
+            eprintln!("failed to extract {}: {error}", file.path);
+            return None;
+        }
+    }
+    if !reader.files_match(&dir) {
+        eprintln!("runtime verification failed: {}", dir.display());
+        return None;
+    }
+    if let Err(error) = std::fs::write(
+        dir.join(APP_METADATA_CONFIG),
+        runtime_layout::ready_marker(&package_id),
+    ) {
+        eprintln!("failed to mark runtime ready: {error}");
+        return None;
     }
     Some(dir.join(&reader.exe))
 }
@@ -230,10 +209,42 @@ fn main() {
 #[cfg(windows)]
 mod win {
     use std::{fs, os::windows::process::CommandExt, path::Path, process::Command};
+    use std::time::Duration;
+    use sysinfo::System;
 
     // Used for privacy mode(magnifier impl).
     pub const RUNTIME_BROKER_EXE: &'static str = "C:\\Windows\\System32\\RuntimeBroker.exe";
     pub const WIN_TOPMOST_INJECTED_PROCESS_EXE: &'static str = "RuntimeBroker_LUODA.exe";
+
+    pub(super) fn terminate_stale_portable_runtimes(root: &Path, current_exe: &Path) {
+        let mut system = System::new_all();
+        let stale_pids = system
+            .processes()
+            .iter()
+            .filter(|(_, process)| {
+                process.name().eq_ignore_ascii_case("luoda.exe")
+                    && crate::runtime_layout::is_stale_runtime_executable(
+                        process.exe(),
+                        current_exe,
+                        root,
+                    )
+            })
+            .map(|(pid, _)| *pid)
+            .collect::<Vec<_>>();
+
+        for pid in &stale_pids {
+            if let Some(process) = system.process(*pid) {
+                let _ = process.kill();
+            }
+        }
+        for _ in 0..20 {
+            system.refresh_processes();
+            if stale_pids.iter().all(|pid| system.process(*pid).is_none()) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
 
     pub(super) fn copy_runtime_broker(dir: &Path) {
         let src = RUNTIME_BROKER_EXE;
@@ -263,4 +274,3 @@ mod win {
         exe.contains("-qs-") || exe.contains("-qs.exe") || exe.contains("_qs.exe")
     }
 }
-
