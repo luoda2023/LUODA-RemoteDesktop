@@ -89,14 +89,8 @@ pub(crate) fn run_windows_exit_cleanup() {
     let exe_names = cleanup_executable_names();
     let keep_pid = std::process::id();
     for pid in matching_processes(&exe_names, keep_pid) {
-        let result = std::process::Command::new("taskkill")
-            .args(["/f", "/pid", &pid.to_string()])
-            .creation_flags(0x08000000)
-            .output();
-        if !matches!(result, Ok(ref output) if output.status.success()) {
-            if let Err(error) = crate::platform::windows::nt_terminate_process(pid) {
-                log::warn!("Tray exit cleanup: could not terminate PID {pid}: {error}");
-            }
+        if let Err(error) = crate::platform::windows::nt_terminate_process(pid) {
+            log::warn!("Tray exit cleanup: could not terminate PID {pid}: {error}");
         }
     }
 
