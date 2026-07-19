@@ -629,6 +629,16 @@ pub async fn start_server(is_server: bool, no_server: bool) {
             return;
         }
         crate::common::set_server_running(true);
+        #[cfg(windows)]
+        if !crate::platform::is_installed()
+            && crate::portable_service::client::is_quick_support()
+        {
+            if let Err(error) = crate::portable_service::client::start_portable_service(
+                crate::portable_service::client::StartPara::Direct,
+            ) {
+                log::error!("Failed to start portable service: {error:?}");
+            }
+        }
         input_service::fix_key_down_timeout_loop();
         #[cfg(target_os = "linux")]
         if input_service::wayland_use_uinput() {

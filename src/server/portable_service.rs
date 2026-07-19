@@ -16,7 +16,7 @@ use std::{
     mem::size_of,
     ops::{Deref, DerefMut},
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{Arc, Condvar, Mutex},
     time::Duration,
 };
 use winapi::{
@@ -185,7 +185,7 @@ mod utils {
             let wptr = counter;
             let rptr = counter.add(size_of::<i32>());
             let iw = ptr_to_i32(counter);
-            let ir = ptr_to_i32(counter);
+            let ir = ptr_to_i32(rptr);
             let iw_plus1 = if iw == i32::MAX { 0 } else { iw + 1 };
             let v = i32_to_vec(iw_plus1);
             std::ptr::copy_nonoverlapping(v.as_ptr(), wptr, size_of::<i32>());
@@ -358,6 +358,13 @@ pub mod server {
                     display_height = display.height();
                     match Capturer::new(display) {
                         Ok(mut v) => {
+                            crate::runtime_logger::info(
+                                "VIDEO",
+                                &format!(
+                                    "portable capturer ready; display={current_display}; width={display_width}; height={display_height}; gdi={}",
+                                    v.is_gdi()
+                                ),
+                            );
                             c = {
                                 last_current_display = current_display;
                                 first_frame_captured = false;
@@ -410,6 +417,15 @@ pub mod server {
                 match c.as_mut().map(|f| f.frame(spf)) {
                     Some(Ok(f)) => match f {
                         Frame::PixelBuffer(f) => {
+                            if !first_frame_captured {
+                                crate::runtime_logger::info(
+                                    "VIDEO",
+                                    &format!(
+                                        "portable first frame captured; display={current_display}; width={display_width}; height={display_height}; bytes={}",
+                                        f.data().len()
+                                    ),
+                                );
+                            }
                             utils::set_frame_info(
                                 &shmem,
                                 FrameInfo {
@@ -453,6 +469,14 @@ pub mod server {
                                 && c.as_ref().map(|capturer| !capturer.is_gdi()) == Some(true)
                             {
                                 first_frame_would_block_times += 1;
+                                if first_frame_would_block_times <= 3 {
+                                    crate::runtime_logger::warn(
+                                        "VIDEO",
+                                        &format!(
+                                            "portable capture would-block before first frame; display={current_display}; count={first_frame_would_block_times}"
+                                        ),
+                                    );
+                                }
                                 if crate::headless_policy::should_fallback_first_frame_capture(
                                     first_frame_captured,
                                     first_frame_would_block_times,
@@ -570,6 +594,7 @@ pub mod client {
         static ref RUNNING: Arc<Mutex<bool>> = Default::default();
         static ref SHMEM: Arc<Mutex<Option<SharedMemory>>> = Default::default();
         static ref SENDER : Mutex<mpsc::UnboundedSender<ipc::Data>> = Mutex::new(client::start_ipc_server());
+        static ref IPC_SERVER_STARTUP: Arc<(Mutex<Option<Result<(), String>>>, Condvar)> = Default::default();
         static ref QUICK_SUPPORT: Arc<Mutex<bool>> = Default::default();
     }
 
@@ -613,6 +638,8 @@ pub mod client {
                 libc::memset(shmem.as_ptr() as _, 0, shmem.len() as _);
             }
         }
+        let _sender = SENDER.lock().unwrap();
+        wait_ipc_server_ready()?;
         match para {
             StartPara::Direct => {
                 if let Err(e) = crate::platform::run_background(
@@ -667,8 +694,23 @@ pub mod client {
                 }
             }
         }
-        let _sender = SENDER.lock().unwrap();
         Ok(())
+    }
+
+    fn wait_ipc_server_ready() -> ResultType<()> {
+        let (lock, ready) = &**IPC_SERVER_STARTUP;
+        let state = lock.lock().unwrap();
+        let (state, timeout) = ready
+            .wait_timeout_while(state, Duration::from_secs(4), |result| result.is_none())
+            .unwrap();
+        if timeout.timed_out() && state.is_none() {
+            bail!("Portable service IPC startup timed out");
+        }
+        match state.as_ref() {
+            Some(Ok(())) => Ok(()),
+            Some(Err(error)) => bail!("Portable service IPC startup failed: {error}"),
+            None => bail!("Portable service IPC startup did not report a result"),
+        }
     }
 
     pub extern "C" fn drop_portable_service_shared_memory() {
@@ -684,13 +726,18 @@ pub mod client {
         *QUICK_SUPPORT.lock().unwrap() = v;
     }
 
+    pub fn is_quick_support() -> bool {
+        QUICK_SUPPORT.lock().unwrap().clone()
+    }
+
     pub struct CapturerPortable {
         width: usize,
         height: usize,
+        mismatch_logged: bool,
     }
 
     impl CapturerPortable {
-        pub fn new(current_display: usize) -> Self
+        pub fn new(current_display: usize, width: usize, height: usize) -> Self
         where
             Self: Sized,
         {
@@ -709,14 +756,17 @@ pub mod client {
                 );
                 shmem.write(ADDR_CAPTURE_WOULDBLOCK, &utils::i32_to_vec(TRUE));
             }
-            let (mut width, mut height) = (0, 0);
-            if let Ok(displays) = display_service::try_get_displays() {
-                if let Some(display) = displays.get(current_display) {
-                    width = display.width();
-                    height = display.height();
-                }
+            crate::runtime_logger::info(
+                "VIDEO",
+                &format!(
+                    "portable capturer requested; display={current_display}; width={width}; height={height}"
+                ),
+            );
+            CapturerPortable {
+                width,
+                height,
+                mismatch_logged: false,
             }
-            CapturerPortable { width, height }
         }
     }
 
@@ -745,13 +795,19 @@ pub mod client {
                     let frame_info_ptr = shmem.as_ptr().add(ADDR_CAPTURE_FRAME_INFO);
                     let frame_info = frame_info_ptr as *const FrameInfo;
                     if (*frame_info).width != self.width || (*frame_info).height != self.height {
-                        log::info!(
-                            "skip frame, ({},{}) != ({},{})",
-                            (*frame_info).width,
-                            (*frame_info).height,
-                            self.width,
-                            self.height,
-                        );
+                        if !self.mismatch_logged {
+                            self.mismatch_logged = true;
+                            crate::runtime_logger::warn(
+                                "VIDEO",
+                                &format!(
+                                    "portable frame dimensions mismatch; captured={}x{}; expected={}x{}",
+                                    (*frame_info).width,
+                                    (*frame_info).height,
+                                    self.width,
+                                    self.height
+                                ),
+                            );
+                        }
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::WouldBlock,
                             "wouldblock error".to_string(),
@@ -813,8 +869,35 @@ pub mod client {
         let postfix = IPC_SUFFIX;
         let quick_support = QUICK_SUPPORT.lock().unwrap().clone();
 
-        match new_listener(postfix).await {
-            Ok(mut incoming) => loop {
+        let mut last_error = None;
+        let mut incoming = None;
+        for attempt in 1..=3 {
+            match new_listener(postfix).await {
+                Ok(listener) => {
+                    incoming = Some(listener);
+                    break;
+                }
+                Err(error) => {
+                    log::warn!(
+                        "Portable service IPC ownership attempt {attempt}/3 failed: {error}"
+                    );
+                    last_error = Some(error.to_string());
+                    if attempt < 3 {
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                    }
+                }
+            }
+        }
+        let startup = match incoming.as_ref() {
+            Some(_) => Ok(()),
+            None => Err(last_error.unwrap_or_else(|| "unknown IPC startup error".to_owned())),
+        };
+        let (lock, ready) = &**IPC_SERVER_STARTUP;
+        *lock.lock().unwrap() = Some(startup.clone());
+        ready.notify_all();
+
+        match incoming {
+            Some(mut incoming) => loop {
                 {
                     tokio::select! {
                         Some(result) = incoming.next() => {
@@ -893,8 +976,11 @@ pub mod client {
                     }
                 }
             },
-            Err(err) => {
-                log::error!("Failed to start portable service ipc server: {}", err);
+            None => {
+                log::error!(
+                    "Failed to start portable service ipc server: {}",
+                    startup.err().unwrap_or_else(|| "unknown error".to_owned())
+                );
             }
         }
     }
@@ -961,7 +1047,11 @@ pub mod client {
         }
         if portable_service_running && display.is_primary() {
             log::info!("Create shared memory capturer");
-            return Ok(Box::new(CapturerPortable::new(current_display)));
+            return Ok(Box::new(CapturerPortable::new(
+                current_display,
+                display.width(),
+                display.height(),
+            )));
         } else {
             log::debug!("Create capturer dxgi|gdi");
             return Ok(Box::new(

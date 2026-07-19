@@ -642,6 +642,10 @@ fn run(vs: VideoService) -> ResultType<()> {
     let first_frame_wait_started = time::Instant::now();
     #[cfg(windows)]
     let mut first_frame_sent = false;
+    #[cfg(windows)]
+    let mut first_frame_would_block = 0usize;
+    #[cfg(windows)]
+    let mut first_frame_no_subscriber_logged = false;
     let mut last_check_displays = time::Instant::now();
     #[cfg(windows)]
     let mut try_gdi = 1;
@@ -729,6 +733,13 @@ fn run(vs: VideoService) -> ResultType<()> {
         let ms = (time.as_secs() * 1000 + time.subsec_millis() as u64) as i64;
         let res = match c.frame(spf) {
             Ok(frame) => {
+                #[cfg(windows)]
+                if !first_frame_sent && !frame.valid() {
+                    crate::runtime_logger::warn(
+                        "VIDEO",
+                        &format!("capturer returned invalid frame; display={display_idx}"),
+                    );
+                }
                 repeat_encode_counter = 0;
                 if frame.valid() {
                     let screenshot = SCREENSHOTS.lock().unwrap().remove(&display_idx);
@@ -795,6 +806,16 @@ fn run(vs: VideoService) -> ResultType<()> {
                             send_conn_ids.len()
                         );
                     }
+                    #[cfg(windows)]
+                    if !first_frame_sent && !first_frame_no_subscriber_logged {
+                        first_frame_no_subscriber_logged = true;
+                        crate::runtime_logger::warn(
+                            "VIDEO",
+                            &format!(
+                                "encoded frame but no subscribers; display={display_idx}"
+                            ),
+                        );
+                    }
                     frame_controller.set_send(now, send_conn_ids);
                     send_counter += 1;
                 }
@@ -822,6 +843,18 @@ fn run(vs: VideoService) -> ResultType<()> {
 
         match res {
             Err(ref e) if e.kind() == WouldBlock => {
+                #[cfg(windows)]
+                if !first_frame_sent {
+                    first_frame_would_block += 1;
+                    if first_frame_would_block <= 3 {
+                        crate::runtime_logger::warn(
+                            "VIDEO",
+                            &format!(
+                                "capturer would-block before first frame; display={display_idx}; count={first_frame_would_block}"
+                            ),
+                        );
+                    }
+                }
                 #[cfg(windows)]
                 if try_gdi > 0 && !c.is_gdi() {
                     try_gdi += 1;
@@ -869,6 +902,16 @@ fn run(vs: VideoService) -> ResultType<()> {
                             log::info!(
                                 "first video frame sent; display={display_idx}; subscribers={}",
                                 send_conn_ids.len()
+                            );
+                        }
+                        #[cfg(windows)]
+                        if !first_frame_sent && !first_frame_no_subscriber_logged {
+                            first_frame_no_subscriber_logged = true;
+                            crate::runtime_logger::warn(
+                                "VIDEO",
+                                &format!(
+                                    "encoded repeated frame but no subscribers; display={display_idx}"
+                                ),
                             );
                         }
                         frame_controller.set_send(now, send_conn_ids);
@@ -1182,6 +1225,10 @@ fn handle_one_frame(
         // so that new sub and old sub share the same encoder after switch
         if sps.has_subscribes() {
             log::info!("switch due to new subscriber");
+            crate::runtime_logger::info(
+                "VIDEO",
+                &format!("video service switching for new subscriber; display={display}"),
+            );
             bail!("SWITCH");
         }
         Ok(())
