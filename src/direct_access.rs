@@ -1,5 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
+pub(crate) const DIRECT_PORT_RANGE: u16 = 10;
+
 #[derive(Clone, Debug)]
 pub(crate) struct LanAddressCandidate {
     pub address: Ipv4Addr,
@@ -94,12 +96,13 @@ pub(crate) fn is_public_ipv4(address: Ipv4Addr) -> bool {
 }
 
 pub(crate) fn direct_peer_hosts(peer: &str, default_port: u16) -> Vec<String> {
+    let peer = peer.trim();
     if let Ok(addr) = peer.parse::<SocketAddr>() {
         return vec![addr.to_string()];
     }
 
     if let Ok(ip) = peer.parse::<IpAddr>() {
-        return (default_port..=default_port.saturating_add(10))
+        return (default_port..=default_port.saturating_add(DIRECT_PORT_RANGE))
             .map(|port| SocketAddr::new(ip, port).to_string())
             .collect();
     }
@@ -165,6 +168,9 @@ mod tests {
 
         let explicit = direct_peer_hosts("49.113.34.200:21118", 21118);
         assert_eq!(explicit, ["49.113.34.200:21118"]);
+
+        let pasted = direct_peer_hosts(" 49.113.34.200:21118 ", 21118);
+        assert_eq!(pasted, ["49.113.34.200:21118"]);
 
         let explicit_ipv6 = direct_peer_hosts("[2001:db8::8]:21118", 21118);
         assert_eq!(explicit_ipv6, ["[2001:db8::8]:21118"]);

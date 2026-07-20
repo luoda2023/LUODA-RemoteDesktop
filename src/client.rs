@@ -3989,6 +3989,8 @@ pub mod peer_online {
         ResultType, Stream,
     };
 
+    const DIRECT_PROBE_TIMEOUT: u64 = 3_000;
+
     fn is_direct_server_banner(bytes: &[u8]) -> bool {
         Message::parse_from_bytes(bytes)
             .map(|parsed| matches!(parsed.union, Some(message::Union::Hash(_))))
@@ -3996,9 +3998,10 @@ pub mod peer_online {
     }
 
     async fn probe_direct_host(host: String) -> ResultType<()> {
-        let mut stream = connect_tcp_local(host.as_str(), None, 1_200).await?;
+        let mut stream =
+            connect_tcp_local(host.as_str(), None, DIRECT_PROBE_TIMEOUT).await?;
         let bytes = stream
-            .next_timeout(1_200)
+            .next_timeout(DIRECT_PROBE_TIMEOUT)
             .await
             .ok_or_else(|| hbb_common::anyhow::anyhow!("direct peer did not send a banner"))??;
         if !is_direct_server_banner(&bytes) {

@@ -16,7 +16,6 @@ use hbb_common::{
         self, is_loopback_or_test_server, keys::*, option2bool, use_ws, Config, CONNECT_TIMEOUT,
         DEFAULT_DIRECT_PORT, REG_INTERVAL, RENDEZVOUS_PORT,
     },
-    rand::Rng,
     futures::future::join_all,
     log,
     protobuf::Message as _,
@@ -302,6 +301,14 @@ impl RendezvousMediator {
                 if rpr.request_pk {
                     log::info!("request_pk received from {}", self.host);
                     self.register_pk(sink).await?;
+                } else {
+                    crate::runtime_logger::info(
+                        "NETWORK",
+                        &format!(
+                            "rendezvous peer registration acknowledged; server={}",
+                            self.host
+                        ),
+                    );
                 }
             }
             Some(rendezvous_message::Union::RegisterPkResponse(rpr)) => {
@@ -311,6 +318,16 @@ impl RendezvousMediator {
                         Config::set_key_confirmed(true);
                         Config::set_host_key_confirmed(&self.host_prefix, true);
                         *SOLVING_PK_MISMATCH.lock().await = "".to_owned();
+                        // RegisterPk confirms identity but does not keep the peer
+                        // online. Do not wait for the next 15-second refresh.
+                        self.register_peer(sink).await?;
+                        crate::runtime_logger::info(
+                            "NETWORK",
+                            &format!(
+                                "identity confirmed; peer registration sent; server={}",
+                                self.host
+                            ),
+                        );
                     }
                     Ok(register_pk_response::Result::UUID_MISMATCH) => {
                         self.handle_uuid_mismatch(sink).await?;
@@ -375,7 +392,6 @@ impl RendezvousMediator {
         };
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
         let mut last_recv_msg = Instant::now();
-        let mut online_reported = false;
         // we won't support connecting to multiple rendzvous servers any more, so we can use a global variable here.
         Config::set_host_key_confirmed(&rz.host_prefix, false);
         // TCP mode must follow the same registration handshake as UDP mode.
@@ -393,13 +409,6 @@ impl RendezvousMediator {
                     .map(|x| x.elapsed().as_micros() as i64)
                     .unwrap_or(0);
                 Config::update_latency(&host, latency);
-                if !online_reported {
-                    crate::runtime_logger::info(
-                        "NETWORK",
-                        &format!("rendezvous registered over TCP; server={host}"),
-                    );
-                    online_reported = true;
-                }
                 log::debug!("Latency of {}: {}ms", host, latency as f64 / 1000.);
             };
             select! {
@@ -826,23 +835,22 @@ static DIRECT_PORT: std::sync::OnceLock<std::sync::Mutex<i32>> = std::sync::Once
 fn get_direct_port() -> i32 {
     let mtx = DIRECT_PORT.get_or_init(|| {
         // Keep the documented port stable so entering a bare IP uses the
-        // same port. Fall back to a random port only if 21118 is occupied.
+        // same port. A small deterministic fallback range handles conflicts.
         std::sync::Mutex::new(DEFAULT_DIRECT_PORT)
     });
     *mtx.lock().unwrap()
 }
 
 /// Mark the current port as failed (e.g. port already in use),
-/// incrementing to the next port (21118 → 21119 → 21120 …).
-/// Falls back to a random port 20000-40000 only after 100 consecutive increments.
+/// incrementing through the deterministic bare-IP fallback range.
 fn invalidate_direct_port() {
     if let Some(mtx) = DIRECT_PORT.get() {
         let mut port = mtx.lock().unwrap();
         let failed_port = *port;
-        if *port < DEFAULT_DIRECT_PORT + 100 {
+        if *port < DEFAULT_DIRECT_PORT + crate::direct_access::DIRECT_PORT_RANGE as i32 {
             *port += 1;
         } else {
-            *port = rand::thread_rng().gen_range(20000..40000);
+            *port = DEFAULT_DIRECT_PORT;
         }
         log::info!("Direct port {} was unavailable, trying {}", failed_port, *port);
     }
