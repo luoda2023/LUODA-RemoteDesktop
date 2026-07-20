@@ -1,14 +1,11 @@
 use std::time::Duration;
 
 pub(crate) const REQUIRED_NO_DISPLAY_SAMPLES: usize = 4;
-pub(crate) const FIRST_FRAME_TIMEOUT: Duration = Duration::from_secs(8);
+pub(crate) const FIRST_FRAME_TIMEOUT: Duration = Duration::from_secs(30);
 pub(crate) const FIRST_FRAME_WOULD_BLOCK_LIMIT: usize = 3;
 
 pub(crate) struct DisplayProbe {
     pub online: bool,
-    pub width: usize,
-    pub height: usize,
-    pub has_large_mode: bool,
 }
 
 pub(crate) fn should_insert_headless(active_display_samples: &[bool]) -> bool {
@@ -16,24 +13,18 @@ pub(crate) fn should_insert_headless(active_display_samples: &[bool]) -> bool {
         && active_display_samples.iter().all(|active| !active)
 }
 
-pub(crate) fn usable_display_indices(probes: &[DisplayProbe], dummy_side_max: usize) -> Vec<usize> {
+pub(crate) fn usable_display_indices(probes: &[DisplayProbe]) -> Vec<usize> {
     let online = probes
         .iter()
         .enumerate()
         .filter_map(|(index, probe)| probe.online.then_some(index))
         .collect::<Vec<_>>();
 
-    if online.len() != 1 {
-        return online;
-    }
-
-    let index = online[0];
-    let probe = &probes[index];
-    if probe.width > dummy_side_max || probe.height > dummy_side_max || probe.has_large_mode {
-        online
-    } else {
-        Vec::new()
-    }
+    // An online physical display is still a valid capture target even when it
+    // reports a small mode (common on low-end machines and RDP sessions).
+    // Treating the only small display as absent causes headless recovery to
+    // insert a virtual monitor and can briefly blank the real desktop.
+    online
 }
 
 pub(crate) fn should_restart_first_frame_capture(
@@ -68,22 +59,19 @@ mod tests {
     #[test]
     fn ignores_offline_rdp_displays_and_keeps_online_displays() {
         let probes = [
-            DisplayProbe {
-                online: false,
-                width: 1920,
-                height: 1080,
-                has_large_mode: true,
-            },
-            DisplayProbe {
-                online: true,
-                width: 1920,
-                height: 1080,
-                has_large_mode: true,
-            },
+            DisplayProbe { online: false },
+            DisplayProbe { online: true },
         ];
 
-        assert_eq!(usable_display_indices(&probes, 1024), [1]);
-        assert!(usable_display_indices(&probes[..1], 1024).is_empty());
+        assert_eq!(usable_display_indices(&probes), [1]);
+        assert!(usable_display_indices(&probes[..1]).is_empty());
+    }
+
+    #[test]
+    fn keeps_a_single_online_small_display() {
+        let probes = [DisplayProbe { online: true }];
+
+        assert_eq!(usable_display_indices(&probes), [0]);
     }
 
     #[test]
@@ -92,9 +80,13 @@ mod tests {
             false,
             Duration::from_secs(7)
         ));
+        assert!(!should_restart_first_frame_capture(
+            false,
+            Duration::from_secs(29)
+        ));
         assert!(should_restart_first_frame_capture(
             false,
-            Duration::from_secs(8)
+            Duration::from_secs(30)
         ));
         assert!(!should_restart_first_frame_capture(
             true,

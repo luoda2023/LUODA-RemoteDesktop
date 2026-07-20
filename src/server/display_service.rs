@@ -14,9 +14,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const NAME: &'static str = "display";
 
-#[cfg(windows)]
-const DUMMY_DISPLAY_SIDE_MAX_SIZE: usize = 1024;
-
 struct ChangedResolution {
     original: (i32, i32),
     changed: (i32, i32),
@@ -398,18 +395,9 @@ fn retain_usable_displays(displays: &mut Vec<Display>) {
         .iter()
         .map(|display| crate::headless_policy::DisplayProbe {
             online: display.is_online(),
-            width: display.width(),
-            height: display.height(),
-            has_large_mode: crate::platform::resolutions(&display.name()).iter().any(
-                |resolution| {
-                    resolution.height as usize > DUMMY_DISPLAY_SIDE_MAX_SIZE
-                        || resolution.width as usize > DUMMY_DISPLAY_SIDE_MAX_SIZE
-                },
-            ),
         })
         .collect::<Vec<_>>();
-    let usable =
-        crate::headless_policy::usable_display_indices(&probes, DUMMY_DISPLAY_SIDE_MAX_SIZE);
+    let usable = crate::headless_policy::usable_display_indices(&probes);
     if usable.len() != displays.len() {
         log::warn!(
             "ignoring {} offline or unusable display(s) before capture",
