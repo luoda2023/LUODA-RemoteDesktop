@@ -374,11 +374,19 @@ impl RendezvousMediator {
             keep_alive: crate::DEFAULT_KEEP_ALIVE,
         };
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
-        let mut last_register_sent: Option<Instant> = None;
         let mut last_recv_msg = Instant::now();
         let mut online_reported = false;
         // we won't support connecting to multiple rendzvous servers any more, so we can use a global variable here.
         Config::set_host_key_confirmed(&rz.host_prefix, false);
+        // TCP mode must follow the same registration handshake as UDP mode.
+        // Sending only RegisterPk leaves the transport alive but does not keep
+        // the peer listed as online after its key has been confirmed.
+        rz.register_peer(Sink::Stream(&mut conn)).await?;
+        let mut last_register_sent = Some(Instant::now());
+        crate::runtime_logger::info(
+            "NETWORK",
+            &format!("TCP rendezvous registration sent; server={host}"),
+        );
         loop {
             let mut update_latency = || {
                 let latency = last_register_sent
@@ -415,10 +423,12 @@ impl RendezvousMediator {
                     if last_recv_msg.elapsed().as_millis() as u64 > rz.keep_alive as u64 * 3 / 2 {
                         bail!("Rendezvous connection is timeout");
                     }
-                    if (!Config::get_key_confirmed() ||
-                        !Config::get_host_key_confirmed(&rz.host_prefix)) &&
-                        last_register_sent.map(|x| x.elapsed().as_millis() as i64).unwrap_or(REG_INTERVAL) >= REG_INTERVAL {
-                        rz.register_pk(Sink::Stream(&mut conn)).await?;
+                    if last_register_sent
+                        .map(|x| x.elapsed().as_millis() as i64)
+                        .unwrap_or(REG_INTERVAL)
+                        >= REG_INTERVAL
+                    {
+                        rz.register_peer(Sink::Stream(&mut conn)).await?;
                         last_register_sent = Some(Instant::now());
                     }
                 }
