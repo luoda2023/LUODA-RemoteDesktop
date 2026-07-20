@@ -586,9 +586,18 @@ pub async fn start_server(_is_server: bool) {
     crate::RendezvousMediator::start_all().await;
 }
 
+/// Read the rendezvous state from the process that currently owns primary IPC.
+#[cfg(windows)]
+async fn read_owner_online_status() -> Option<i64> {
+    let mut conn = crate::ipc::connect(500, "").await.ok()?;
+    conn.send(&crate::ipc::Data::OnlineStatus(None)).await.ok()?;
+    match conn.next_timeout(500).await.ok()? {
+        Some(crate::ipc::Data::OnlineStatus(Some((online, _)))) => Some(online),
+        _ => None,
+    }
+}
+
 /// Start the host server that allows the remote peer to control the current machine.
-///
-/// # Arguments
 ///
 /// * `is_server` - Whether the current client is definitely the server.
 /// If true, the server will be started.
@@ -619,14 +628,28 @@ pub async fn start_server(is_server: bool, no_server: bool) {
         let ipc_ready = ipc_ready_rx
             .recv_timeout(std::time::Duration::from_secs(4))
             .ok();
-        if !crate::host_startup::can_start_rendezvous(ipc_ready.clone()) {
-            match ipc_ready {
+        #[cfg(windows)]
+        let owner_online = if matches!(ipc_ready.as_ref(), Some(Ok(()))) {
+            Some(1)
+        } else {
+            read_owner_online_status().await
+        };
+        #[cfg(not(windows))]
+        let owner_online = Some(1);
+        if !crate::host_startup::can_start_rendezvous(ipc_ready.clone(), owner_online) {
+            match ipc_ready.as_ref() {
                 Some(Err(error)) => {
                     log::warn!("Host server deferred to the primary IPC owner: {error}")
                 }
                 _ => log::error!("Host server aborted: primary IPC ownership timed out"),
             }
             return;
+        }
+        if !matches!(ipc_ready.as_ref(), Some(Ok(()))) {
+            crate::runtime_logger::warn(
+                "NETWORK",
+                "primary IPC owner is offline; starting rendezvous recovery",
+            );
         }
         crate::common::set_server_running(true);
         #[cfg(windows)]
@@ -668,6 +691,21 @@ pub async fn start_server(is_server: bool, no_server: bool) {
                             }
                             _ => {}
                         }
+                    }
+                }
+                #[cfg(windows)]
+                {
+                    // Do not remain permanently dependent on an IPC owner whose
+                    // rendezvous loop is no longer online (common after a stale
+                    // service/portable process survives a crash).
+                    if read_owner_online_status().await.map(|online| online > 0) != Some(true) {
+                        log::warn!(
+                            "primary IPC owner is offline; scheduling rendezvous recovery"
+                        );
+                        std::thread::spawn(|| {
+                            std::thread::sleep(std::time::Duration::from_secs(2));
+                            start_server(true, false);
+                        });
                     }
                 }
                 #[cfg(feature = "hwcodec")]

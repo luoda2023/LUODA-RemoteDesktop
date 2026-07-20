@@ -3981,11 +3981,31 @@ pub mod peer_online {
         config::{Config, CONNECT_TIMEOUT, DEFAULT_DIRECT_PORT, READ_TIMEOUT},
         futures::{future::join_all, FutureExt},
         log,
+        message_proto::{message, Message},
+        protobuf::Message as _,
         rendezvous_proto::*,
         sleep,
         socket_client::{connect_tcp, connect_tcp_local},
         ResultType, Stream,
     };
+
+    fn is_direct_server_banner(bytes: &[u8]) -> bool {
+        Message::parse_from_bytes(bytes)
+            .map(|parsed| matches!(parsed.union, Some(message::Union::Hash(_))))
+            .unwrap_or(false)
+    }
+
+    async fn probe_direct_host(host: String) -> ResultType<()> {
+        let mut stream = connect_tcp_local(host.as_str(), None, 1_200).await?;
+        let bytes = stream
+            .next_timeout(1_200)
+            .await
+            .ok_or_else(|| hbb_common::anyhow::anyhow!("direct peer did not send a banner"))??;
+        if !is_direct_server_banner(&bytes) {
+            bail!("direct peer sent an invalid LUODA banner");
+        }
+        Ok(())
+    }
 
     pub async fn query_online_states<F: FnOnce(Vec<String>, Vec<String>)>(ids: Vec<String>, f: F) {
         let test = false;
@@ -4010,7 +4030,7 @@ pub mod peer_online {
                     DEFAULT_DIRECT_PORT as u16,
                 );
                 let attempts: Vec<_> = hosts.into_iter().map(|host| {
-                    async move { connect_tcp_local(host, None, 1_200).await }
+                    async move { probe_direct_host(host).await }
                         .boxed()
                 }).collect();
                 let online = hbb_common::futures::future::select_ok(attempts)
@@ -4128,8 +4148,22 @@ pub mod peer_online {
     mod tests {
         use hbb_common::{
             config::{keys::OPTION_CUSTOM_RENDEZVOUS_SERVER, Config},
+            message_proto::{Hash, Message},
+            protobuf::Message as _,
             tokio,
         };
+
+        #[test]
+        fn direct_probe_requires_a_luoda_hash_banner() {
+            let mut hash_message = Message::new();
+            hash_message.set_hash(Hash::default());
+            let hash_bytes = hash_message.write_to_bytes().unwrap();
+            assert!(super::is_direct_server_banner(&hash_bytes));
+
+            let empty_message = Message::new().write_to_bytes().unwrap();
+            assert!(!super::is_direct_server_banner(&empty_message));
+            assert!(!super::is_direct_server_banner(b"not a protobuf message"));
+        }
 
         #[tokio::test]
         async fn transport_failure_does_not_report_every_peer_offline() {
