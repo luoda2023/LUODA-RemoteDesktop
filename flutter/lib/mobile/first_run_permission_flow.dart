@@ -1,20 +1,23 @@
-typedef FirstRunPermissionStep = Future<void> Function();
+typedef FirstRunPermissionStep = Future<bool> Function();
 
 class FirstRunPermissionFlow {
   FirstRunPermissionFlow(this._steps);
 
   final List<FirstRunPermissionStep> _steps;
-  Future<void>? _running;
+  Future<bool>? _running;
 
-  Future<void> run() {
+  Future<bool> run() {
     return _running ??= _runSteps();
   }
 
-  Future<void> _runSteps() async {
+  Future<bool> _runSteps() async {
+    var allGranted = true;
     try {
       for (final step in _steps) {
-        await step();
+        final granted = await step();
+        allGranted = granted && allGranted;
       }
+      return allGranted;
     } finally {
       _running = null;
     }

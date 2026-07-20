@@ -6,16 +6,35 @@ Future<void> main() async {
   final events = <String>[];
   final accessibilityReturn = Completer<void>();
   final flow = FirstRunPermissionFlow([
-    () async => events.add('notification'),
-    () async => events.add('audio'),
-    () async => events.add('battery'),
-    () async => events.add('overlay'),
-    () async => events.add('storage'),
+    () async {
+      events.add('notification');
+      return true;
+    },
+    () async {
+      events.add('audio');
+      return true;
+    },
+    () async {
+      events.add('battery');
+      return true;
+    },
+    () async {
+      events.add('overlay');
+      return true;
+    },
+    () async {
+      events.add('storage');
+      return true;
+    },
     () async {
       events.add('accessibility');
       await accessibilityReturn.future;
+      return true;
     },
-    () async => events.add('screen-capture'),
+    () async {
+      events.add('screen-capture');
+      return true;
+    },
   ]);
 
   final firstRun = flow.run();
@@ -32,5 +51,18 @@ Future<void> main() async {
   await firstRun;
   if (events.last != 'screen-capture') {
     throw StateError('Screen capture did not start after settings returned');
+  }
+
+  var attempts = 0;
+  final retryFlow = FirstRunPermissionFlow([
+    () async {
+      attempts++;
+      return attempts > 1;
+    },
+  ]);
+  final firstAttemptResult = await retryFlow.run();
+  final secondAttemptResult = await retryFlow.run();
+  if (firstAttemptResult || !secondAttemptResult) {
+    throw StateError('Incomplete authorization was not retried');
   }
 }

@@ -54,14 +54,10 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _firstRunPermissionFlow = FirstRunPermissionFlow([
-      () async {
-        await gFFI.serverModel.checkRequestNotificationPermission();
-      },
+      () => gFFI.serverModel.checkRequestNotificationPermission(),
       () => _requestPermissionIfMissing(kRecordAudio),
       () => _requestPermissionIfMissing(kRequestIgnoreBatteryOptimizations),
-      () async {
-        await gFFI.serverModel.checkFloatingWindowPermission();
-      },
+      () => gFFI.serverModel.checkFloatingWindowPermission(),
       () => _requestPermissionIfMissing(kManageExternalStorage),
       _requestAccessibilityPermission,
       _ensureScreenCaptureStarted,
@@ -100,15 +96,23 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
     try {
-      if (bind.mainGetLocalOption(key: _kFirstRunAuthorization) != 'Y') {
+      final previouslyCompleted =
+          bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y';
+      if (!previouslyCompleted) {
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence started');
-        await _firstRunPermissionFlow.run();
+      } else {
+        RuntimeLogger.instance
+            .info('ANDROID', 'rechecking Android authorization state');
+      }
+      final completed = await _firstRunPermissionFlow.run();
+      if (completed) {
         await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence finished');
       } else {
-        await _ensureScreenCaptureStarted();
+        RuntimeLogger.instance.warn('ANDROID',
+            'first-run authorization incomplete; will retry on next launch');
       }
     } catch (error, stackTrace) {
       RuntimeLogger.instance.error(
@@ -116,18 +120,19 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _requestPermissionIfMissing(String type) async {
+  Future<bool> _requestPermissionIfMissing(String type) async {
     if (await AndroidPermissionManager.check(type)) {
-      return;
+      return true;
     }
     final granted = await AndroidPermissionManager.request(type);
     RuntimeLogger.instance.info(
         'ANDROID', 'permission request completed; type=$type granted=$granted');
+    return granted;
   }
 
-  Future<void> _requestAccessibilityPermission() async {
+  Future<bool> _requestAccessibilityPermission() async {
     if (await AndroidPermissionManager.checkAccessibility()) {
-      return;
+      return true;
     }
 
     final waiting = Completer<void>();
@@ -152,16 +157,17 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await gFFI.invokeMethod('check_service');
     RuntimeLogger.instance
         .info('ANDROID', 'accessibility request completed; granted=$granted');
+    return granted;
   }
 
-  Future<void> _ensureScreenCaptureStarted() async {
-    if (!mounted || gFFI.serverModel.isStart) {
-      return;
+  Future<bool> _ensureScreenCaptureStarted() async {
+    if (!mounted) {
+      return false;
     }
     final mediaReady =
         await gFFI.invokeMethod('check_video_permission') == true;
     if (mediaReady) {
-      return;
+      return true;
     }
 
     await gFFI.serverModel.startService();
@@ -172,6 +178,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
         break;
       }
     }
+    return await gFFI.invokeMethod('check_video_permission') == true;
   }
 
   void initPages() {
