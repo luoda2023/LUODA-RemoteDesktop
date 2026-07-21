@@ -2705,6 +2705,7 @@ pub fn set_path_permission(dir: &Path, permission: &str) -> ResultType<()> {
         .arg("/grant")
         .arg(format!("*S-1-1-0:(OI)(CI){}", permission))
         .arg("/T")
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()?;
     Ok(())
 }
