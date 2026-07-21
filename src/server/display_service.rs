@@ -30,6 +30,8 @@ lazy_static::lazy_static! {
 
 // https://github.com/luoda/luoda/pull/8537
 static TEMP_IGNORE_DISPLAYS_CHANGED: AtomicBool = AtomicBool::new(false);
+#[cfg(windows)]
+static PREFER_HEADLESS_VIRTUAL_DISPLAY: AtomicBool = AtomicBool::new(false);
 
 #[derive(Default)]
 struct SyncDisplaysInfo {
@@ -391,25 +393,70 @@ pub fn get_primary_2(all: &Vec<Display>) -> usize {
 
 #[cfg(windows)]
 fn retain_usable_displays(displays: &mut Vec<Display>) {
+    let prefer_headless_virtual = PREFER_HEADLESS_VIRTUAL_DISPLAY.load(Ordering::Relaxed);
     let probes = displays
         .iter()
         .map(|display| crate::headless_policy::DisplayProbe {
             online: display.is_online(),
+            headless_virtual: prefer_headless_virtual
+                && virtual_display_manager::amyuni_idd::is_my_display(&display.name()),
         })
         .collect::<Vec<_>>();
-    let usable = crate::headless_policy::usable_display_indices(&probes);
+    let usable = crate::headless_policy::usable_display_indices(&probes, prefer_headless_virtual);
     if usable.len() != displays.len() {
         log::warn!(
             "ignoring {} offline or unusable display(s) before capture",
             displays.len() - usable.len()
         );
     }
-    let mut index = 0;
-    displays.retain(|_| {
-        let keep = usable.contains(&index);
-        index += 1;
-        keep
-    });
+    let mut indexed = displays.drain(..).map(Some).collect::<Vec<_>>();
+    *displays = usable
+        .into_iter()
+        .filter_map(|index| indexed.get_mut(index).and_then(|display| display.take()))
+        .collect();
+}
+
+#[cfg(windows)]
+pub(super) fn recover_headless_after_capture_failure(
+    display_idx: usize,
+    capture_error: &str,
+) -> bool {
+    if PREFER_HEADLESS_VIRTUAL_DISPLAY.swap(true, Ordering::SeqCst) {
+        return true;
+    }
+
+    crate::runtime_logger::warn(
+        "HEADLESS",
+        &format!(
+            "uncapturable Windows Server display; inserting virtual display; display={display_idx}; error={capture_error}"
+        ),
+    );
+    log::warn!(
+        "uncapturable Windows Server display {}, starting virtual display recovery: {}",
+        display_idx,
+        capture_error
+    );
+
+    if virtual_display_manager::amyuni_idd::get_monitor_count() > 0 {
+        log::info!("existing virtual display will be preferred for headless capture");
+        return true;
+    }
+
+    match virtual_display_manager::plug_in_headless() {
+        Ok(()) => {
+            log::info!("virtual display inserted after first-frame capture failure");
+            true
+        }
+        Err(error) => {
+            PREFER_HEADLESS_VIRTUAL_DISPLAY.store(false, Ordering::SeqCst);
+            crate::runtime_logger::error(
+                "HEADLESS",
+                &format!("virtual display recovery failed: {error}"),
+            );
+            log::error!("virtual display recovery failed: {}", error);
+            false
+        }
+    }
 }
 
 #[inline]

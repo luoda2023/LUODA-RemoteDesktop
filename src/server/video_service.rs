@@ -951,6 +951,25 @@ fn run(vs: VideoService) -> ResultType<()> {
                 }
 
                 #[cfg(windows)]
+                {
+                    let capture_error = err.to_string();
+                    if vs.source.is_monitor()
+                        && crate::headless_policy::should_recover_headless_after_capture_error(
+                            crate::platform::is_win_server(),
+                            first_frame_sent,
+                            c.is_gdi(),
+                            &capture_error,
+                        )
+                        && super::display_service::recover_headless_after_capture_failure(
+                            display_idx,
+                            &capture_error,
+                        )
+                    {
+                        bail!("Retry capture with headless virtual display");
+                    }
+                }
+
+                #[cfg(windows)]
                 if !c.is_gdi() {
                     c.set_gdi();
                     log::info!("dxgi error, fall back to gdi: {:?}", err);
