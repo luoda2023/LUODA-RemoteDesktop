@@ -1,4 +1,4 @@
-pub(crate) fn can_start_rendezvous(
+﻿pub(crate) fn can_start_rendezvous(
     ipc_ready: Option<Result<(), String>>,
     owner_online: Option<i64>,
 ) -> bool {
@@ -6,9 +6,14 @@ pub(crate) fn can_start_rendezvous(
         return true;
     }
 
-    // A stale primary process can keep the IPC endpoint open after its
-    // rendezvous loop has stopped. Allow a new process to recover networking
-    // only when the current owner is not reporting an online state.
+    // IPC endpoint occupied by a stale process (old version with bugs).
+    // Always allow the new process to take over, because the old process
+    // may be stuck and not actually online.
+    if matches!(ipc_ready, Some(Err(_))) {
+        return true;
+    }
+
+    // Fallback: new startup with no existing IPC owner
     owner_online.map(|online| online <= 0).unwrap_or(true)
 }
 
@@ -19,7 +24,7 @@ mod tests {
     #[test]
     fn offline_ipc_owner_allows_rendezvous_recovery() {
         assert!(can_start_rendezvous(Some(Ok(())), None));
-        assert!(!can_start_rendezvous(
+        assert!(can_start_rendezvous(
             Some(Err("occupied".to_owned())),
             Some(1)
         ));
