@@ -417,6 +417,52 @@ fn retain_usable_displays(displays: &mut Vec<Display>) {
 }
 
 #[cfg(windows)]
+fn has_usable_headless_virtual_display(displays: &[Display]) -> bool {
+    displays.iter().any(|display| {
+        display.is_online() && virtual_display_manager::amyuni_idd::is_my_display(&display.name())
+    })
+}
+
+#[cfg(windows)]
+fn prepare_headless_before_disconnect(displays: &mut Vec<Display>, headless_requested: bool) {
+    if !crate::headless_policy::should_prepare_headless_before_disconnect(
+        crate::platform::is_win_server(),
+        headless_requested,
+        !displays.is_empty(),
+        has_usable_headless_virtual_display(displays),
+    ) {
+        return;
+    }
+
+    log::info!("preparing virtual display before Windows Server session disconnect");
+    if let Err(error) = virtual_display_manager::plug_in_headless() {
+        log::warn!(
+            "failed to prepare virtual display before disconnect: {}",
+            error
+        );
+        return;
+    }
+
+    let started = std::time::Instant::now();
+    while started.elapsed() < std::time::Duration::from_secs(5) {
+        if let Ok(mut found) = Display::all() {
+            retain_usable_displays(&mut found);
+            if has_usable_headless_virtual_display(&found) {
+                log::info!(
+                    "virtual display prepared before disconnect after {:?}",
+                    started.elapsed()
+                );
+                *displays = found;
+                return;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+
+    log::warn!("virtual display did not become usable before disconnect");
+}
+
+#[cfg(windows)]
 pub(super) fn recover_headless_after_capture_failure(
     display_idx: usize,
     capture_error: &str,
@@ -501,6 +547,10 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
     // previously installed LUODA service.
     if !virtual_display_manager::is_virtual_display_supported() {
         return Ok(displays);
+    }
+
+    if virtual_display_manager::is_amyuni_idd() {
+        prepare_headless_before_disconnect(&mut displays, add_amyuni_headless);
     }
 
     // Enable headless virtual display when

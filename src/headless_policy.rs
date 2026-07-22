@@ -15,6 +15,15 @@ pub(crate) fn should_insert_headless(active_display_samples: &[bool]) -> bool {
         && active_display_samples.iter().all(|active| !active)
 }
 
+pub(crate) fn should_prepare_headless_before_disconnect(
+    windows_server: bool,
+    headless_requested: bool,
+    has_usable_display: bool,
+    has_headless_virtual: bool,
+) -> bool {
+    windows_server && headless_requested && has_usable_display && !has_headless_virtual
+}
+
 pub(crate) fn usable_display_indices(
     probes: &[DisplayProbe],
     prefer_headless_virtual: bool,
@@ -66,8 +75,8 @@ pub(crate) fn should_recover_headless_after_capture_error(
 mod tests {
     use super::{
         should_fallback_first_frame_capture, should_insert_headless,
-        should_recover_headless_after_capture_error, should_restart_first_frame_capture,
-        usable_display_indices, DisplayProbe,
+        should_prepare_headless_before_disconnect, should_recover_headless_after_capture_error,
+        should_restart_first_frame_capture, usable_display_indices, DisplayProbe,
     };
     use std::time::Duration;
 
@@ -76,6 +85,22 @@ mod tests {
         assert!(!should_insert_headless(&[false, false, false]));
         assert!(!should_insert_headless(&[false, true, false, false]));
         assert!(should_insert_headless(&[false, false, false, false]));
+    }
+
+    #[test]
+    fn prepares_virtual_display_while_windows_server_display_is_still_usable() {
+        assert!(should_prepare_headless_before_disconnect(
+            true, true, true, false
+        ));
+        assert!(!should_prepare_headless_before_disconnect(
+            true, true, false, false
+        ));
+        assert!(!should_prepare_headless_before_disconnect(
+            true, true, true, true
+        ));
+        assert!(!should_prepare_headless_before_disconnect(
+            false, true, true, false
+        ));
     }
 
     #[test]
