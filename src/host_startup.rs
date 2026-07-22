@@ -17,9 +17,18 @@
     owner_online.map(|online| online <= 0).unwrap_or(true)
 }
 
+pub(crate) fn should_start_portable_service(
+    is_installed: bool,
+    args_empty: bool,
+    explicit_quick_support: bool,
+    pre_elevate_service: bool,
+) -> bool {
+    !is_installed && args_empty && (explicit_quick_support || pre_elevate_service)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::can_start_rendezvous;
+    use super::{can_start_rendezvous, should_start_portable_service};
 
     #[test]
     fn offline_ipc_owner_allows_rendezvous_recovery() {
@@ -33,5 +42,13 @@ mod tests {
             Some(0)
         ));
         assert!(can_start_rendezvous(None, None));
+    }
+
+    #[test]
+    fn normal_portable_does_not_start_portable_capture_service() {
+        assert!(!should_start_portable_service(false, true, false, false));
+        assert!(should_start_portable_service(false, true, true, false));
+        assert!(should_start_portable_service(false, true, false, true));
+        assert!(!should_start_portable_service(true, true, true, true));
     }
 }
