@@ -334,7 +334,15 @@ pub fn check_ws(endpoint: &str) -> String {
         (true, endpoint_port + 2)
     };
 
-    let (address, is_domain) = if crate::is_ip_str(endpoint) {
+    let endpoint_host = endpoint_host.trim_end_matches('.');
+    let is_public_server = RENDEZVOUS_SERVERS.iter().any(|server| {
+        let server_host = split_host_port(server)
+            .map(|(host, _)| host)
+            .unwrap_or_else(|| (*server).to_owned());
+        endpoint_host.eq_ignore_ascii_case(server_host.trim_end_matches('.'))
+    });
+
+    let (address, is_domain) = if crate::is_ip_str(endpoint) || is_public_server {
         (format!("{}:{}", endpoint_host, dst_port), false)
     } else {
         let domain_path = if relay { "/ws/relay" } else { "/ws/id" };
@@ -342,21 +350,9 @@ pub fn check_ws(endpoint: &str) -> String {
     };
     let protocol = if is_domain {
         let api_server = Config::get_option("api-server");
-        let endpoint_host = endpoint_host.trim_end_matches('.');
-        let is_tls_only_public_server = RENDEZVOUS_SERVERS.iter().any(|server| {
-            let server_host = split_host_port(server)
-                .map(|(host, _)| host)
-                .unwrap_or_else(|| (*server).to_owned());
-            let server_host = server_host.trim_end_matches('.');
-            endpoint_host.eq_ignore_ascii_case(server_host)
-        });
-
-        if is_tls_only_public_server || api_server.starts_with("https://") {
+        if api_server.starts_with("https://") {
             "wss"
         } else {
-            // Self-hosted HTTP domains and IP endpoints may legitimately be
-            // plain WebSocket servers. Only the public LUODA endpoint is
-            // forced to TLS regardless of a stale API setting.
             "ws"
         }
     } else {
@@ -405,7 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn public_server_uses_wss_with_stale_http_api_setting() {
+    fn public_server_uses_direct_websocket_ports() {
         let _lock = CONFIG_TEST_LOCK
             .lock()
             .unwrap_or_else(|err| err.into_inner());
@@ -416,14 +412,14 @@ mod tests {
         Config::set_option("relay-server".to_owned(), "".to_owned());
         Config::set_option("api-server".to_owned(), "http://rev.dicad.cn".to_owned());
 
-        assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
+        assert_eq!(check_ws("rev.dicad.cn:21116"), "ws://rev.dicad.cn:21118");
         assert_eq!(
             check_ws("rev.dicad.cn:21117"),
-            "wss://rev.dicad.cn/ws/relay"
+            "ws://rev.dicad.cn:21119"
         );
 
         Config::set_option("api-server".to_owned(), "".to_owned());
-        assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
+        assert_eq!(check_ws("rev.dicad.cn:21116"), "ws://rev.dicad.cn:21118");
     }
 
     #[test]

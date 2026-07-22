@@ -5,9 +5,8 @@ pub(crate) fn should_start_with_tcp(
     proxy: bool,
     websocket: bool,
     udp_disabled: bool,
-    windows_server: bool,
 ) -> bool {
-    test_tcp || proxy || websocket || udp_disabled || windows_server
+    test_tcp || proxy || websocket || udp_disabled
 }
 
 pub(crate) fn should_fallback_to_tcp(consecutive_failures: i64) -> bool {
@@ -19,9 +18,10 @@ mod tests {
     use super::{should_fallback_to_tcp, should_start_with_tcp};
 
     #[test]
-    fn windows_server_starts_with_tcp() {
-        assert!(should_start_with_tcp(false, false, false, false, true));
-        assert!(!should_start_with_tcp(false, false, false, false, false));
+    fn udp_is_default_unless_tcp_is_requested() {
+        assert!(!should_start_with_tcp(false, false, false, false));
+        assert!(should_start_with_tcp(false, false, true, false));
+        assert!(should_start_with_tcp(false, false, false, true));
     }
 
     #[test]

@@ -448,24 +448,13 @@ impl RendezvousMediator {
 
     pub async fn start(server: ServerPtr, host: String) -> ResultType<()> {
         log::info!("start rendezvous mediator of {}", host);
-        #[cfg(windows)]
-        let windows_server = crate::platform::is_win_server();
-        #[cfg(not(windows))]
-        let windows_server = false;
         //If the investment agent type is http or https, then tcp forwarding is enabled.
         if crate::rendezvous_transport::should_start_with_tcp(
             cfg!(debug_assertions) && option_env!("TEST_TCP").is_some(),
             Config::is_proxy(),
             use_ws(),
             crate::is_udp_disabled(),
-            windows_server,
         ) {
-            if windows_server {
-                crate::runtime_logger::info(
-                    "NETWORK",
-                    &format!("Windows Server detected; starting rendezvous over TCP; server={host}"),
-                );
-            }
             Self::start_tcp(server, host).await
         } else {
             match Self::start_udp(server.clone(), host.clone()).await {
