@@ -463,6 +463,24 @@ fn prepare_headless_before_disconnect(displays: &mut Vec<Display>, headless_requ
 }
 
 #[cfg(windows)]
+pub(super) fn prepare_headless_on_portable_host_startup() {
+    if crate::platform::is_installed()
+        || !crate::platform::is_win_server()
+        || !virtual_display_manager::is_virtual_display_supported()
+        || !virtual_display_manager::is_amyuni_idd()
+    {
+        return;
+    }
+
+    let Ok(mut displays) = Display::all() else {
+        log::warn!("failed to enumerate displays before portable host startup");
+        return;
+    };
+    retain_usable_displays(&mut displays);
+    prepare_headless_before_disconnect(&mut displays, true);
+}
+
+#[cfg(windows)]
 pub(super) fn recover_headless_after_capture_failure(
     display_idx: usize,
     capture_error: &str,

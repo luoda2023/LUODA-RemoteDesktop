@@ -653,6 +653,8 @@ pub async fn start_server(is_server: bool, no_server: bool) {
         }
         crate::common::set_server_running(true);
         #[cfg(windows)]
+        display_service::prepare_headless_on_portable_host_startup();
+        #[cfg(windows)]
         if !crate::platform::is_installed()
             && crate::portable_service::client::is_quick_support()
         {
