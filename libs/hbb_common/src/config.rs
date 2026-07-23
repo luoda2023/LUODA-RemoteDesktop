@@ -177,9 +177,9 @@ pub const WS_RELAY_PORT: i32 = 21119;
 ///
 /// Returns `true` for:
 /// - `127.0.0.1`, `localhost`, `::1`, `0.0.0.0` (loopback / any)
-/// - `192.168.x.x`, `10.x.x.x`, `172.16-31.x.x` (RFC1918 private ranges,
-///   these are not valid public rendezvous servers)
 /// - RFC 5737 TEST-NET ranges used by documentation and test fixtures
+/// - RFC 3927 link-local `169.254.x.x`
+///
 pub fn is_loopback_or_test_server(s: &str) -> bool {
     let endpoint = s.trim();
     if endpoint.is_empty() {
@@ -213,10 +213,7 @@ pub fn is_loopback_or_test_server(s: &str) -> bool {
     }
     if let IpAddr::V4(v4) = ip {
         let oct = v4.octets();
-        return oct[0] == 10
-            || (oct[0] == 172 && (16..=31).contains(&oct[1]))
-            || (oct[0] == 192 && oct[1] == 168)
-            || (oct[0] == 169 && oct[1] == 254)
+        return (oct[0] == 169 && oct[1] == 254)
             || (oct[0] == 192 && oct[1] == 0 && oct[2] == 2)
             || (oct[0] == 198 && oct[1] == 51 && oct[2] == 100)
             || (oct[0] == 203 && oct[1] == 0 && oct[2] == 113);
