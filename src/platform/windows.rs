@@ -666,6 +666,19 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
                 unsafe {
                     let tmp = get_current_session(share_rdp());
                     if tmp == 0xFFFFFFFF {
+                        // No active or disconnected session found. If the
+                        // previous server process has already exited (e.g.
+                        // after the RDP session was logged off), clean up
+                        // the handle so the next iteration can relaunch
+                        // immediately once a new session appears.
+                        let mut exit_code: DWORD = 0;
+                        if !h_process.is_null()
+                            && GetExitCodeProcess(h_process, &mut exit_code) == TRUE
+                            && exit_code != STILL_ACTIVE
+                            && CloseHandle(h_process) == TRUE
+                        {
+                            h_process = NULL;
+                        }
                         continue;
                     }
                     let mut close_sent = false;

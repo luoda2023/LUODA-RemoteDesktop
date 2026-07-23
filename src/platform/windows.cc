@@ -554,6 +554,7 @@ extern "C"
         // https://github.com/luoda/luoda/discussions/937#discussioncomment-12373814 citrix session
         auto ica = "ica";
         auto nica = strlen(ica);
+        DWORD disconnected_rdp = 0xFFFFFFFF;
         if (WTSEnumerateSessionsA(WTS_CURRENT_SERVER_HANDLE, NULL, 1, &pInfos, &count))
         {
             for (DWORD i = 0; i < count; i++)
@@ -574,8 +575,19 @@ extern "C"
                         rdp_or_console = info.SessionId;
                     }
                 }
+                else if (info.State == WTSDisconnected && info.pWinStationName != NULL)
+                {
+                    if (!strnicmp(info.pWinStationName, rdp, nrdp) || !strnicmp(info.pWinStationName, ica, nica))
+                    {
+                        disconnected_rdp = info.SessionId;
+                    }
+                }
             }
             WTSFreeMemory(pInfos);
+        }
+        if (rdp_or_console == 0xFFFFFFFF && disconnected_rdp != 0xFFFFFFFF)
+        {
+            return disconnected_rdp;
         }
         return rdp_or_console;
     }
