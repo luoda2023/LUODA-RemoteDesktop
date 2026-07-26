@@ -853,7 +853,11 @@ fn run(vs: VideoService) -> ResultType<()> {
                         try_gdi = 0;
                     } else if try_gdi > 0 && !c.is_gdi() {
                         try_gdi += 1;
-                        if try_gdi > 3 {
+                        // Windows Server RDP sessions frequently produce invalid
+                        // DXGI frames; fall back after a single failure instead
+                        // of waiting for three consecutive bad frames.
+                        let gdi_threshold = if crate::platform::is_win_server() { 1 } else { 3 };
+                        if try_gdi > gdi_threshold {
                             c.set_gdi();
                             try_gdi = 0;
                             log::info!("Invalid DXGI frames, fall back to gdi");
@@ -882,7 +886,8 @@ fn run(vs: VideoService) -> ResultType<()> {
                 #[cfg(windows)]
                 if try_gdi > 0 && !c.is_gdi() {
                     try_gdi += 1;
-                    if try_gdi > 3 {
+                    let gdi_threshold = if crate::platform::is_win_server() { 1 } else { 3 };
+                    if try_gdi > gdi_threshold {
                         c.set_gdi();
                         try_gdi = 0;
                         log::info!("No image, fall back to gdi");

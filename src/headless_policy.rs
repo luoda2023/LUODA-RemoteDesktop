@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 pub(crate) const REQUIRED_NO_DISPLAY_SAMPLES: usize = 4;
-pub(crate) const FIRST_FRAME_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const FIRST_FRAME_TIMEOUT: Duration = Duration::from_secs(12);
 pub(crate) const FIRST_FRAME_WOULD_BLOCK_LIMIT: usize = 3;
 const STALE_RDP_GDI_CAPTURE_ERROR: &str = "Failed to copy screen to Windows buffer";
 
@@ -65,10 +65,14 @@ pub(crate) fn should_recover_headless_after_capture_error(
     gdi_capturer: bool,
     error: &str,
 ) -> bool {
+    // On Windows Server, recover with virtual display when:
+    // 1. First frame has not been sent yet (capture is stuck)
+    // 2. Using GDI capturer with the known stale-RDP error, OR
+    //    any capture error on Windows Server (DXGI often fails on RDP sessions)
     windows_server
         && !first_frame_sent
-        && gdi_capturer
-        && error.contains(STALE_RDP_GDI_CAPTURE_ERROR)
+        && ((gdi_capturer && error.contains(STALE_RDP_GDI_CAPTURE_ERROR))
+            || !gdi_capturer)
 }
 
 #[cfg(test)]
@@ -155,15 +159,15 @@ mod tests {
         ));
         assert!(!should_restart_first_frame_capture(
             false,
-            Duration::from_secs(29)
+            Duration::from_secs(11)
         ));
         assert!(should_restart_first_frame_capture(
             false,
-            Duration::from_secs(30)
+            Duration::from_secs(12)
         ));
         assert!(!should_restart_first_frame_capture(
             true,
-            Duration::from_secs(30)
+            Duration::from_secs(12)
         ));
     }
 
@@ -178,18 +182,26 @@ mod tests {
     fn recovers_stale_rdp_display_only_after_server_gdi_first_frame_failure() {
         let error = "Failed to copy screen to Windows buffer";
 
+        // GDI capturer with the known stale-RDP error on Windows Server
         assert!(should_recover_headless_after_capture_error(
             true, false, true, error
         ));
+        // Not Windows Server
         assert!(!should_recover_headless_after_capture_error(
             false, false, true, error
         ));
+        // First frame already sent
         assert!(!should_recover_headless_after_capture_error(
             true, true, true, error
         ));
-        assert!(!should_recover_headless_after_capture_error(
+        // DXGI capturer on Windows Server: any error triggers recovery
+        assert!(should_recover_headless_after_capture_error(
             true, false, false, error
         ));
+        assert!(should_recover_headless_after_capture_error(
+            true, false, false, "Access denied"
+        ));
+        // GDI capturer with wrong error on Windows Server: no recovery
         assert!(!should_recover_headless_after_capture_error(
             true,
             false,
