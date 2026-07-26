@@ -381,7 +381,21 @@ impl RendezvousMediator {
     pub async fn start_tcp(server: ServerPtr, host: String) -> ResultType<()> {
         let host = check_port(&host, RENDEZVOUS_PORT);
         log::info!("start tcp: {}", hbb_common::websocket::check_ws(&host));
-        let mut conn = connect_tcp(host.clone(), CONNECT_TIMEOUT).await?;
+        // Try the normal connect_tcp first (may use WebSocket if enabled).
+        // If that fails, fall back to raw TCP so the rendezvous registration
+        // still works even when the WebSocket endpoint is unreachable.
+        let mut conn = match connect_tcp(host.clone(), CONNECT_TIMEOUT).await {
+            Ok(c) => c,
+            Err(err) => {
+                log::warn!("connect_tcp failed for {host} ({err}), falling back to raw TCP");
+                crate::runtime_logger::warn(
+                    "NETWORK",
+                    &format!("TCP rendezvous connect failed; server={host}; error={err}; fallback=raw-TCP"),
+                );
+                hbb_common::socket_client::connect_tcp_local(host.clone(), None, CONNECT_TIMEOUT)
+                    .await?
+            }
+        };
         let key = crate::get_key(true).await;
         crate::secure_tcp(&mut conn, &key).await?;
         let mut rz = Self {

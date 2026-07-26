@@ -1655,11 +1655,12 @@ pub fn check_process(arg: &str, mut same_uid: bool) -> bool {
 }
 
 pub async fn secure_tcp(conn: &mut Stream, key: &str) -> ResultType<()> {
-    // Skip additional encryption when using WebSocket connections (wss://)
-    // as WebSocket Secure (wss://) already provides transport layer encryption.
-    // This doesn't affect the end-to-end encryption between clients,
-    // it only avoids redundant encryption between client and server.
-    if use_ws() {
+    // Skip additional encryption only when the transport is ACTUALLY a
+    // WebSocket connection (wss:// already provides transport encryption).
+    // Previously this checked the global `use_ws()` option, which caused
+    // the key exchange to be skipped even on a raw-TCP fallback connection,
+    // leaving registration messages unencrypted and rejected by the server.
+    if conn.is_websocket() {
         return Ok(());
     }
     let rs_pk = get_rs_pk(key);
@@ -1689,11 +1690,20 @@ pub async fn secure_tcp(conn: &mut Stream, key: &str) -> ResultType<()> {
                         conn.set_key(key);
                         log::info!("Connection secured");
                     }
-                    _ => {}
+                    _ => {
+                        log::warn!("secure_tcp: first message from server is not KeyExchange; proceeding without transport encryption");
+                    }
                 }
+            } else {
+                log::warn!("secure_tcp: failed to parse first message from server; proceeding without transport encryption");
             }
         }
-        _ => {}
+        Some(Err(e)) => {
+            log::warn!("secure_tcp: error reading first message from server: {e}; proceeding without transport encryption");
+        }
+        None => {
+            log::warn!("secure_tcp: connection closed before key exchange; proceeding without transport encryption");
+        }
     }
     Ok(())
 }

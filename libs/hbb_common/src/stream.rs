@@ -74,6 +74,15 @@ impl Stream {
         }
     }
 
+    /// Returns `true` when the underlying transport is a WebSocket connection.
+    /// Used by `secure_tcp` to decide whether the application-layer key
+    /// exchange is still required (WebSocket Secure already encrypts the
+    /// transport, but a plain TCP fallback does not).
+    #[inline]
+    pub fn is_websocket(&self) -> bool {
+        matches!(self, Stream::WebSocket(_))
+    }
+
     #[inline]
     pub async fn next_timeout(
         &mut self,
