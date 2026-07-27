@@ -396,8 +396,15 @@ impl RendezvousMediator {
                     .await?
             }
         };
-        let key = crate::get_key(true).await;
-        crate::secure_tcp(&mut conn, &key).await?;
+        // NOTE: The hbbs TCP rendezvous protocol does NOT use a key-exchange
+        // handshake.  The server waits for the client to send the first message
+        // (RegisterPeer / PunchHoleRequest).  Calling secure_tcp() here would
+        // block for READ_TIMEOUT waiting for a KeyExchange that never arrives.
+        // Only WebSocket connections (wss://) have transport-level encryption.
+        if conn.is_websocket() {
+            let key = crate::get_key(true).await;
+            crate::secure_tcp(&mut conn, &key).await?;
+        }
         let mut rz = Self {
             addr: conn.local_addr().into_target_addr()?,
             host: host.clone(),
@@ -407,11 +414,11 @@ impl RendezvousMediator {
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
         let mut last_recv_msg = Instant::now();
         // we won't support connecting to multiple rendzvous servers any more, so we can use a global variable here.
-        Config::set_host_key_confirmed(&rz.host_prefix, false);
-        // TCP mode must follow the same registration handshake as UDP mode.
-        // Sending only RegisterPk leaves the transport alive but does not keep
-        // the peer listed as online after its key has been confirmed.
-        rz.register_peer(Sink::Stream(&mut conn)).await?;
+        Config::set_host_key_confirmed(&rz.host_prefix, true);
+        // TCP rendezvous: send RegisterPeer directly.  The hbbs server returns
+        // NOT_SUPPORT for RegisterPk over TCP, so we must skip the PK handshake
+        // and register the peer immediately.
+        rz.register_peer_tcp(Sink::Stream(&mut conn)).await?;
         let mut last_register_sent = Some(Instant::now());
         crate::runtime_logger::info(
             "NETWORK",
@@ -451,7 +458,7 @@ impl RendezvousMediator {
                         .unwrap_or(REG_INTERVAL)
                         >= REG_INTERVAL
                     {
-                        rz.register_peer(Sink::Stream(&mut conn)).await?;
+                        rz.register_peer_tcp(Sink::Stream(&mut conn)).await?;
                         last_register_sent = Some(Instant::now());
                     }
                 }
@@ -811,6 +818,27 @@ impl RendezvousMediator {
         let id = Config::get_id();
         log::trace!(
             "Register my id {:?} to rendezvous server {:?}",
+            id,
+            self.addr,
+        );
+        let mut msg_out = Message::new();
+        let serial = Config::get_serial();
+        msg_out.set_register_peer(RegisterPeer {
+            id,
+            serial,
+            ..Default::default()
+        });
+        socket.send(&msg_out).await?;
+        Ok(())
+    }
+
+    /// TCP-specific registration: sends RegisterPeer directly without the
+    /// RegisterPk handshake.  The hbbs TCP listener returns NOT_SUPPORT for
+    /// RegisterPk, so we bypass the key-confirmation check entirely.
+    async fn register_peer_tcp(&mut self, socket: Sink<'_>) -> ResultType<()> {
+        let id = Config::get_id();
+        log::info!(
+            "Register (TCP) my id {:?} to rendezvous server {:?}",
             id,
             self.addr,
         );
