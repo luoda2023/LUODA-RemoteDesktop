@@ -175,8 +175,8 @@ jobs:
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
-          prerelease: true
-          tag_name: nightly
+          prerelease: false
+          tag_name: v2.0.1
           files: LUODA-1.0.dmg
       - name: Upload runtime logs (always)
         if: always()

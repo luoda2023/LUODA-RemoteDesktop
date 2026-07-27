@@ -187,6 +187,6 @@ jobs:
         if: matrix.arch == 'x64'
         uses: softprops/action-gh-release@v1
         with:
-          prerelease: true
-          tag_name: nightly
+          prerelease: false
+          tag_name: v2.0.1
           files: SignOutput/LUODA-Client-x64.exe

@@ -438,8 +438,8 @@ jobs:
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
-          prerelease: true
-          tag_name: nightly
+          prerelease: false
+          tag_name: v2.0.1
           files: flutter/build/app/outputs/dist-apk/*.apk
       - name: Upload runtime logs (always)
         if: always()
