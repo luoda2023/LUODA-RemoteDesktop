@@ -426,7 +426,7 @@ fn has_usable_headless_virtual_display(displays: &[Display]) -> bool {
 #[cfg(windows)]
 fn prepare_headless_before_disconnect(displays: &mut Vec<Display>, headless_requested: bool) {
     if !crate::headless_policy::should_prepare_headless_before_disconnect(
-        crate::platform::is_win_server(),
+        true, // headless_capable: any Windows may run headless on VPS/VM
         headless_requested,
         !displays.is_empty(),
         has_usable_headless_virtual_display(displays),
@@ -434,7 +434,7 @@ fn prepare_headless_before_disconnect(displays: &mut Vec<Display>, headless_requ
         return;
     }
 
-    log::info!("preparing virtual display before Windows Server session disconnect");
+    log::info!("preparing virtual display before session disconnect");
     if let Err(error) = virtual_display_manager::plug_in_headless() {
         log::warn!(
             "failed to prepare virtual display before disconnect: {}",
@@ -464,8 +464,10 @@ fn prepare_headless_before_disconnect(displays: &mut Vec<Display>, headless_requ
 
 #[cfg(windows)]
 pub(super) fn prepare_headless_on_portable_host_startup() {
+    // Allow headless virtual display on any Windows - VPS / VM environments
+    // running regular (non-Server) Windows also need a virtual display to
+    // remain capturable after MSTSC disconnect.
     if crate::platform::is_installed()
-        || !crate::platform::is_win_server()
         || !virtual_display_manager::is_virtual_display_supported()
         || !virtual_display_manager::is_amyuni_idd()
     {
@@ -492,11 +494,11 @@ pub(super) fn recover_headless_after_capture_failure(
     crate::runtime_logger::warn(
         "HEADLESS",
         &format!(
-            "uncapturable Windows Server display; inserting virtual display; display={display_idx}; error={capture_error}"
+            "uncapturable display; inserting virtual display; display={display_idx}; error={capture_error}"
         ),
     );
     log::warn!(
-        "uncapturable Windows Server display {}, starting virtual display recovery: {}",
+        "uncapturable display {}, starting virtual display recovery: {}",
         display_idx,
         capture_error
     );

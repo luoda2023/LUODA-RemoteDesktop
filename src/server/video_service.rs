@@ -853,10 +853,11 @@ fn run(vs: VideoService) -> ResultType<()> {
                         try_gdi = 0;
                     } else if try_gdi > 0 && !c.is_gdi() {
                         try_gdi += 1;
-                        // Windows Server RDP sessions frequently produce invalid
-                        // DXGI frames; fall back after a single failure instead
-                        // of waiting for three consecutive bad frames.
-                        let gdi_threshold = if crate::platform::is_win_server() { 1 } else { 3 };
+                        // RDP sessions (Windows Server *and* regular Windows
+                        // VPS/VM) frequently produce invalid DXGI frames; fall
+                        // back after a single failure instead of waiting for
+                        // three consecutive bad frames.
+                        let gdi_threshold = 1;
                         if try_gdi > gdi_threshold {
                             c.set_gdi();
                             try_gdi = 0;
@@ -886,7 +887,7 @@ fn run(vs: VideoService) -> ResultType<()> {
                 #[cfg(windows)]
                 if try_gdi > 0 && !c.is_gdi() {
                     try_gdi += 1;
-                    let gdi_threshold = if crate::platform::is_win_server() { 1 } else { 3 };
+                    let gdi_threshold = 1;
                     if try_gdi > gdi_threshold {
                         c.set_gdi();
                         try_gdi = 0;
@@ -960,7 +961,7 @@ fn run(vs: VideoService) -> ResultType<()> {
                     let capture_error = err.to_string();
                     if vs.source.is_monitor()
                         && crate::headless_policy::should_recover_headless_after_capture_error(
-                            crate::platform::is_win_server(),
+                            true, // headless_capable: any Windows may run headless on VPS/VM
                             first_frame_sent,
                             c.is_gdi(),
                             &capture_error,

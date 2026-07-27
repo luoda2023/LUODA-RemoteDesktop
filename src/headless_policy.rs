@@ -16,12 +16,16 @@ pub(crate) fn should_insert_headless(active_display_samples: &[bool]) -> bool {
 }
 
 pub(crate) fn should_prepare_headless_before_disconnect(
-    windows_server: bool,
+    headless_capable: bool,
     headless_requested: bool,
     has_usable_display: bool,
     has_headless_virtual: bool,
 ) -> bool {
-    windows_server && headless_requested && has_usable_display && !has_headless_virtual
+    // Allow headless recovery on any Windows that may lose its physical
+    // display after MSTSC disconnect — not just Windows Server.  Regular
+    // Windows running on a VPS / VM has the same problem: once the RDP
+    // session drops, the GDI/DXGI capturer is left with nothing to grab.
+    headless_capable && headless_requested && has_usable_display && !has_headless_virtual
 }
 
 pub(crate) fn usable_display_indices(
@@ -60,16 +64,16 @@ pub(crate) fn should_fallback_first_frame_capture(
 }
 
 pub(crate) fn should_recover_headless_after_capture_error(
-    windows_server: bool,
+    headless_capable: bool,
     first_frame_sent: bool,
     gdi_capturer: bool,
     error: &str,
 ) -> bool {
-    // On Windows Server, recover with virtual display when:
-    // 1. First frame has not been sent yet (capture is stuck)
-    // 2. Using GDI capturer with the known stale-RDP error, OR
-    //    any capture error on Windows Server (DXGI often fails on RDP sessions)
-    windows_server
+    // Recover with virtual display on any headless-capable Windows - not
+    // just Windows Server.  Regular Windows on a VPS / VM exhibits the
+    // same stale-RDP GDI capture error and DXGI failure after MSTSC
+    // disconnect, so the virtual-display recovery must apply equally.
+    headless_capable
         && !first_frame_sent
         && ((gdi_capturer && error.contains(STALE_RDP_GDI_CAPTURE_ERROR))
             || !gdi_capturer)
@@ -92,7 +96,7 @@ mod tests {
     }
 
     #[test]
-    fn prepares_virtual_display_while_windows_server_display_is_still_usable() {
+    fn prepares_virtual_display_while_display_is_still_usable() {
         assert!(should_prepare_headless_before_disconnect(
             true, true, true, false
         ));
@@ -179,14 +183,14 @@ mod tests {
     }
 
     #[test]
-    fn recovers_stale_rdp_display_only_after_server_gdi_first_frame_failure() {
+    fn recovers_stale_rdp_display_after_gdi_first_frame_failure() {
         let error = "Failed to copy screen to Windows buffer";
 
-        // GDI capturer with the known stale-RDP error on Windows Server
+        // GDI capturer with the known stale-RDP error on headless-capable Windows
         assert!(should_recover_headless_after_capture_error(
             true, false, true, error
         ));
-        // Not Windows Server
+        // Not headless-capable (e.g. non-Windows / no virtual display support)
         assert!(!should_recover_headless_after_capture_error(
             false, false, true, error
         ));
@@ -194,14 +198,14 @@ mod tests {
         assert!(!should_recover_headless_after_capture_error(
             true, true, true, error
         ));
-        // DXGI capturer on Windows Server: any error triggers recovery
+        // DXGI capturer on headless-capable Windows: any error triggers recovery
         assert!(should_recover_headless_after_capture_error(
             true, false, false, error
         ));
         assert!(should_recover_headless_after_capture_error(
             true, false, false, "Access denied"
         ));
-        // GDI capturer with wrong error on Windows Server: no recovery
+        // GDI capturer with wrong error on headless-capable Windows: no recovery
         assert!(!should_recover_headless_after_capture_error(
             true,
             false,
