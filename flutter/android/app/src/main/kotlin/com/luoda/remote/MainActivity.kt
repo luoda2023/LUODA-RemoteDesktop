@@ -181,13 +181,6 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
-                "request_media_projection_from_service" -> {
-                    // Called by MainService when it needs to re-request MediaProjection
-                    // (e.g. after SecurityException or null VirtualDisplay).
-                    // This route ensures the result is properly received via onActivityResult.
-                    requestMediaProjection()
-                    result.success(true)
-                }
                 "check_permission" -> {
                     if (call.arguments is String) {
                         result.success(XXPermissions.isGranted(context, call.arguments as String))

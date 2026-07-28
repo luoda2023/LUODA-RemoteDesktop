@@ -244,19 +244,28 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return true;
     }
 
-    // Request all ungranted standard permissions at once via batch API
+    // Request all ungranted standard permissions at once via batch API.
+    // This shows a single system dialog (or minimal dialogs) instead of
+    // popping up one dialog per permission.
     RuntimeLogger.instance
         .info('ANDROID', 'batch requesting ${typesToRequest.length} permissions: $typesToRequest');
     await gFFI.invokeMethod('request_permissions_batch', typesToRequest);
 
-    // Wait for all results - each type gets its own callback via on_android_permission_result
+    // Wait for the batch dialog to complete by polling each permission.
+    // The batch API reports results via on_android_permission_result callback,
+    // but we simply re-check each permission after a short delay.
+    // Give the system dialog time to show and be answered.
     for (final type in typesToRequest) {
-      final granted = await AndroidPermissionManager.request(type).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => false,
-      );
-      // The batch request already shows the dialog; the per-type request above
-      // just waits for the result that was already reported by the batch callback.
+      // Poll up to 30 seconds for each permission to be granted
+      var granted = false;
+      for (var attempt = 0; attempt < 60; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        if (await AndroidPermissionManager.check(type)) {
+          granted = true;
+          break;
+        }
+        if (!mounted) break;
+      }
       if (!granted) allOk = false;
       RuntimeLogger.instance
           .info('ANDROID', 'batch permission result; type=$type granted=$granted');

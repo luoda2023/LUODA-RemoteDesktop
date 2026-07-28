@@ -430,8 +430,15 @@ class ServerModel with ChangeNotifier {
         stopService();
       }
     } else {
-      // First-run authorization already handled all permissions.
-      // Skip redundant permission requests and confirmation dialog.
+      // First-run authorization usually handles all permissions.
+      // But if the user skipped it, do a quick check on critical permissions.
+      if (androidVersion >= 23 &&
+          !await AndroidPermissionManager.check(kSystemAlertWindow)) {
+        await AndroidPermissionManager.request(kSystemAlertWindow);
+      }
+      if (!await AndroidPermissionManager.check(kManageExternalStorage)) {
+        await AndroidPermissionManager.request(kManageExternalStorage);
+      }
       startService();
     }
   }

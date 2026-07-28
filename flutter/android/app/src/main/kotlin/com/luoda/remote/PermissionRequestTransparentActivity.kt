@@ -31,6 +31,10 @@ class PermissionRequestTransparentActivity: Activity() {
             if (resultCode == RESULT_OK && data != null) {
                 launchService(data)
             } else {
+                // Notify Flutter that MediaProjection was denied.
+                // This works for both MainActivity-started and Service-started paths.
+                MainActivity.flutterMethodChannel?.invokeMethod(
+                    "on_media_projection_canceled", null)
                 setResult(RES_FAILED)
             }
         }

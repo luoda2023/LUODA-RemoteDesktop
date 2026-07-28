@@ -393,24 +393,14 @@ class MainService : Service() {
     }
 
     private fun requestMediaProjection() {
-        // Route through MainActivity so the result (including denial) is properly
-        // received via onActivityResult. When the service launched the transparent
-        // activity directly with startActivity (not startActivityForResult), the
-        // denial result was silently lost.
-        Handler(Looper.getMainLooper()).post {
-            val mainActivity = MainActivity.flutterMethodChannel
-            if (mainActivity != null) {
-                // Ask MainActivity to handle the request with proper result handling
-                mainActivity.invokeMethod("request_media_projection_from_service", null)
-            } else {
-                // Fallback: launch directly (result may be lost on denial)
-                val intent = Intent(this, PermissionRequestTransparentActivity::class.java).apply {
-                    action = ACT_REQUEST_MEDIA_PROJECTION
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(intent)
-            }
+        // Launch the transparent activity directly. Denial is now handled by
+        // PermissionRequestTransparentActivity itself, which notifies Flutter
+        // via on_media_projection_canceled regardless of who started it.
+        val intent = Intent(this, PermissionRequestTransparentActivity::class.java).apply {
+            action = ACT_REQUEST_MEDIA_PROJECTION
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
+        startActivity(intent)
     }
 
     @SuppressLint("WrongConstant")
