@@ -220,6 +220,23 @@ class MainService : Service() {
     private var imageReader: ImageReader? = null
     private var virtualDisplay: VirtualDisplay? = null
 
+    /// Callback to detect MediaProjection revocation at runtime.
+    /// Without this, _isReady stays true after the OS tears down the projection,
+    /// preventing the app from re-requesting screen capture permission.
+    private val projectionCallback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            Log.w(logTag, "MediaProjection stopped by system; resetting state")
+            _isReady = false
+            _isStart = false
+            mediaProjection = null
+            virtualDisplay = null
+            Handler(Looper.getMainLooper()).post {
+                MainActivity.flutterMethodChannel?.invokeMethod(
+                    "on_media_projection_canceled", null)
+            }
+        }
+    }
+
     // audio
     private val audioRecordHandle = AudioRecordHandle(this, { isStart }, { isAudioStart })
 
@@ -249,6 +266,19 @@ class MainService : Service() {
     }
 
     override fun onDestroy() {
+        Log.d(logTag, "MainService onDestroy")
+        // Clean up capture resources to prevent leaks when system kills the service
+        try {
+            stopCapture()
+        } catch (e: Exception) {
+            Log.e(logTag, "stopCapture in onDestroy failed", e)
+        }
+        // Unregister the projection callback if registered
+        try {
+            mediaProjection?.unregisterCallback(projectionCallback)
+        } catch (e: Exception) {
+            // ignore
+        }
         checkMediaPermission()
         stopService(Intent(this, FloatingWindowService::class.java))
         super.onDestroy()
@@ -339,6 +369,8 @@ class MainService : Service() {
             intent.getParcelableExtra<Intent>(EXT_MEDIA_PROJECTION_RES_INTENT)?.let {
                 mediaProjection =
                     mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, it)
+                // Register callback to detect runtime revocation
+                mediaProjection?.registerCallback(projectionCallback, serviceHandler)
                 checkMediaPermission()
                 _isReady = true
                 // If capture was started but VirtualDisplay creation failed (e.g. single-app mode),
@@ -361,11 +393,24 @@ class MainService : Service() {
     }
 
     private fun requestMediaProjection() {
-        val intent = Intent(this, PermissionRequestTransparentActivity::class.java).apply {
-            action = ACT_REQUEST_MEDIA_PROJECTION
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        // Route through MainActivity so the result (including denial) is properly
+        // received via onActivityResult. When the service launched the transparent
+        // activity directly with startActivity (not startActivityForResult), the
+        // denial result was silently lost.
+        Handler(Looper.getMainLooper()).post {
+            val mainActivity = MainActivity.flutterMethodChannel
+            if (mainActivity != null) {
+                // Ask MainActivity to handle the request with proper result handling
+                mainActivity.invokeMethod("request_media_projection_from_service", null)
+            } else {
+                // Fallback: launch directly (result may be lost on denial)
+                val intent = Intent(this, PermissionRequestTransparentActivity::class.java).apply {
+                    action = ACT_REQUEST_MEDIA_PROJECTION
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+            }
         }
-        startActivity(intent)
     }
 
     @SuppressLint("WrongConstant")
@@ -504,6 +549,13 @@ class MainService : Service() {
         _isAudioStart = false
 
         stopCapture()
+
+        // Unregister projection callback before releasing
+        try {
+            mediaProjection?.unregisterCallback(projectionCallback)
+        } catch (e: Exception) {
+            // ignore
+        }
 
         if (reuseVirtualDisplay) {
             virtualDisplay?.release()

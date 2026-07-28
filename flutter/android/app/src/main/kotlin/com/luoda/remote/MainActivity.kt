@@ -159,8 +159,15 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "start_capture" -> {
-                    mainService?.let {
-                        result.success(it.startCapture())
+                    mainService?.let { svc ->
+                        // Run startCapture on a background thread to avoid ANR
+                        // (codec/display creation can block)
+                        Thread {
+                            val ok = svc.startCapture()
+                            Handler(Looper.getMainLooper()).post {
+                                result.success(ok)
+                            }
+                        }.start()
                     } ?: let {
                         result.success(false)
                     }
@@ -174,6 +181,13 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                "request_media_projection_from_service" -> {
+                    // Called by MainService when it needs to re-request MediaProjection
+                    // (e.g. after SecurityException or null VirtualDisplay).
+                    // This route ensures the result is properly received via onActivityResult.
+                    requestMediaProjection()
+                    result.success(true)
+                }
                 "check_permission" -> {
                     if (call.arguments is String) {
                         result.success(XXPermissions.isGranted(context, call.arguments as String))
@@ -184,6 +198,16 @@ class MainActivity : FlutterActivity() {
                 "request_permission" -> {
                     if (call.arguments is String) {
                         requestPermission(context, call.arguments as String)
+                        result.success(true)
+                    } else {
+                        result.success(false)
+                    }
+                }
+                "request_permissions_batch" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val types = call.arguments as? ArrayList<String>
+                    if (types != null && types.isNotEmpty()) {
+                        requestPermissionsBatch(context, types)
                         result.success(true)
                     } else {
                         result.success(false)

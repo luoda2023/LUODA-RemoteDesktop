@@ -81,6 +81,29 @@ fun requestPermission(context: Context, type: String) {
         }
 }
 
+/**
+ * Batch-request multiple standard runtime permissions in a single system dialog.
+ * Returns the per-type results via [on_android_permission_result] callback.
+ */
+fun requestPermissionsBatch(context: Context, types: List<String>) {
+    XXPermissions.with(context)
+        .permission(types)
+        .request { _, all ->
+            Handler(Looper.getMainLooper()).post {
+                // Report each type individually so the Dart side Completer can resolve
+                for (type in types) {
+                    // XXPermissions returns a single `all` flag; if all granted, each is granted.
+                    // If not all granted, we check individually.
+                    val granted = all || XXPermissions.isGranted(context, type)
+                    MainActivity.flutterMethodChannel?.invokeMethod(
+                        "on_android_permission_result",
+                        mapOf("type" to type, "result" to granted)
+                    )
+                }
+            }
+        }
+}
+
 fun startAction(context: Context, action: String): Boolean {
     try {
         context.startActivity(Intent(action).apply {

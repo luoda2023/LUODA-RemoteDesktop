@@ -91,6 +91,10 @@ class ChatModel with ChangeNotifier {
 
   late final Map<MessageKey, MessageBody> _messages = {};
 
+  /// Pending messages received when session/client was not ready.
+  /// Keyed by connId; replayed once the session becomes available.
+  final Map<int, List<String>> _pendingMessages = {};
+
   MessageKey _currentKey = MessageKey('', -2); // -2 is invalid value
   late bool _isShowCMSidePage = false;
 
@@ -347,7 +351,8 @@ class ChatModel with ChangeNotifier {
   receive(int id, String text) async {
     final session = parent.target;
     if (session == null) {
-      debugPrint("Failed to receive msg, session state is null");
+      debugPrint("Failed to receive msg, session state is null, caching");
+      _cachePendingMessage(id, text);
       return;
     }
     if (text.isEmpty) return;
@@ -363,7 +368,8 @@ class ChatModel with ChangeNotifier {
           ?.peerId;
     }
     if (peerId == null) {
-      debugPrint("Failed to receive msg, peerId is null");
+      debugPrint("Failed to receive msg, peerId is null, caching");
+      _cachePendingMessage(id, text);
       return;
     }
 
@@ -408,7 +414,8 @@ class ChatModel with ChangeNotifier {
       final client = session.serverModel.clients
           .firstWhereOrNull((client) => client.id == id);
       if (client == null) {
-        debugPrint("Failed to receive msg, client is null");
+        debugPrint("Failed to receive msg, client is null, caching");
+        _cachePendingMessage(id, text);
         return;
       }
       if (isDesktop) {
@@ -450,12 +457,32 @@ class ChatModel with ChangeNotifier {
     insertMessage(_currentKey, message);
     if (_currentKey.connId == clientModeID && parent.target != null) {
       bind.sessionSendChat(sessionId: sessionId, text: message.text);
-    } else {
+    } else if (_currentKey.connId != clientModeID) {
       bind.cmSendChat(connId: _currentKey.connId, msg: message.text);
     }
+    // If parent is null, the message is displayed locally but not sent;
+    // it will be visible in the chat history when the session reconnects.
 
     notifyListeners();
     inputNode.requestFocus();
+  }
+
+  /// Cache a message that arrived before the session/client was ready.
+  void _cachePendingMessage(int id, String text) {
+    _pendingMessages.putIfAbsent(id, () => []).add(text);
+  }
+
+  /// Replay any cached messages once the session is available.
+  /// Call this when the FFI session or server clients become ready.
+  void replayPendingMessages() {
+    if (_pendingMessages.isEmpty) return;
+    final pending = Map<int, List<String>>.from(_pendingMessages);
+    _pendingMessages.clear();
+    for (final entry in pending.entries) {
+      for (final text in entry.value) {
+        receive(entry.key, text);
+      }
+    }
   }
 
   insertMessage(MessageKey key, ChatMessage message) {
@@ -467,11 +494,12 @@ class ChatModel with ChangeNotifier {
   }
 
   updateConnIdOfKey(MessageKey key) {
-    if (_messages.keys
-            .toList()
-            .firstWhereOrNull((e) => e == key && e.connId != key.connId) !=
-        null) {
-      final value = _messages.remove(key);
+    if (key.peerId.isEmpty) return;
+    final existingKey = _messages.keys
+        .toList()
+        .firstWhereOrNull((e) => e == key && e.connId != key.connId);
+    if (existingKey != null) {
+      final value = _messages.remove(existingKey);
       if (value != null) {
         _messages[key] = value;
       }
@@ -512,6 +540,7 @@ class ChatModel with ChangeNotifier {
 
   resetClientMode() {
     _messages[clientModeID]?.clear();
+    _pendingMessages.remove(clientModeID);
   }
 
   void requestChatInputFocus() {

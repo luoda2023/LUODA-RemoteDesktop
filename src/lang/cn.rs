@@ -747,5 +747,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Display Name", "显示名称"),
         ("password-hidden-tip", "永久密码已设置（已隐藏）"),
         ("preset-password-in-use-tip", "当前使用预设密码"),
+        ("One-time Authorization", "一次性授权"),
+        ("Authorize All", "一键授权"),
+        ("android_first_run_permission_tip", "LUODA 需要以下权限才能实现远程控制此设备。请一次性全部授权。"),
+        ("Enable Accessibility", "开启无障碍服务"),
+        ("android_accessibility_hint", "在接下来的界面中，找到已安装服务列表中的「LUODA」并开启，然后按返回键回到本应用。"),
+        ("Go to Settings", "前往设置"),
+        ("Later", "稍后"),
     ].iter().cloned().collect();
 }

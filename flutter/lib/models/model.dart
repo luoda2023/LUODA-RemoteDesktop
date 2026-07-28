@@ -1435,6 +1435,9 @@ class FfiModel with ChangeNotifier {
 
     notifyListeners();
 
+    // Replay any chat messages that were cached before the session was ready
+    parent.target?.chatModel.replayPendingMessages();
+
     if (!isCache) {
       tryUseAllMyDisplaysForTheRemoteSession(peerId);
     }

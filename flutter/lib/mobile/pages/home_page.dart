@@ -14,7 +14,7 @@ import '../../models/state_model.dart';
 import '../first_run_permission_flow.dart';
 import 'connection_page.dart';
 
-const _kFirstRunAuthorization = 'android-first-run-authorization-v1';
+const _kFirstRunAuthorization = 'android-first-run-authorization-v2';
 
 abstract class PageShape extends Widget {
   final String title = "";
@@ -53,15 +53,18 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _firstRunPermissionFlow = FirstRunPermissionFlow([
-      () => gFFI.serverModel.checkRequestNotificationPermission(),
-      () => _requestPermissionIfMissing(kRecordAudio),
-      () => _requestPermissionIfMissing(kRequestIgnoreBatteryOptimizations),
-      () => gFFI.serverModel.checkFloatingWindowPermission(),
-      () => _requestPermissionIfMissing(kManageExternalStorage),
-      _requestAccessibilityPermission,
-      _ensureScreenCaptureStarted,
-    ]);
+    _firstRunPermissionFlow = FirstRunPermissionFlow(
+      [
+        () => _requestStandardPermissionsBatch(),
+        _requestAccessibilityPermission,
+        _ensureScreenCaptureStarted,
+      ],
+      stepNames: ['standard_permissions', 'accessibility', 'screen_capture'],
+      onStepProgress: (name, index, total, granted) {
+        RuntimeLogger.instance.info('ANDROID',
+            'first-run step ${index + 1}/$total ($name): ${granted ? "granted" : "denied/skipped"}');
+      },
+    );
     initPages();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _runFirstLaunchAuthorization();
@@ -101,6 +104,13 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!previouslyCompleted) {
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence started');
+        // Show a one-time guidance dialog before requesting permissions
+        final userAgreed = await _showFirstRunPermissionDialog();
+        if (!userAgreed) {
+          RuntimeLogger.instance
+              .warn('ANDROID', 'user deferred first-run authorization');
+          return;
+        }
       } else {
         RuntimeLogger.instance
             .info('ANDROID', 'rechecking Android authorization state');
@@ -120,6 +130,75 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// Show a one-time dialog explaining all permissions before requesting them.
+  /// Returns true if the user tapped "一键授权", false if they deferred.
+  Future<bool> _showFirstRunPermissionDialog() async {
+    if (!mounted) return false;
+    final res = await gFFI.dialogManager.show<bool>((setState, close, context) {
+      return CustomAlertDialog(
+        title: Row(children: [
+          const Icon(Icons.security, color: Colors.blue, size: 28),
+          const SizedBox(width: 10),
+          Text(translate('One-time Authorization')),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(translate('android_first_run_permission_tip'),
+                style: const TextStyle(fontSize: 14)),
+            const SizedBox(height: 12),
+            _buildPermissionItem(Icons.notifications, 'Notification',
+                translate('Receive connection notifications')),
+            _buildPermissionItem(Icons.mic, 'Microphone',
+                translate('Voice call during remote control')),
+            _buildPermissionItem(Icons.battery_full, 'Battery',
+                translate('Keep service alive in background')),
+            _buildPermissionItem(Icons.picture_in_picture, 'Floating Window',
+                translate('Show floating window when minimized')),
+            _buildPermissionItem(Icons.folder, 'Storage',
+                translate('File transfer support')),
+            _buildPermissionItem(Icons.accessibility, 'Accessibility',
+                translate('Remote control of this device')),
+            _buildPermissionItem(Icons.screen_share, 'Screen Capture',
+                translate('Share screen to remote')),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => close(false),
+              child: Text(translate('Later'))),
+          ElevatedButton(
+              onPressed: () => close(true),
+              child: Text(translate('Authorize All'))),
+        ],
+        onSubmit: () => close(true),
+        onCancel: () => close(false),
+      );
+    });
+    return res == true;
+  }
+
+  Widget _buildPermissionItem(IconData icon, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Icon(icon, size: 18, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+              Text(desc, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+
   Future<bool> _requestPermissionIfMissing(String type) async {
     if (await AndroidPermissionManager.check(type)) {
       return true;
@@ -130,9 +209,85 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return granted;
   }
 
+  /// Batch-request all standard runtime permissions in a single system dialog.
+  /// This replaces the old approach of requesting each permission one-by-one
+  /// which caused multiple separate system dialogs to pop up.
+  Future<bool> _requestStandardPermissionsBatch() async {
+    // Collect all standard permissions that are not yet granted
+    final typesToRequest = <String>[];
+    var allOk = true;
+
+    // Notification (Android 13+)
+    if (androidVersion >= 33 &&
+        !await AndroidPermissionManager.check(kAndroid13Notification)) {
+      typesToRequest.add(kAndroid13Notification);
+    }
+    // Record audio
+    if (!await AndroidPermissionManager.check(kRecordAudio)) {
+      typesToRequest.add(kRecordAudio);
+    }
+    // Battery optimization
+    if (!await AndroidPermissionManager.check(kRequestIgnoreBatteryOptimizations)) {
+      typesToRequest.add(kRequestIgnoreBatteryOptimizations);
+    }
+    // Floating window / overlay
+    if (androidVersion >= 23 &&
+        !await AndroidPermissionManager.check(kSystemAlertWindow)) {
+      typesToRequest.add(kSystemAlertWindow);
+    }
+    // External storage
+    if (!await AndroidPermissionManager.check(kManageExternalStorage)) {
+      typesToRequest.add(kManageExternalStorage);
+    }
+
+    if (typesToRequest.isEmpty) {
+      return true;
+    }
+
+    // Request all ungranted standard permissions at once via batch API
+    RuntimeLogger.instance
+        .info('ANDROID', 'batch requesting ${typesToRequest.length} permissions: $typesToRequest');
+    await gFFI.invokeMethod('request_permissions_batch', typesToRequest);
+
+    // Wait for all results - each type gets its own callback via on_android_permission_result
+    for (final type in typesToRequest) {
+      final granted = await AndroidPermissionManager.request(type).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => false,
+      );
+      // The batch request already shows the dialog; the per-type request above
+      // just waits for the result that was already reported by the batch callback.
+      if (!granted) allOk = false;
+      RuntimeLogger.instance
+          .info('ANDROID', 'batch permission result; type=$type granted=$granted');
+    }
+
+    return allOk;
+  }
+
   Future<bool> _requestAccessibilityPermission() async {
     if (await AndroidPermissionManager.checkAccessibility()) {
       return true;
+    }
+
+    // Show a brief hint before jumping to settings
+    if (mounted) {
+      await gFFI.dialogManager.show<void>((setState, close, context) {
+        return CustomAlertDialog(
+          title: Row(children: [
+            const Icon(Icons.accessibility, color: Colors.blue, size: 24),
+            const SizedBox(width: 8),
+            Text(translate('Enable Accessibility')),
+          ]),
+          content: Text(translate('android_accessibility_hint')),
+          actions: [
+            ElevatedButton(
+                onPressed: close, child: Text(translate('Go to Settings'))),
+          ],
+          onSubmit: close,
+          onCancel: close,
+        );
+      });
     }
 
     final waiting = Completer<void>();

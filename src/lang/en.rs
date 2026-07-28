@@ -274,5 +274,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("keep-awake-during-incoming-sessions-label", "Keep screen awake during incoming sessions"),
         ("password-hidden-tip", "Permanent password is set (hidden)."),
         ("preset-password-in-use-tip", "Preset password is currently in use."),
+        ("One-time Authorization", "One-time Authorization"),
+        ("Authorize All", "Authorize All"),
+        ("android_first_run_permission_tip", "LUODA needs the following permissions to enable remote control of this device. Please grant them all at once."),
+        ("Enable Accessibility", "Enable Accessibility"),
+        ("android_accessibility_hint", "In the next screen, find \"LUODA\" in the installed services list and turn it on, then press back to return."),
+        ("Go to Settings", "Go to Settings"),
+        ("Later", "Later"),
     ].iter().cloned().collect();
 }
