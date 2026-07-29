@@ -759,12 +759,26 @@ pub async fn start_ipc_url_server() {
                             m.insert("name", "on_url_scheme_received");
                             m.insert("url", url.as_str());
                             let event = serde_json::to_string(&m).unwrap_or("".to_owned());
-                            match crate::flutter::push_global_event(
-                                crate::flutter::APP_TYPE_MAIN,
-                                event,
-                            ) {
-                                None => log::warn!("No main window app found!"),
-                                Some(..) => {}
+                            // The main window app may not be ready yet when the
+                            // --connect child process sends the IPC message early
+                            // in startup. Retry a few times with a short delay.
+                            let mut pushed = false;
+                            for _ in 0..20 {
+                                match crate::flutter::push_global_event(
+                                    crate::flutter::APP_TYPE_MAIN,
+                                    event.clone(),
+                                ) {
+                                    None => {
+                                        std::thread::sleep(std::time::Duration::from_millis(500));
+                                    }
+                                    Some(..) => {
+                                        pushed = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !pushed {
+                                log::warn!("No main window app found after retries!");
                             }
                         }
                         _ => {
