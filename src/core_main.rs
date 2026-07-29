@@ -849,15 +849,20 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
             uni_links.as_str(),
             true, // show_window: bring the main window to foreground so the user sees the connection dialog
         );
-        // Even if the window was found, also send via IPC so the Flutter side
-        // can pick up the URL link through the `send_url_scheme` bridge when
-        // the uni_links WM_COPYDATA path is unreliable.
-        if let Err(_) = crate::ipc::send_url_scheme(uni_links.clone()) {
-            // IPC failed; if FindWindow also failed there is nothing we can do.
-            if !res {
-                return Some(Vec::new());
+        if res {
+            // Found an existing main window; it will handle the URL link via
+            // WM_COPYDATA. Also send via IPC as a fallback for the Flutter
+            // `send_url_scheme` bridge path.
+            if let Err(_) = crate::ipc::send_url_scheme(uni_links.clone()) {
+                // IPC failed, but WM_COPYDATA succeeded, so the existing
+                // instance should still receive the connection request.
             }
+            // An existing instance handled it; this process should exit.
+            return Some(Vec::new());
         }
+        // No existing window found; this is the first instance. Continue
+        // starting the Flutter GUI which will process the --connect args
+        // through `handleUriLink(cmdArgs: kBootArgs)` in main.dart.
         return None;
     }
     #[cfg(target_os = "macos")]
