@@ -743,7 +743,7 @@ pub async fn start_server(is_server: bool, no_server: bool) {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 #[tokio::main(flavor = "current_thread")]
 pub async fn start_ipc_url_server() {
     log::debug!("Start an ipc server for listening to url schemes");
