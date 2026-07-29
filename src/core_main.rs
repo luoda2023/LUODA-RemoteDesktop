@@ -847,9 +847,18 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
             &crate::get_app_name(),
             (WM_USER + 2) as _, // referred from unilinks desktop pub
             uni_links.as_str(),
-            false,
+            true, // show_window: bring the main window to foreground so the user sees the connection dialog
         );
-        return if res { None } else { Some(Vec::new()) };
+        // Even if the window was found, also send via IPC so the Flutter side
+        // can pick up the URL link through the `send_url_scheme` bridge when
+        // the uni_links WM_COPYDATA path is unreliable.
+        if let Err(_) = crate::ipc::send_url_scheme(uni_links.clone()) {
+            // IPC failed; if FindWindow also failed there is nothing we can do.
+            if !res {
+                return Some(Vec::new());
+            }
+        }
+        return None;
     }
     #[cfg(target_os = "macos")]
     {
