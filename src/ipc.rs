@@ -1595,11 +1595,22 @@ pub async fn test_rendezvous_server() -> ResultType<()> {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn send_url_scheme(url: String) -> ResultType<()> {
-    connect(1_000, "_url")
-        .await?
-        .send(&Data::UrlLink(url))
-        .await?;
-    Ok(())
+    // The main process may not have started its _url IPC listener yet when
+    // the --connect child process tries to send. Retry for up to ~10 seconds.
+    let mut last_err = None;
+    for _ in 0..20 {
+        match connect(1_000, "_url").await {
+            Ok(mut c) => {
+                c.send(&Data::UrlLink(url)).await?;
+                return Ok(());
+            }
+            Err(e) => {
+                last_err = Some(e);
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+        }
+    }
+    bail!("Failed to connect to _url IPC after retries: {:?}", last_err);
 }
 
 // Emit `close` events to ipc.
