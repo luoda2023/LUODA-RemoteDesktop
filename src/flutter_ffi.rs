@@ -2580,7 +2580,7 @@ pub fn cm_init() {
 /// * Should only be called in the main flutter window.
 /// * macOS only
 pub fn main_start_ipc_url_server() {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     std::thread::spawn(move || crate::server::start_ipc_url_server());
 }
 
