@@ -650,10 +650,15 @@ class _ServerAddressWidgetState extends State<_ServerAddressWidget> {
   }
 
   void _loadServer() {
-    final custom =
-        bind.mainGetOptionSync(key: 'custom-rendezvous-server').trim();
-    if (custom.isNotEmpty) {
-      _server = custom;
+    // For branded/custom client, always show the brand domain 'rev.dicad.cn'
+    // regardless of custom-rendezvous-server option, which may contain an
+    // IP:port that looks wrong in the status bar.
+    if (!bind.isIncomingOnly()) {
+      final custom =
+          bind.mainGetOptionSync(key: 'custom-rendezvous-server').trim();
+      if (custom.isNotEmpty) {
+        _server = custom;
+      }
     }
     if (mounted) setState(() {});
   }

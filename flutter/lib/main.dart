@@ -190,6 +190,8 @@ void runMainApp(bool startService) async {
   WindowOptions windowOptions = getHiddenTitleBarWindowOptions(
       isMainWindow: true, alwaysOnTop: alwaysOnTop);
   windowManager.waitUntilReadyToShow(windowOptions, () async {
+    // Set opacity to 0 before show to avoid black flash on transparent window.
+    await windowManager.setOpacity(0);
     // Restore the location of the main window before window hide or show.
     await restoreWindowPosition(WindowType.Main);
     await enforceCustomClientHomeWindowSize();
@@ -204,6 +206,7 @@ void runMainApp(bool startService) async {
       // Move registration of active main window here to prevent from async visible check.
       luodaWinManager.registerActiveWindow(kWindowMainId);
     }
+    // Restore opacity after content is rendered to eliminate black flash.
     windowManager.setOpacity(1);
     windowManager.setTitle(getWindowName());
     // Do not use `windowManager.setResizable()` here.
@@ -449,7 +452,7 @@ WindowOptions getHiddenTitleBarWindowOptions(
   return WindowOptions(
     size: size,
     center: center,
-    backgroundColor: (isMacOS && isMainWindow) ? null : Colors.transparent,
+    backgroundColor: (isMacOS && isMainWindow) ? null : const Color(0xFF1E1E1E),
     skipTaskbar: false,
     titleBarStyle: defaultTitleBarStyle,
     alwaysOnTop: alwaysOnTop,

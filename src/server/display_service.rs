@@ -467,8 +467,11 @@ pub(super) fn prepare_headless_on_portable_host_startup() {
     // Allow headless virtual display on any Windows - VPS / VM environments
     // running regular (non-Server) Windows also need a virtual display to
     // remain capturable after MSTSC disconnect.
-    if crate::platform::is_installed()
-        || !virtual_display_manager::is_virtual_display_supported()
+    //
+    // NOTE: Do NOT skip when is_installed() is true. Even installed copies on
+    // a VPS lose their display session when MSTSC disconnects, and the virtual
+    // display is the only way to remain capturable in headless mode.
+    if !virtual_display_manager::is_virtual_display_supported()
         || !virtual_display_manager::is_amyuni_idd()
     {
         return;
