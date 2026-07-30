@@ -1,4 +1,4 @@
-pub(crate) const UDP_REGISTRATION_FAILURE_LIMIT: i64 = 2;
+pub(crate) const UDP_REGISTRATION_FAILURE_LIMIT: i64 = 4;
 
 pub(crate) fn should_start_with_tcp(
     test_tcp: bool,

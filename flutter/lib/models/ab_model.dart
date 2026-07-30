@@ -45,6 +45,7 @@ class AbModel {
   final RxString _currentName = ''.obs;
   RxString get currentName => _currentName;
   final _dummyAb = DummyAb();
+  Timer? _syncTimer;
   BaseAb get current => addressbooks[_currentName.value] ?? _dummyAb;
 
   RxList<Peer> get currentAbPeers => current.peers;
@@ -82,7 +83,7 @@ class AbModel {
         getInitPeers: () => currentAbPeers,
         loadEvent: LoadEvent.addressBook);
     if (desktopType == DesktopType.main) {
-      Timer.periodic(Duration(milliseconds: 500), (timer) async {
+      _syncTimer = Timer.periodic(Duration(milliseconds: 500), (timer) async {
         if (_timerCounter++ % 6 == 0) {
           if (!gFFI.userModel.isLogin) return;
           if (!listInitialized) return;
@@ -91,6 +92,12 @@ class AbModel {
         }
       });
     }
+  }
+
+  /// Stop the periodic sync timer to prevent resource leak.
+  void dispose() {
+    _syncTimer?.cancel();
+    _syncTimer = null;
   }
 
   reset() async {

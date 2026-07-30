@@ -435,6 +435,7 @@ class _FileManagerViewState extends State<FileManagerView> {
   final _listScrollController = ScrollController();
   final _breadCrumbScroller = ScrollController();
   late final ascending = Rx<bool>(controller.sortAscending);
+  StreamSubscription? _directorySub;
 
   bool get isLocal => widget.controller.isLocal;
   FileController get controller => widget.controller;
@@ -443,7 +444,15 @@ class _FileManagerViewState extends State<FileManagerView> {
   @override
   void initState() {
     super.initState();
-    controller.directory.listen((e) => breadCrumbScrollToEnd());
+    _directorySub = controller.directory.listen((e) => breadCrumbScrollToEnd());
+  }
+
+  @override
+  void dispose() {
+    _directorySub?.cancel();
+    _listScrollController.dispose();
+    _breadCrumbScroller.dispose();
+    super.dispose();
   }
 
   @override

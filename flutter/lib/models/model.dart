@@ -3623,6 +3623,7 @@ class FFI {
   var version = '';
   var connType = ConnType.defaultConn;
   var closed = false;
+  StreamSubscription? _sessionStreamSub;
 
   /// dialogManager use late to ensure init after main page binding [globalKey]
   late final dialogManager = OverlayDialogManager();
@@ -3818,7 +3819,7 @@ class FFI {
     final hasGpuTextureRender = bind.mainHasGpuTextureRender();
     final SimpleWrapper<bool> isToNewWindowNotified = SimpleWrapper(false);
     // Preserved for the rgba data.
-    stream.listen((message) {
+    _sessionStreamSub = stream.listen((message) {
       if (closed) return;
       if (tabWindowId != null && !isToNewWindowNotified.value) {
         // Session is read to be moved to a new window.
@@ -3933,6 +3934,8 @@ class FFI {
   /// Close the remote session.
   Future<void> close({bool closeSession = true}) async {
     closed = true;
+    await _sessionStreamSub?.cancel();
+    _sessionStreamSub = null;
     chatModel.close();
     // Close all terminal models
     for (final model in _terminalModels.values) {

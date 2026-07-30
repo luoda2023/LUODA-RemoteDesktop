@@ -428,33 +428,46 @@ pub async fn start_with_ready(
 }
 
 async fn serve(postfix: &str, mut incoming: Incoming) -> ResultType<()> {
+    // Limit concurrent IPC connections to prevent resource exhaustion.
+    let max_conns = std::sync::Arc::new(tokio::sync::Semaphore::new(64));
     loop {
-        if let Some(result) = incoming.next().await {
-            match result {
-                Ok(stream) => {
-                    let mut stream = Connection::new(stream);
-                    let postfix = postfix.to_owned();
-                    tokio::spawn(async move {
-                        loop {
-                            match stream.next().await {
-                                Err(err) => {
-                                    log::trace!("ipc '{}' connection closed: {}", postfix, err);
-                                    break;
-                                }
-                                Ok(Some(data)) => {
-                                    handle(data, &mut stream).await;
-                                }
-                                _ => {}
+        match incoming.next().await {
+            Some(Ok(stream)) => {
+                let mut stream = Connection::new(stream);
+                let postfix = postfix.to_owned();
+                let permit = max_conns.clone();
+                tokio::spawn(async move {
+                    // Acquire permit; if too many connections, wait briefly then proceed
+                    // (IPC connections are trusted local clients, so we don't hard-reject)
+                    let _permit = match permit.acquire_owned().await {
+                        Ok(p) => p,
+                        Err(_) => return,
+                    };
+                    loop {
+                        match stream.next().await {
+                            Err(err) => {
+                                log::trace!("ipc '{}' connection closed: {}", postfix, err);
+                                break;
                             }
+                            Ok(Some(data)) => {
+                                handle(data, &mut stream).await;
+                            }
+                            _ => {}
                         }
-                    });
-                }
-                Err(err) => {
-                    log::error!("Couldn't get client: {:?}", err);
-                }
+                    }
+                });
+            }
+            Some(Err(err)) => {
+                log::error!("Couldn't get client: {:?}", err);
+            }
+            None => {
+                // Listener closed; exit loop to avoid busy-waiting.
+                log::debug!("ipc '{}' listener stopped", postfix);
+                break;
             }
         }
     }
+    Ok(())
 }
 
 pub async fn new_listener(postfix: &str) -> ResultType<Incoming> {
@@ -1038,12 +1051,12 @@ pub async fn start_pa() {
                                 Ok(s) => loop {
                                     if let Ok(_) = s.read(&mut buf) {
                                         let out =
-                                            if buf.iter().filter(|x| **x != 0).next().is_none() {
-                                                vec![]
+                                            if !buf.iter().any(|x| *x != 0) {
+                                                bytes::Bytes::new()
                                             } else {
-                                                buf.clone()
+                                                bytes::Bytes::copy_from_slice(&buf)
                                             };
-                                        if let Err(err) = stream.send_raw(out.into()).await {
+                                        if let Err(err) = stream.send_raw(out).await {
                                             log::error!("Failed to send audio data:{}", err);
                                             break;
                                         }

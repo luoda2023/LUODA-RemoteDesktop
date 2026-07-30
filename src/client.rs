@@ -1264,18 +1264,19 @@ impl AudioBuffer {
         }
         self.2[i] += 1;
 
-        #[allow(non_upper_case_globals)]
-        static mut tms: i64 = 0;
+        // Use AtomicI64 instead of static mut to avoid undefined behavior
+        // (data race) when multiple sessions call try_shrink concurrently.
+        use std::sync::atomic::{AtomicI64, Ordering};
+        static TMS: AtomicI64 = AtomicI64::new(0);
         let dt = Local::now().timestamp_millis();
-        unsafe {
-            if tms == 0 {
-                tms = dt;
-                return;
-            } else if dt < tms + 12000 {
-                return;
-            }
-            tms = dt;
+        let prev = TMS.load(Ordering::Relaxed);
+        if prev == 0 {
+            TMS.store(dt, Ordering::Relaxed);
+            return;
+        } else if dt < prev + 12000 {
+            return;
         }
+        TMS.store(dt, Ordering::Relaxed);
 
         // the safer water mark to drop
         let mut zero = 0;

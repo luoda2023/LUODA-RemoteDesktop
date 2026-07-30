@@ -121,6 +121,7 @@ class _PeersViewState extends State<_PeersView>
     windowManager.removeListener(this);
     WidgetsBinding.instance.removeObserver(this);
     _exit = true;
+    _scrollController.dispose();
     super.dispose();
   }
 
