@@ -2758,6 +2758,12 @@ class CanvasModel with ChangeNotifier {
       // _size.height > (imageRect.bottom - imageRect.top) * _scale, , we should not change _y
     }
   }
+
+  /// Release ScrollController resources to prevent leaks.
+  void dispose() {
+    _horizontal.dispose();
+    _vertical.dispose();
+  }
 }
 
 // data for cursor
@@ -3957,6 +3963,7 @@ class FFI {
     cursorModel.clear();
     ffiModel.clear();
     canvasModel.clear();
+    canvasModel.dispose();
     inputModel.resetModifiers();
     // Dispose relative mouse mode resources to ensure cursor is restored
     inputModel.disposeRelativeMouseMode();

@@ -462,6 +462,8 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> with WidgetsBindingObserver {
+  final botToastBuilder = BotToastInit();
+
   @override
   void initState() {
     super.initState();
@@ -518,7 +520,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     // final analytics = FirebaseAnalytics.instance;
-    final botToastBuilder = BotToastInit();
     return RefreshWrapper(builder: (context) {
       return MultiProvider(
         providers: [
@@ -611,18 +612,41 @@ _registerEventHandler() {
   }
 }
 
-Widget keyListenerBuilder(BuildContext context, Widget? child) {
-  return RawKeyboardListener(
-    focusNode: FocusNode(),
-    child: child ?? Container(),
-    onKey: (RawKeyEvent event) {
-      if (event.logicalKey == LogicalKeyboardKey.shiftLeft) {
-        if (event is RawKeyDownEvent) {
-          gFFI.peerTabModel.setShiftDown(true);
-        } else if (event is RawKeyUpEvent) {
-          gFFI.peerTabModel.setShiftDown(false);
+class _KeyListenerWidget extends StatefulWidget {
+  final Widget? child;
+  const _KeyListenerWidget({this.child});
+
+  @override
+  State<_KeyListenerWidget> createState() => _KeyListenerWidgetState();
+}
+
+class _KeyListenerWidgetState extends State<_KeyListenerWidget> {
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RawKeyboardListener(
+      focusNode: _focusNode,
+      child: widget.child ?? Container(),
+      onKey: (RawKeyEvent event) {
+        if (event.logicalKey == LogicalKeyboardKey.shiftLeft) {
+          if (event is RawKeyDownEvent) {
+            gFFI.peerTabModel.setShiftDown(true);
+          } else if (event is RawKeyUpEvent) {
+            gFFI.peerTabModel.setShiftDown(false);
+          }
         }
-      }
-    },
-  );
+      },
+    );
+  }
+}
+
+Widget keyListenerBuilder(BuildContext context, Widget? child) {
+  return _KeyListenerWidget(child: child);
 }

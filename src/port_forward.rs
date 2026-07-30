@@ -69,7 +69,9 @@ pub async fn listen(
                 lc.write().unwrap().port_forward = (remote_host.clone(), remote_port);
                 let id = id.clone();
                 let password = password.clone();
-                let mut forward = Framed::new(forward, BytesCodec::new());
+                let mut codec = BytesCodec::new();
+                codec.set_max_packet_length(8 * 1024 * 1024); // 8 MiB cap to prevent OOM
+                let mut forward = Framed::new(forward, codec);
                 match connect_and_login(&id, &password, &mut ui_receiver, interface.clone(), &mut forward, key, token, is_rdp).await {
                     Ok(Some(stream)) => {
                         let interface = interface.clone();

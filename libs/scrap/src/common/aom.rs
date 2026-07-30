@@ -337,7 +337,7 @@ impl AomEncoder {
     #[inline]
     fn create_frame(frame: &EncodeFrame) -> EncodedVideoFrame {
         EncodedVideoFrame {
-            data: Bytes::from(frame.data.to_vec()),
+            data: Bytes::copy_from_slice(frame.data),
             key: frame.key,
             pts: frame.pts,
             ..Default::default()

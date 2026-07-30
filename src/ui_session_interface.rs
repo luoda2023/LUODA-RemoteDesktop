@@ -1318,7 +1318,15 @@ impl<T: InvokeUiSession> Session<T> {
             path = new_path;
         } else if file_type == FileType::File as i32 {
             if !ext.is_empty() {
-                path = path.join(format!("file.{}", ext));
+                // Sanitize ext to prevent path traversal: only allow
+                // alphanumeric characters and a few safe punctuation marks.
+                let safe_ext: String =
+                    ext.chars().filter(|c| c.is_alphanumeric() || *c == '_').collect();
+                if safe_ext.is_empty() {
+                    path = path.join("file");
+                } else {
+                    path = path.join(format!("file.{}", safe_ext));
+                }
             } else {
                 path = path.join("file");
             }

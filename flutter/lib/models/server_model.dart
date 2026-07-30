@@ -51,6 +51,7 @@ class ServerModel with ChangeNotifier {
   final List<Client> _clients = [];
 
   Timer? cmHiddenTimer;
+  Timer? _fetchTimer;
 
   final _wakelockKey = UniqueKey();
 
@@ -189,7 +190,7 @@ class ServerModel with ChangeNotifier {
           await timerCallback();
         }
       });
-      Timer.periodic(Duration(milliseconds: 500), (timer) async {
+      _fetchTimer = Timer.periodic(Duration(milliseconds: 500), (timer) async {
         await timerCallback();
       });
     }
@@ -460,6 +461,8 @@ class ServerModel with ChangeNotifier {
   /// Stop the screen sharing service.
   Future<void> stopService() async {
     _isStart = false;
+    _fetchTimer?.cancel();
+    _fetchTimer = null;
     closeAll();
     await parent.target?.invokeMethod("stop_service");
     await bind.mainStopService();

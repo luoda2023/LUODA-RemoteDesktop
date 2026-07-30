@@ -35,6 +35,7 @@ class PlatformFFI {
   late Luoda _ffiBind;
   late String _appType;
   StreamEventHandler? _eventCallback;
+  StreamSubscription? _globalEventSub;
 
   PlatformFFI._();
 
@@ -242,8 +243,10 @@ class PlatformFFI {
   void _startListenEvent(Luoda luodaImpl) {
     final appType =
         _appType == kAppTypeDesktopRemote ? '$_appType,$kWindowId' : _appType;
+    // Cancel any previous subscription to avoid duplicate event handling.
+    _globalEventSub?.cancel();
     var sink = luodaImpl.startGlobalEventStream(appType: appType);
-    sink.listen((message) {
+    _globalEventSub = sink.listen((message) {
       () async {
         try {
           Map<String, dynamic> event = json.decode(message);

@@ -51,7 +51,17 @@ impl KcpStream {
         }
         Self::kcp_io(udp_socket.clone(), input, output, stop_receiver).await;
 
-        let conn_id = tokio::time::timeout(timeout, endpoint.accept()).await??;
+        let conn_id = match tokio::time::timeout(timeout, endpoint.accept()).await {
+            Ok(Ok(id)) => id,
+            Ok(Err(e)) => {
+                let _ = stop_sender.send(());
+                return Err(e.into());
+            }
+            Err(e) => {
+                let _ = stop_sender.send(());
+                return Err(e.into());
+            }
+        };
         if let Some(stream) = stream::KcpStream::new(&endpoint, conn_id) {
             Ok((
                 Self {
@@ -81,7 +91,13 @@ impl KcpStream {
         let (stop_sender, stop_receiver) = oneshot::channel();
         Self::kcp_io(udp_socket.clone(), input, output, stop_receiver).await;
 
-        let conn_id = endpoint.connect(timeout, 0, 0, Bytes::new()).await?;
+        let conn_id = match endpoint.connect(timeout, 0, 0, Bytes::new()).await {
+            Ok(id) => id,
+            Err(e) => {
+                let _ = stop_sender.send(());
+                return Err(e.into());
+            }
+        };
         if let Some(stream) = stream::KcpStream::new(&endpoint, conn_id) {
             Ok((
                 Self {

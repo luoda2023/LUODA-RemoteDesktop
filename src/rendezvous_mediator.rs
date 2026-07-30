@@ -74,6 +74,9 @@ impl RendezvousMediator {
         crate::test_nat_type();
         if config::is_outgoing_only() {
             loop {
+                if SHOULD_EXIT.load(std::sync::atomic::Ordering::SeqCst) {
+                    return;
+                }
                 sleep(1.).await;
             }
         }

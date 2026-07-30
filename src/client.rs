@@ -462,7 +462,7 @@ impl Client {
         } else if let Some(udp) = udp.1.as_ref() {
             let tm = Instant::now();
             loop {
-                let port = *udp.lock().unwrap();
+                let port = *udp.lock().unwrap_or_else(|e| e.into_inner());
                 if port > 0 {
                     break;
                 }
@@ -470,7 +470,7 @@ impl Client {
                 if tm.elapsed() > rtt / 2 {
                     break;
                 }
-                hbb_common::sleep(0.001).await;
+                hbb_common::sleep(0.005).await;
             }
         }
         // Stop UDP NAT test task if still running
@@ -1511,12 +1511,15 @@ impl AudioHandler {
         let stream = device.build_output_stream(
             config,
             move |data: &mut [T], info: &cpal::OutputCallbackInfo| {
-                if !*ready.lock().unwrap() {
-                    *ready.lock().unwrap() = true;
+                // Use unwrap_or_else to avoid panicking in the real-time audio
+                // callback thread, which would poison the lock and crash the
+                // entire audio stream permanently.
+                if !*ready.lock().unwrap_or_else(|e| e.into_inner()) {
+                    *ready.lock().unwrap_or_else(|e| e.into_inner()) = true;
                 }
 
                 let mut n = data.len();
-                let mut lock = audio_buffer.lock().unwrap();
+                let mut lock = audio_buffer.lock().unwrap_or_else(|e| e.into_inner());
                 let mut having = lock.occupied_len();
                 // android two timestamps, one from zero, another not
                 #[cfg(not(target_os = "android"))]

@@ -2708,6 +2708,11 @@ pub fn create_process_with_logon(user: &str, pwd: &str, exe: &str, arg: &str) ->
                 io::Error::from_raw_os_error(last_error as _)
             );
         }
+        // Close process and thread handles to prevent kernel handle leaks.
+        // Each call to CreateProcessWithLogonW returns new handles that must
+        // be closed; failing to do so leaks two handles per invocation.
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
     }
     return Ok(());
 }
