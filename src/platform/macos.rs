@@ -511,7 +511,7 @@ pub fn get_cursor() -> ResultType<Option<u64>> {
 }
 
 fn unsafe_get_cursor() -> ResultType<Option<u64>> {
-    let seed = CGSCurrentCursorSeed();
+    let seed = unsafe { CGSCurrentCursorSeed() };
     if seed == LATEST_SEED.load(std::sync::atomic::Ordering::SeqCst) {
         return Ok(None);
     }

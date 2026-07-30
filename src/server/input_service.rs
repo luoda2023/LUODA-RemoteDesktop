@@ -249,6 +249,7 @@ impl LockModesHandler {
         let local_caps_enabled = {
             VIRTUAL_INPUT_STATE
                 .lock()
+                .unwrap()
                 .as_ref()
                 .map_or(false, |input| input.capslock_down)
         };
@@ -561,6 +562,13 @@ struct VirtualInputState {
     virtual_input: VirtualInput,
     capslock_down: bool,
 }
+
+// SAFETY: VirtualInputState is only accessed from the main thread via QUEUE.exec_async
+// or from the input handling thread, never concurrently from multiple threads.
+// The raw pointer inside VirtualInput is only used through macOS CGEvent APIs which
+// are thread-safe when used from a single thread at a time (guaranteed by the Mutex).
+#[cfg(target_os = "macos")]
+unsafe impl Send for VirtualInputState {}
 
 #[cfg(target_os = "macos")]
 impl VirtualInputState {
@@ -1357,7 +1365,7 @@ pub fn handle_key(evt: &KeyEvent) {
 #[cfg(target_os = "macos")]
 #[inline]
 fn reset_input() {
-    *VIRTUAL_INPUT_STATE.lock() = VirtualInputState::new();
+    *VIRTUAL_INPUT_STATE.lock().unwrap() = VirtualInputState::new();
 }
 
 #[cfg(target_os = "macos")]
@@ -1402,7 +1410,7 @@ fn sim_rdev_rawkey_virtual(code: u32, keydown: bool) {
 #[inline]
 #[cfg(target_os = "macos")]
 fn simulate_(event_type: &EventType) {
-    if let Some(input) = VIRTUAL_INPUT_STATE.lock().as_ref() {
+    if let Some(input) = VIRTUAL_INPUT_STATE.lock().unwrap().as_ref() {
         let _ = input.simulate(&event_type);
     }
 }
@@ -1411,7 +1419,7 @@ fn simulate_(event_type: &EventType) {
 #[cfg(target_os = "macos")]
 fn press_capslock() {
     let caps_key = RdevKey::RawKey(rdev::RawKey::MacVirtualKeycode(rdev::kVK_CapsLock));
-    if let Some(input) = VIRTUAL_INPUT_STATE.lock().as_mut() {
+    if let Some(input) = VIRTUAL_INPUT_STATE.lock().unwrap().as_mut() {
         if input.simulate(&EventType::KeyPress(caps_key)).is_ok() {
             input.capslock_down = true;
             key_sleep();
@@ -1423,7 +1431,7 @@ fn press_capslock() {
 #[inline]
 fn release_capslock() {
     let caps_key = RdevKey::RawKey(rdev::RawKey::MacVirtualKeycode(rdev::kVK_CapsLock));
-    if let Some(input) = VIRTUAL_INPUT_STATE.lock().as_mut() {
+    if let Some(input) = VIRTUAL_INPUT_STATE.lock().unwrap().as_mut() {
         if input.simulate(&EventType::KeyRelease(caps_key)).is_ok() {
             input.capslock_down = false;
             key_sleep();
