@@ -27,7 +27,7 @@ use terminfo::{capability as cap, Database};
 use wallpaper;
 
 pub const PA_SAMPLE_RATE: u32 = 48000;
-static mut UNMODIFIED: bool = true;
+static UNMODIFIED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 const INVALID_TERM_VALUES: [&str; 3] = ["", "unknown", "dumb"];
 const SHELL_PROCESSES: [&str; 4] = ["bash", "zsh", "fish", "sh"];
@@ -841,7 +841,7 @@ pub fn is_login_wayland() -> bool {
 
 #[inline]
 pub fn current_is_wayland() -> bool {
-    return is_desktop_wayland() && unsafe { UNMODIFIED };
+    return is_desktop_wayland() && UNMODIFIED.load(std::sync::atomic::Ordering::SeqCst);
 }
 
 // to-do: test the other display manager

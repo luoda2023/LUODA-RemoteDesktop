@@ -2295,6 +2295,7 @@ class __PrinterState extends State<_Printer> {
       final failedMsg = ''.obs;
       platformFFI.registerEventHandler(
           'install-printer-res', 'install-printer-res', (evt) async {
+        if (!mounted) return;
         if (evt['success'] as bool) {
           setState(() {});
         } else {

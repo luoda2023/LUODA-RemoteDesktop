@@ -40,7 +40,7 @@ type BooleanT = hbb_common::libc::c_int;
 
 static PRIVILEGES_SCRIPTS_DIR: Dir =
     include_dir!("$CARGO_MANIFEST_DIR/src/platform/privileges_scripts");
-static mut LATEST_SEED: i32 = 0;
+static LATEST_SEED: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
 #[inline]
 fn get_update_temp_dir() -> PathBuf {
@@ -511,21 +511,17 @@ pub fn get_cursor() -> ResultType<Option<u64>> {
 }
 
 fn unsafe_get_cursor() -> ResultType<Option<u64>> {
-    unsafe {
-        let seed = CGSCurrentCursorSeed();
-        if seed == LATEST_SEED {
-            return Ok(None);
-        }
-        LATEST_SEED = seed;
+    let seed = CGSCurrentCursorSeed();
+    if seed == LATEST_SEED.load(std::sync::atomic::Ordering::SeqCst) {
+        return Ok(None);
     }
+    LATEST_SEED.store(seed, std::sync::atomic::Ordering::SeqCst);
     let c = get_cursor_id()?;
     Ok(Some(c.1))
 }
 
 pub fn reset_input_cache() {
-    unsafe {
-        LATEST_SEED = 0;
-    }
+    LATEST_SEED.store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
 fn get_cursor_id() -> ResultType<(id, u64)> {

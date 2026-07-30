@@ -3983,7 +3983,11 @@ pub mod peer_online {
     use hbb_common::{
         anyhow::bail,
         config::{Config, CONNECT_TIMEOUT, DEFAULT_DIRECT_PORT, READ_TIMEOUT},
-        futures::{future::join_all, FutureExt},
+        futures::{
+            future::join_all,
+            stream::{self, StreamExt},
+            FutureExt,
+        },
         log,
         message_proto::{message, Message},
         protobuf::Message as _,
@@ -4031,21 +4035,24 @@ pub mod peer_online {
                     )
                     .is_empty()
                 });
-            let direct_states = join_all(direct_ids.into_iter().map(|id| async move {
-                let hosts = crate::direct_access::direct_peer_hosts(
-                    &id,
-                    DEFAULT_DIRECT_PORT as u16,
-                );
-                let attempts: Vec<_> = hosts.into_iter().map(|host| {
-                    async move { probe_direct_host(host).await }
-                        .boxed()
-                }).collect();
-                let online = hbb_common::futures::future::select_ok(attempts)
-                    .await
-                    .is_ok();
-                (id, online)
-            }))
-            .await;
+            let direct_states: Vec<(String, bool)> = stream::iter(direct_ids)
+                .map(|id| async move {
+                    let hosts = crate::direct_access::direct_peer_hosts(
+                        &id,
+                        DEFAULT_DIRECT_PORT as u16,
+                    );
+                    let attempts: Vec<_> = hosts.into_iter().map(|host| {
+                        async move { probe_direct_host(host).await }
+                            .boxed()
+                    }).collect();
+                    let online = hbb_common::futures::future::select_ok(attempts)
+                        .await
+                        .is_ok();
+                    (id, online)
+                })
+                .buffer_unordered(16)
+                .collect()
+                .await;
             let mut direct_onlines = Vec::new();
             let mut direct_offlines = Vec::new();
             for (id, online) in direct_states {

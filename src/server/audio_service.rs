@@ -100,9 +100,7 @@ mod pa_impl {
         RESTARTING.store(false, Ordering::SeqCst);
         #[cfg(target_os = "linux")]
         let mut stream = crate::ipc::connect(1000, "_pa").await?;
-        unsafe {
-            AUDIO_ZERO_COUNT = 0;
-        }
+        AUDIO_ZERO_COUNT.store(0, std::sync::atomic::Ordering::Relaxed);
         let mut encoder = Encoder::new(crate::platform::PA_SAMPLE_RATE, Stereo, LowDelay)?;
         #[cfg(target_os = "linux")]
         allow_err!(
@@ -403,9 +401,7 @@ mod cpal_impl {
         };
         let sample_rate_0 = config.sample_rate().0;
         log::debug!("Audio sample rate : {}", sample_rate);
-        unsafe {
-            AUDIO_ZERO_COUNT = 0;
-        }
+        AUDIO_ZERO_COUNT.store(0, std::sync::atomic::Ordering::Relaxed);
         let device_channel = config.channels();
         let mut encoder = Encoder::new(sample_rate, encode_channel, LowDelay)?;
         // https://www.opus-codec.org/docs/html_api/group__opusencoder.html#gace941e4ef26ed844879fde342ffbe546
@@ -466,24 +462,21 @@ fn create_format_msg(sample_rate: u32, channels: u16) -> Message {
 // every audio data length is set to 480
 // MAX_AUDIO_ZERO_COUNT=800 is similar as Gate Attack Time 3~5s(Linux) || 6~8s(Windows)
 const MAX_AUDIO_ZERO_COUNT: u16 = 800;
-static mut AUDIO_ZERO_COUNT: u16 = 0;
+static AUDIO_ZERO_COUNT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
 
 fn send_f32(data: &[f32], encoder: &mut Encoder, sp: &GenericService) {
     if data.iter().filter(|x| **x != 0.).next().is_some() {
-        unsafe {
-            AUDIO_ZERO_COUNT = 0;
-        }
+        AUDIO_ZERO_COUNT.store(0, std::sync::atomic::Ordering::Relaxed);
     } else {
-        unsafe {
-            if AUDIO_ZERO_COUNT > MAX_AUDIO_ZERO_COUNT {
-                if AUDIO_ZERO_COUNT == MAX_AUDIO_ZERO_COUNT + 1 {
-                    log::debug!("Audio Zero Gate Attack");
-                    AUDIO_ZERO_COUNT += 1;
-                }
-                return;
+        let count = AUDIO_ZERO_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        if count > MAX_AUDIO_ZERO_COUNT {
+            if count == MAX_AUDIO_ZERO_COUNT + 1 {
+                log::debug!("Audio Zero Gate Attack");
+                AUDIO_ZERO_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
-            AUDIO_ZERO_COUNT += 1;
+            return;
         }
+        AUDIO_ZERO_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
     #[cfg(target_os = "android")]
     {

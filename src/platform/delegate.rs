@@ -46,7 +46,7 @@ impl DelegateState {
     }
 }
 
-static mut LAUNCHED: bool = false;
+static LAUNCHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 impl AppHandler for Rc<Host> {
     fn command(&mut self, cmd: u32) {
@@ -129,9 +129,7 @@ unsafe fn set_delegate(handler: Option<Box<dyn AppHandler>>) {
 }
 
 extern "C" fn application_did_finish_launching(_this: &mut Object, _: Sel, _notification: id) {
-    unsafe {
-        LAUNCHED = true;
-    }
+    LAUNCHED.store(true, std::sync::atomic::Ordering::SeqCst);
     unsafe {
         let () = msg_send![NSApp(), activateIgnoringOtherApps: YES];
     }
@@ -143,7 +141,7 @@ extern "C" fn application_should_handle_open_untitled_file(
     _sender: id,
 ) -> BOOL {
     unsafe {
-        if !LAUNCHED {
+        if !LAUNCHED.load(std::sync::atomic::Ordering::SeqCst) {
             return YES;
         }
         crate::platform::macos::handle_application_should_open_untitled_file();

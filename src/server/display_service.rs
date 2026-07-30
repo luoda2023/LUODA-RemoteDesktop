@@ -604,7 +604,7 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
     if displays.is_empty() {
         log::warn!("no usable displays, starting on-demand headless recovery");
         let started = std::time::Instant::now();
-        let wait_timeout = std::time::Duration::from_secs(60);
+        let wait_timeout = std::time::Duration::from_secs(15);
         let mut last_plug_attempt = None;
         let mut last_error = initial_error;
         while started.elapsed() < wait_timeout {

@@ -211,6 +211,7 @@ class UpdateProgressState extends State<UpdateProgress> {
         if (_totalSize == 0) {
           _onError('The download file size is 0.');
         } else {
+          if (!mounted) return;
           setState(() {});
           if (isMacOS) {
             bind.mainSetCommon(
@@ -221,6 +222,7 @@ class UpdateProgressState extends State<UpdateProgress> {
           }
         }
       } else {
+        if (!mounted) return;
         setState(() {});
       }
     }

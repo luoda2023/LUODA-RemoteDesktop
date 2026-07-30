@@ -659,7 +659,7 @@ fn run(vs: VideoService) -> ResultType<()> {
     let mut yuv = Vec::new();
     let mut mid_data = Vec::new();
     let mut repeat_encode_counter = 0;
-    let repeat_encode_max = 10;
+    let repeat_encode_max = 3;
     let mut encode_fail_counter = 0;
     let mut first_frame = true;
     let capture_width = c.width;
