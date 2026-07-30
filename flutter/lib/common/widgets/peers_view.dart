@@ -128,6 +128,8 @@ class _PeersViewState extends State<_PeersView>
   @override
   void onWindowFocus() {
     _isActive = true;
+    // Immediately refresh online status when window regains focus.
+    _lastQueryTime = DateTime.now().subtract(_queryInterval);
   }
 
   @override
@@ -305,13 +307,13 @@ class _PeersViewState extends State<_PeersView>
     return body;
   }
 
-  var _queryInterval = const Duration(seconds: 20);
+  var _queryInterval = const Duration(seconds: 10);
 
   void _startCheckOnlines() {
     () async {
       final p = await bind.mainIsUsingPublicServer();
       if (!p) {
-        _queryInterval = const Duration(seconds: 6);
+        _queryInterval = const Duration(seconds: 4);
       }
       while (!_exit) {
         final now = DateTime.now();
@@ -325,12 +327,14 @@ class _PeersViewState extends State<_PeersView>
           final skipIfMobile =
               (isAndroid || isIOS) && !stateGlobal.isInMainPage;
           final skipIfNotActive = skipIfIsWeb || skipIfMobile || !_isActive;
-          if (!skipIfNotActive) {
-            if (now.difference(_lastQueryTime) >= _queryInterval) {
-              if (_curPeers.isNotEmpty) {
-                bind.queryOnlines(ids: _curPeers.toList(growable: false));
-                _lastQueryTime = DateTime.now();
-              }
+          // Query onlines even when tab is not active, just less frequently.
+          final effectiveInterval = skipIfNotActive
+              ? _queryInterval * 3
+              : _queryInterval;
+          if (now.difference(_lastQueryTime) >= effectiveInterval) {
+            if (_curPeers.isNotEmpty) {
+              bind.queryOnlines(ids: _curPeers.toList(growable: false));
+              _lastQueryTime = DateTime.now();
             }
           }
         }
