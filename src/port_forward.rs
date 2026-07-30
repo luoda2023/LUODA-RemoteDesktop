@@ -69,9 +69,7 @@ pub async fn listen(
                 lc.write().unwrap().port_forward = (remote_host.clone(), remote_port);
                 let id = id.clone();
                 let password = password.clone();
-                let mut codec = BytesCodec::new();
-                codec.set_max_packet_length(8 * 1024 * 1024); // 8 MiB cap to prevent OOM
-                let mut forward = Framed::new(forward, codec);
+                let mut forward = Framed::new(forward, BytesCodec::new());
                 match connect_and_login(&id, &password, &mut ui_receiver, interface.clone(), &mut forward, key, token, is_rdp).await {
                     Ok(Some(stream)) => {
                         let interface = interface.clone();
@@ -200,10 +198,17 @@ async fn run_forward(forward: Framed<TcpStream, BytesCodec>, stream: Stream) -> 
     log::info!("new port forwarding connection started");
     let mut forward = forward;
     let mut stream = stream;
+    // Maximum allowed frame size for port forwarding data (8 MiB).
+    // Frames larger than this are dropped to prevent OOM from malicious peers.
+    const MAX_FORWARD_FRAME: usize = 8 * 1024 * 1024;
     loop {
         tokio::select! {
             res = forward.next() => {
                 if let Some(Ok(bytes)) = res {
+                    if bytes.len() > MAX_FORWARD_FRAME {
+                        log::warn!("port forward frame too large: {} bytes, dropping", bytes.len());
+                        continue;
+                    }
                     allow_err!(stream.send_bytes(bytes.into()).await);
                 } else {
                     break;
@@ -211,6 +216,10 @@ async fn run_forward(forward: Framed<TcpStream, BytesCodec>, stream: Stream) -> 
             },
             res = stream.next() => {
                 if let Some(Ok(bytes)) = res {
+                    if bytes.len() > MAX_FORWARD_FRAME {
+                        log::warn!("port forward stream frame too large: {} bytes, dropping", bytes.len());
+                        continue;
+                    }
                     allow_err!(forward.send(bytes).await);
                 } else {
                     break;
