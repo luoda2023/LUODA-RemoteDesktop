@@ -63,6 +63,27 @@ pub fn plug_in_headless() -> ResultType<()> {
     }
 }
 
+/// Pre-install the headless virtual display driver (and, if it is already
+/// installed, ensure a virtual monitor is plugged in) at host startup.
+///
+/// On a portable EXE's first run the Amyuni driver install requires UAC
+/// elevation.  Triggering it here – before any client connects – lets the
+/// one-time elevation complete up front, so the reactive recovery path that
+/// fires after MSTSC disconnects only needs to plug-in an already-installed
+/// driver (no elevation) and succeeds instantly.  This is the fix for the
+/// portable EXE repeatedly showing "No displays / install virtual display"
+/// every time the RDP session drops.
+///
+/// Best-effort: errors are logged but never propagated, because a failure here
+/// must not block host startup.
+pub fn preinstall_headless_driver() -> ResultType<()> {
+    match IDD_IMPL {
+        IDD_IMPL_AMYUNI => amyuni_idd::preinstall_driver(),
+        IDD_IMPL_LUODA => luoda_idd::preinstall_driver(),
+        _ => Ok(()),
+    }
+}
+
 pub fn plug_in_headless_if_needed() -> ResultType<bool> {
     let mut active_display_samples =
         Vec::with_capacity(crate::headless_policy::REQUIRED_NO_DISPLAY_SAMPLES);
@@ -241,6 +262,23 @@ pub mod luoda_idd {
             .lock()
             .unwrap()
             .install_update_driver()
+    }
+
+    /// Pre-install the LUODA IDD driver and plug in a headless monitor at host
+    /// startup (mirrors `amyuni_idd::preinstall_driver`).  Best-effort.
+    pub fn preinstall_driver() -> ResultType<()> {
+        if !get_device_names().is_empty() {
+            log::info!("virtual display already present at startup; skipping preinstall");
+            return Ok(());
+        }
+        if let Err(e) = install_update_driver() {
+            log::warn!("preinstall: driver install not completed yet: {}", e);
+            return Ok(());
+        }
+        if let Err(e) = plug_in_headless() {
+            log::warn!("preinstall: failed to plug in virtual monitor: {}", e);
+        }
+        Ok(())
     }
 
     #[inline]
@@ -779,6 +817,37 @@ pub mod amyuni_idd {
 
         for _i in 0..to_plug_out_count {
             let _ = plug_monitor_(false, None);
+        }
+        Ok(())
+    }
+
+    /// Pre-install the Amyuni virtual display driver and, once installed, ensure
+    /// a virtual monitor is plugged in.  Called at host startup so the one-time
+    /// UAC elevation for driver installation happens before any client connects,
+    /// keeping the reactive post-MSTSC recovery path elevation-free and instant.
+    ///
+    /// If the driver is already installed, this just plugs in a monitor (no
+    /// elevation needed).  Errors are returned but the caller treats them as
+    /// best-effort.
+    pub fn preinstall_driver() -> ResultType<()> {
+        // If a virtual monitor is already present, there is nothing to do.
+        if get_monitor_count() > 0 {
+            log::info!("virtual display already present at startup; skipping preinstall");
+            return Ok(());
+        }
+        // Install the driver if needed (one-time elevation).  If the process is
+        // not elevated this triggers a single UAC prompt here, up front, instead
+        // of failing reactively inside the connection recovery loop.
+        let mut is_async = false;
+        if let Err(e) = check_install_driver(&mut is_async) {
+            log::warn!("preinstall: driver install not completed yet: {}", e);
+            // Not fatal – the reactive path will retry; we just tried to do it early.
+            return Ok(());
+        }
+        // Driver is installed (or was already).  Plug in a headless monitor so
+        // the VPS stays capturable even before / after MSTSC disconnects.
+        if let Err(e) = plug_in_monitor_(true, is_async, Some(Duration::from_millis(3_000))) {
+            log::warn!("preinstall: failed to plug in virtual monitor: {}", e);
         }
         Ok(())
     }

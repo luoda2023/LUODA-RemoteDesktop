@@ -477,6 +477,16 @@ pub(super) fn prepare_headless_on_portable_host_startup() {
         return;
     }
 
+    // Pre-install / pre-plug the Amyuni virtual display driver as early as
+    // possible.  The driver install requires elevation on a portable EXE's
+    // first run; doing it here (rather than reactively during a connection)
+    // means the one-time elevation completes before any client connects, so
+    // the post-MSTSC recovery path only has to plug-in an already-installed
+    // driver, which needs no elevation and succeeds instantly.  This is the
+    // fix for the portable EXE showing "No displays / install virtual display"
+    // every time MSTSC disconnects.
+    let _ = virtual_display_manager::preinstall_headless_driver();
+
     let Ok(mut displays) = Display::all() else {
         log::warn!("failed to enumerate displays before portable host startup");
         return;
@@ -604,7 +614,11 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
     if displays.is_empty() {
         log::warn!("no usable displays, starting on-demand headless recovery");
         let started = std::time::Instant::now();
-        let wait_timeout = std::time::Duration::from_secs(15);
+        // Give the driver install / plug-in more time to complete.  On a
+        // portable EXE the first-time Amyuni driver install is asynchronous and
+        // may need elevation; 15s was too short and surfaced a "No displays"
+        // prompt to the client before the virtual display was ready.
+        let wait_timeout = std::time::Duration::from_secs(30);
         let mut last_plug_attempt = None;
         let mut last_error = initial_error;
         while started.elapsed() < wait_timeout {
@@ -660,6 +674,12 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
                 started.elapsed(),
                 last_error
             );
+            // Distinguish a driver-install/elevation failure from a generic
+            // "no display" so the user gets an actionable message rather than a
+            // confusing "No displays" on the portable EXE.
+            if last_error.contains("Failed to install driver") {
+                bail!("Virtual display driver not installed. Please run LUODA as administrator once to complete the first-time driver installation, then reconnect.");
+            }
             bail!("No displays");
         }
     }

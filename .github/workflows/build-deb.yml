@@ -120,7 +120,7 @@ jobs:
       - name: Build Rust binary
         timeout-minutes: 40
         run: |
-          cargo build --release --features flutter
+          cargo build --release --features flutter,hwcodec
         env:
           VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
           CXXFLAGS: "-include cstdint"

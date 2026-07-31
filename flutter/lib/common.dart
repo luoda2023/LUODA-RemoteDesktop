@@ -1584,11 +1584,13 @@ String translate(String name) {
 // sciter: Does not have the function, but it should be kept the same.
 bool option2bool(String option, String value) {
   bool res;
-  if (option.startsWith("enable-")) {
+  if (option.startsWith("enable-") || option == kOptionDirectServer) {
+    // enable-* and direct-server default ON. direct-server powers the raw-IP
+    // direct-access listener (port 21118); defaulting it ON lets LAN / direct-IP
+    // connections work out of the box. Users who want it off can set "N".
     res = value != "N";
   } else if (option.startsWith("allow-") ||
       option == kOptionStopService ||
-      option == kOptionDirectServer ||
       option == kOptionForceAlwaysRelay) {
     res = value == "Y";
   } else {

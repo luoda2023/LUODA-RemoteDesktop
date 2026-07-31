@@ -37,8 +37,13 @@ mod tests {
 
     #[test]
     fn repeated_udp_registration_timeouts_trigger_tcp_fallback() {
+        // The threshold is UDP_REGISTRATION_FAILURE_LIMIT (4).  Below it we keep
+        // retrying on UDP (which is the only transport that can register the
+        // peer ID on hbbs); at/above it we fall back to TCP.
         assert!(!should_fallback_to_tcp(1));
-        assert!(should_fallback_to_tcp(2));
-        assert!(should_fallback_to_tcp(3));
+        assert!(!should_fallback_to_tcp(2));
+        assert!(!should_fallback_to_tcp(3));
+        assert!(should_fallback_to_tcp(4));
+        assert!(should_fallback_to_tcp(5));
     }
 }

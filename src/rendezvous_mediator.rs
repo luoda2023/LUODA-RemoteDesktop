@@ -61,6 +61,11 @@ pub struct RendezvousMediator {
     host: String,
     host_prefix: String,
     keep_alive: i32,
+    /// Consecutive RegisterPk handshake attempts without receiving an OK
+    /// response.  Used to escalate to a direct RegisterPeer after a few failed
+    /// handshakes so the ID is published on hbbs even when the OK packet is
+    /// lost over UDP (the most common cause of "ID does not exist").
+    pk_attempts: u32,
 }
 
 impl RendezvousMediator {
@@ -180,6 +185,7 @@ impl RendezvousMediator {
             host: host.clone(),
             host_prefix: Self::get_host_prefix(&host),
             keep_alive: crate::DEFAULT_KEEP_ALIVE,
+            pk_attempts: 0,
         };
 
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
@@ -201,14 +207,27 @@ impl RendezvousMediator {
         let mut old_latency = 0;
         let mut ema_latency = 0;
         loop {
-            let mut update_latency = || {
+            // `registered` = true only when hbbs has actually acknowledged our
+            // RegisterPeer (the ID is now in the online table).  For mere
+            // RegisterPk handshakes or "request_pk" responses we pass false so
+            // that we reset the failure counters but do NOT publish a positive
+            // latency – otherwise the UI would show "已连接" (connected) while
+            // the ID is still absent from hbbs, which is the root cause of
+            // "ID does not exist" on the caller side.
+            let mut update_latency = |registered: bool| {
                 last_register_resp = Some(Instant::now());
                 fails = 0;
                 reg_timeout = MIN_REG_TIMEOUT;
+                last_register_sent = None;
+                if !registered {
+                    // Reachable but the ID is not registered yet – keep the UI
+                    // in "connecting" state (latency 0).
+                    Config::update_latency(&host, 0);
+                    return;
+                }
                 let mut latency = last_register_sent
                     .map(|x| x.elapsed().as_micros() as i64)
                     .unwrap_or(0);
-                last_register_sent = None;
                 if latency < 0 || latency > 1_000_000 {
                     return;
                 }
@@ -309,15 +328,21 @@ impl RendezvousMediator {
         msg: Option<rendezvous_message::Union>,
         sink: Sink<'_>,
         server: &ServerPtr,
-        update_latency: &mut impl FnMut(),
+        update_latency: &mut impl FnMut(bool),
     ) -> ResultType<()> {
         match msg {
             Some(rendezvous_message::Union::RegisterPeerResponse(rpr)) => {
-                update_latency();
                 if rpr.request_pk {
+                    // Server wants the PK handshake first – the ID is NOT yet
+                    // registered.  Reset failure counters but keep the UI in
+                    // "connecting" state (do not fake online).
+                    update_latency(false);
                     log::info!("request_pk received from {}", self.host);
                     self.register_pk(sink).await?;
                 } else {
+                    // Real registration acknowledged – the ID is now online.
+                    update_latency(true);
+                    self.pk_attempts = 0;
                     crate::runtime_logger::info(
                         "NETWORK",
                         &format!(
@@ -328,12 +353,15 @@ impl RendezvousMediator {
                 }
             }
             Some(rendezvous_message::Union::RegisterPkResponse(rpr)) => {
-                update_latency();
+                // RegisterPk confirms identity only; the ID is still NOT in
+                // hbbs's online table.  Do NOT fake the online state.
+                update_latency(false);
                 match rpr.result.enum_value() {
                     Ok(register_pk_response::Result::OK) => {
                         Config::set_key_confirmed(true);
                         Config::set_host_key_confirmed(&self.host_prefix, true);
                         *SOLVING_PK_MISMATCH.lock().await = "".to_owned();
+                        self.pk_attempts = 0;
                         // RegisterPk confirms identity but does not keep the peer
                         // online. Do not wait for the next 15-second refresh.
                         self.register_peer(sink).await?;
@@ -426,6 +454,7 @@ impl RendezvousMediator {
             host: host.clone(),
             host_prefix: Self::get_host_prefix(&host),
             keep_alive: crate::DEFAULT_KEEP_ALIVE,
+            pk_attempts: 0,
         };
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
         let mut last_recv_msg = Instant::now();
@@ -441,7 +470,12 @@ impl RendezvousMediator {
             &format!("TCP rendezvous registration sent; server={host}"),
         );
         loop {
-            let mut update_latency = || {
+            let mut update_latency = |registered: bool| {
+                if !registered {
+                    // Identity handshake only – keep UI in "connecting".
+                    Config::update_latency(&host, 0);
+                    return;
+                }
                 let latency = last_register_sent
                     .map(|x| x.elapsed().as_micros() as i64)
                     .unwrap_or(0);
@@ -706,11 +740,22 @@ impl RendezvousMediator {
             .await;
         }
         let relay_server = self.get_relay_server(ph.relay_server);
+        // If the peer's reported address is a private (LAN) IPv4, never force a
+        // relay – we can reach it directly.  `disable-tcp-listen` only turns off
+        // our own inbound listener; it must not prevent us from dialing out to a
+        // peer on the same LAN.  Without this override, an ID connection between
+        // two machines on one LAN silently fell through to the relay when either
+        // side had TCP listening off and the UDP hole-punch port was unavailable.
+        let peer_is_lan_ipv4 = match peer_addr {
+            std::net::SocketAddr::V4(v4) => v4.ip().is_private(),
+            _ => false,
+        };
         // for ensure, websocket go relay directly
-        if ph.nat_type.enum_value() == Ok(NatType::SYMMETRIC)
+        if (ph.nat_type.enum_value() == Ok(NatType::SYMMETRIC)
             || Config::get_nat_type() == NatType::SYMMETRIC as i32
             || relay
-            || (config::is_disable_tcp_listen() && ph.udp_port <= 0)
+            || (config::is_disable_tcp_listen() && ph.udp_port <= 0))
+            && !peer_is_lan_ipv4
         {
             let uuid = Uuid::new_v4().to_string();
             return self
@@ -833,23 +878,39 @@ impl RendezvousMediator {
         let key_confirmed = Config::get_key_confirmed();
         let host_key_confirmed = Config::get_host_key_confirmed(&self.host_prefix);
         if !key_confirmed || !host_key_confirmed {
-            // Only the RegisterPk handshake is sent here - the ID is NOT yet
-            // registered as an online peer on hbbs. This is the most common reason
-            // for "ID does not exist" on the caller side: the controlled peer keeps
-            // sending handshakes but never reaches the RegisterPeer step (e.g. UDP
-            // packet loss, key mismatch, or the hbbs response never arrives).
-            log::info!(
-                "register_pk of {} due to key not confirmed (key_confirmed={}, host_key_confirmed={})",
-                self.host_prefix, key_confirmed, host_key_confirmed
-            );
-            crate::runtime_logger::warn(
-                "NETWORK",
-                &format!(
-                    "id not registered yet; sending RegisterPk handshake only; server={}; key_confirmed={}; host_key_confirmed={}",
-                    self.host, key_confirmed, host_key_confirmed
-                ),
-            );
-            return self.register_pk(socket).await;
+            // Normally we send the RegisterPk handshake and wait for OK before
+            // registering the ID.  But over lossy UDP the OK response can be
+            // dropped, leaving us stuck sending RegisterPk forever while the
+            // caller sees "ID does not exist".  After a handful of unanswered
+            // handshake attempts, escalate: send RegisterPeer directly.  hbbs
+            // tolerates a RegisterPeer from an unconfirmed peer (it will reply
+            // with request_pk if it still needs the handshake), so this is safe
+            // and breaks the deadlock.
+            const PK_ESCALATION_THRESHOLD: u32 = 3;
+            self.pk_attempts = self.pk_attempts.saturating_add(1);
+            if self.pk_attempts >= PK_ESCALATION_THRESHOLD {
+                crate::runtime_logger::warn(
+                    "NETWORK",
+                    &format!(
+                        "pk handshake not confirmed after {} attempts; escalating to direct RegisterPeer; server={}",
+                        self.pk_attempts, self.host
+                    ),
+                );
+                self.pk_attempts = 0;
+            } else {
+                log::info!(
+                    "register_pk of {} due to key not confirmed (key_confirmed={}, host_key_confirmed={}, attempt={})",
+                    self.host_prefix, key_confirmed, host_key_confirmed, self.pk_attempts
+                );
+                crate::runtime_logger::warn(
+                    "NETWORK",
+                    &format!(
+                        "id not registered yet; sending RegisterPk handshake only; server={}; key_confirmed={}; host_key_confirmed={}; attempt={}",
+                        self.host, key_confirmed, host_key_confirmed, self.pk_attempts
+                    ),
+                );
+                return self.register_pk(socket).await;
+            }
         }
         let id = Config::get_id();
         log::trace!(

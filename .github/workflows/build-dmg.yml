@@ -144,7 +144,7 @@ jobs:
           BINDGEN_EXTRA_CLANG_ARGS="-I${VCPKG_INCLUDE} -I${BREW_INCLUDE}" \
           CFLAGS="-I${VCPKG_INCLUDE} -I${BREW_INCLUDE}" \
           CXXFLAGS="-I${VCPKG_INCLUDE} -I${BREW_INCLUDE} -include cstdint" \
-          cargo build --release --features flutter
+          cargo build --release --features flutter,hwcodec
 
       - name: Build Flutter macOS
         run: |
