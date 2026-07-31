@@ -120,7 +120,7 @@ jobs:
           if [ "${{ matrix.arch }}" = "x86" ]; then
             cargo build --release --target i686-pc-windows-msvc
           else
-            cargo build --release --features flutter,hwcodec,vram
+            cargo build --release --features flutter
           fi
         env:
           VCPKG_ROOT: C:\vcpkg
