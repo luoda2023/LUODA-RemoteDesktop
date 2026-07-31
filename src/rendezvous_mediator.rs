@@ -189,6 +189,11 @@ impl RendezvousMediator {
         const MAX_FAILS1: i64 = 2;
         const MAX_FAILS2: i64 = 4;
         const DNS_INTERVAL: i64 = 60_000;
+        // During recovery (no successful RegisterPeerResponse yet, or we just came
+        // back from a failure streak) re-send registration faster than the default
+        // 15s REG_INTERVAL. This shortens the window in which the peer is absent
+        // from hbbs's online table and a caller gets "ID does not exist".
+        const RECOVERY_REG_INTERVAL: i64 = 5_000;
         let mut fails = 0;
         let mut last_register_resp: Option<Instant> = None;
         let mut last_register_sent: Option<Instant> = None;
@@ -244,7 +249,15 @@ impl RendezvousMediator {
                         break;
                     }
                     let now = Some(Instant::now());
-                    let expired = last_register_resp.map(|x| x.elapsed().as_millis() as i64 >= REG_INTERVAL).unwrap_or(true);
+                    // Use a shorter re-registration interval while the peer is not
+                    // yet confirmed online on hbbs (no successful response so far)
+                    // or right after failures. Once healthy, fall back to REG_INTERVAL.
+                    let cur_interval = if fails > 0 || last_register_resp.is_none() {
+                        RECOVERY_REG_INTERVAL
+                    } else {
+                        REG_INTERVAL
+                    };
+                    let expired = last_register_resp.map(|x| x.elapsed().as_millis() as i64 >= cur_interval).unwrap_or(true);
                     let timeout = last_register_sent.map(|x| x.elapsed().as_millis() as i64 >= reg_timeout).unwrap_or(false);
                     // temporarily disable exponential backoff for android before we add wakeup trigger to force connect in android
                     #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -592,19 +605,32 @@ impl RendezvousMediator {
             )
             .await;
         }
-        if is_ipv4(&self.addr) && !relay && !config::is_disable_tcp_listen() {
-            if let Err(err) = self
-                .handle_intranet_(
-                    fla.clone(),
-                    server.clone(),
-                    relay_server.clone(),
-                    socket_addr_v6.clone(),
-                )
-                .await
-            {
-                log::debug!("Failed to handle intranet: {:?}, will try relay", err);
-            } else {
-                return Ok(());
+        if is_ipv4(&self.addr) && !relay {
+            // When the peer reports a private (LAN) IPv4 address, attempt a
+            // direct intranet connection even if local TCP listening is disabled.
+            // `disable-tcp-listen` only turns off the inbound listener on this
+            // side; it should not prevent us from dialing out to a peer we can
+            // already see on the same LAN. This makes "connect by ID inside one
+            // LAN" actually use the fast LAN path instead of falling back to relay.
+            let peer_is_lan_ipv4 = match addr {
+                std::net::SocketAddr::V4(v4) => v4.ip().is_private(),
+                _ => false,
+            };
+            let allow_intranet = peer_is_lan_ipv4 || !config::is_disable_tcp_listen();
+            if allow_intranet {
+                if let Err(err) = self
+                    .handle_intranet_(
+                        fla.clone(),
+                        server.clone(),
+                        relay_server.clone(),
+                        socket_addr_v6.clone(),
+                    )
+                    .await
+                {
+                    log::debug!("Failed to handle intranet: {:?}, will try relay", err);
+                } else {
+                    return Ok(());
+                }
             }
         }
         let uuid = Uuid::new_v4().to_string();
@@ -804,10 +830,24 @@ impl RendezvousMediator {
             return Ok(());
         }
         drop(solving);
-        if !Config::get_key_confirmed() || !Config::get_host_key_confirmed(&self.host_prefix) {
+        let key_confirmed = Config::get_key_confirmed();
+        let host_key_confirmed = Config::get_host_key_confirmed(&self.host_prefix);
+        if !key_confirmed || !host_key_confirmed {
+            // Only the RegisterPk handshake is sent here - the ID is NOT yet
+            // registered as an online peer on hbbs. This is the most common reason
+            // for "ID does not exist" on the caller side: the controlled peer keeps
+            // sending handshakes but never reaches the RegisterPeer step (e.g. UDP
+            // packet loss, key mismatch, or the hbbs response never arrives).
             log::info!(
-                "register_pk of {} due to key not confirmed",
-                self.host_prefix
+                "register_pk of {} due to key not confirmed (key_confirmed={}, host_key_confirmed={})",
+                self.host_prefix, key_confirmed, host_key_confirmed
+            );
+            crate::runtime_logger::warn(
+                "NETWORK",
+                &format!(
+                    "id not registered yet; sending RegisterPk handshake only; server={}; key_confirmed={}; host_key_confirmed={}",
+                    self.host, key_confirmed, host_key_confirmed
+                ),
             );
             return self.register_pk(socket).await;
         }

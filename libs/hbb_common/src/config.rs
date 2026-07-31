@@ -2959,6 +2959,9 @@ pub mod keys {
     pub const OPTION_ALLOW_REMOVE_WALLPAPER: &str = "allow-remove-wallpaper";
     pub const OPTION_ALLOW_ALWAYS_SOFTWARE_RENDER: &str = "allow-always-software-render";
     pub const OPTION_ALLOW_LINUX_HEADLESS: &str = "allow-linux-headless";
+    /// Virtual display resolution as "WxH" (e.g. "3840x2160"). When unset or
+    /// invalid, the virtual display falls back to 1920x1080.
+    pub const OPTION_VIRTUAL_DISPLAY_RESOLUTION: &str = "virtual-display-resolution";
     pub const OPTION_ENABLE_HWCODEC: &str = "enable-hwcodec";
     pub const OPTION_APPROVE_MODE: &str = "approve-mode";
     pub const OPTION_VERIFICATION_METHOD: &str = "verification-method";

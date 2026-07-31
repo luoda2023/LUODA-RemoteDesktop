@@ -550,7 +550,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("display_is_plugged_out_msg", "显示器被拔出，切换到第一个显示器。"),
         (
             "No displays",
-            "没有检测到显示器。请允许 LUODA 自动安装虚拟显示驱动，然后重新连接。",
+            "未检测到显示器。请以管理员身份重新运行 LUODA 以完成虚拟显示驱动的首次安装，然后重新连接。",
         ),
         ("Open in new window", "在新的窗口中打开"),
         ("Show displays as individual windows", "在单个窗口中打开显示器"),

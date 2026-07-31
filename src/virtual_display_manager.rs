@@ -33,6 +33,28 @@ pub fn is_virtual_display_supported() -> bool {
     }
 }
 
+/// Parse the `virtual-display-resolution` option (e.g. "3840x2160") into a
+/// (width, height) pair. Falls back to 1920x1080 when unset or malformed so
+/// existing behavior is preserved. This lets a headless virtual display be
+/// driven at 4K (or any resolution the Amyuni driver publishes) without code
+/// changes.
+pub fn configured_virtual_display_resolution() -> (usize, usize) {
+    let raw = hbb_common::config::Config::get_option(
+        hbb_common::config::keys::OPTION_VIRTUAL_DISPLAY_RESOLUTION,
+    );
+    parse_resolution(&raw).unwrap_or((1920, 1080))
+}
+
+fn parse_resolution(raw: &str) -> Option<(usize, usize)> {
+    let (w, h) = raw.split_once('x')?;
+    let w: usize = w.trim().parse().ok()?;
+    let h: usize = h.trim().parse().ok()?;
+    if w == 0 || h == 0 {
+        return None;
+    }
+    Some((w, h))
+}
+
 pub fn plug_in_headless() -> ResultType<()> {
     match IDD_IMPL {
         IDD_IMPL_LUODA => luoda_idd::plug_in_headless(),
@@ -630,9 +652,12 @@ pub mod amyuni_idd {
             }
         }
         // Workaround for the issue that we can't set the default the resolution.
+        // The target resolution is configurable via the `virtual-display-resolution`
+        // option (e.g. "3840x2160"); default to 1920x1080 to preserve behavior.
         if let Ok(old_connectivity_old) = reg_connectivity_old {
+            let (w, h) = super::configured_virtual_display_resolution();
             std::thread::spawn(move || {
-                try_reset_resolution_on_first_plug_in(old_connectivity_old.len(), 1920, 1080);
+                try_reset_resolution_on_first_plug_in(old_connectivity_old.len(), w, h);
             });
         }
 

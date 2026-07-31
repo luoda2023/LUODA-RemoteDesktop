@@ -623,9 +623,13 @@ pub fn try_get_displays_(add_amyuni_headless: bool) -> ResultType<Vec<Display>> 
                     Err(error) => {
                         last_error = error.to_string();
                         log::warn!("headless plug attempt is not ready yet: {}", error);
-                        if last_error.contains("Failed to install driver") {
-                            break;
-                        }
+                        // Do NOT break on "Failed to install driver". The Amyuni
+                        // driver is installed asynchronously by deviceinstaller64
+                        // (often requiring elevation on a first portable run) and
+                        // may only become usable after several attempts within the
+                        // recovery window. Breaking here made a build that had not
+                        // yet finished driver installation fail fast with
+                        // "No displays" right after MSTSC disconnected.
                     }
                 }
             }

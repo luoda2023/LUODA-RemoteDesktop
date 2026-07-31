@@ -520,7 +520,31 @@ impl Client {
                             }
                             match ph.failure.enum_value() {
                                 Ok(punch_hole_response::Failure::ID_NOT_EXIST) => {
-                                    bail!("ID does not exist");
+                                    // "ID does not exist" usually means the
+                                    // controlled peer has not finished registering
+                                    // its ID on hbbs yet (e.g. it just started, or
+                                    // is recovering from a network blip). Retry a
+                                    // couple of times before giving up so a transient
+                                    // registration gap does not surface as a hard
+                                    // failure to the caller.
+                                    if i < 3 {
+                                        log::warn!(
+                                            "ID {} not found on rendezvous server {} \
+                                             (attempt {}/3); retrying after short wait",
+                                            peer,
+                                            rendezvous_server,
+                                            i
+                                        );
+                                        hbb_common::sleep(2.).await;
+                                        continue;
+                                    }
+                                    bail!(
+                                        "ID does not exist on rendezvous server '{}'. \
+                                         Confirm the controlled side is running and logged in \
+                                         to the same server. Local ID: {}",
+                                        rendezvous_server,
+                                        Config::get_id()
+                                    );
                                 }
                                 Ok(punch_hole_response::Failure::OFFLINE) => {
                                     bail!("Remote desktop is offline");

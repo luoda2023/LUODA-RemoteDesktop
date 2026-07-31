@@ -1102,7 +1102,16 @@ fn get_encoder_config(
     #[cfg(feature = "vram")]
     Encoder::update(scrap::codec::EncodingUpdate::Check);
     // https://www.wowza.com/community/t/the-correct-keyframe-interval-in-obs-studio/95162
-    let keyframe_interval = if record { Some(240) } else { None };
+    let keyframe_interval = if record {
+        Some(240)
+    } else {
+        // A bounded GOP (~2s @ 60fps) lets the decoder recover from a lost or
+        // corrupt frame without a full reconnect. Previously keyframes were fully
+        // disabled outside recording (None -> VPX_KF_DISABLED / GOP = i32::MAX),
+        // so any packet loss on a direct connection left the screen garbled until
+        // the session was restarted.
+        Some(120)
+    };
     let negotiated_codec = Encoder::negotiated_codec();
     match negotiated_codec {
         CodecFormat::H264 | CodecFormat::H265 => {
