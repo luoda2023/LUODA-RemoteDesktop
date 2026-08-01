@@ -332,7 +332,7 @@ impl RendezvousMediator {
                     self.pk_attempts = 0;
                     self.register_pk(sink).await?;
                 } else {
-                    // Real registration acknowledged �?the ID is now online.
+                    // Real registration acknowledged —the ID is now online.
                     self.pk_attempts = 0;
                     crate::runtime_logger::info(
                         "NETWORK",
@@ -725,7 +725,7 @@ impl RendezvousMediator {
         }
         let relay_server = self.get_relay_server(ph.relay_server);
         // If the peer's reported address is a private (LAN) IPv4, never force a
-        // relay �?we can reach it directly.  `disable-tcp-listen` only turns off
+        // relay —we can reach it directly.  `disable-tcp-listen` only turns off
         // our own inbound listener; it must not prevent us from dialing out to a
         // peer on the same LAN.  Without this override, an ID connection between
         // two machines on one LAN silently fell through to the relay when either
@@ -1087,7 +1087,7 @@ async fn direct_server(server: ServerPtr) {
                 log::info!("Exit direct access listen");
                 listener = None;
                 set_direct_access_status("stopped");
-                // 重置端口�?21118，下次启动可重新使用默认端口
+                // 重置端口到21118，下次启动可重新使用默认端口
                 reset_direct_port();
                 continue;
             }
