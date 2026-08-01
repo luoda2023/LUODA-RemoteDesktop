@@ -2092,7 +2092,7 @@ netsh advfirewall firewall add rule name="{rule} UDP" dir=in action=allow protoc
     // runs, but netsh firewall changes for inbound rules are typically allowed
     // for the current user's own program.  If it fails the connection simply
     // falls back to relay.
-    match run_cmds(&cmds, false, "ensure_firewall_rule") {
+    match run_cmds(cmds, false, "ensure_firewall_rule") {
         Ok(_) => log::info!("Firewall rule '{}' ensured for {}", rule_name, exe),
         Err(e) => log::warn!("Failed to ensure firewall rule (non-fatal, relay still works): {}", e),
     }
