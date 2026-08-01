@@ -131,6 +131,17 @@ pub fn core_main() -> Option<Vec<String>> {
         // return None to terminate the process
         return None;
     }
+
+    // LUODA custom build: automatically add a Windows Firewall inbound rule for
+    // the direct-access port (21118) so that IP connections and LAN direct
+    // connections can reach this machine.  Without this, a freshly-extracted
+    // portable EXE on a new machine has no firewall exception and every
+    // inbound TCP attempt is silently dropped – the machine shows "已连接" but
+    // nobody can connect to it by IP or ID.
+    #[cfg(windows)]
+    {
+        crate::platform::windows::ensure_firewall_rule();
+    }
     let mut args = Vec::new();
     let mut flutter_args = Vec::new();
     let mut i = 0;

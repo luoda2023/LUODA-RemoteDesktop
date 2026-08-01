@@ -2063,6 +2063,41 @@ pub fn is_win_10_or_greater() -> bool {
     unsafe { is_windows_10_or_greater() > 0 }
 }
 
+/// Add (or refresh) a Windows Firewall inbound rule that allows TCP traffic on
+/// the direct-access port (21118) and the relay/punch range (21119-21128) so
+/// that remote peers can reach this machine by IP and LAN direct connections
+/// work.  This is essential for the portable EXE which has no installer to
+/// configure firewall rules.  Best-effort: failures are logged but never
+/// propagated – a missing rule degrades to relay-only, it must not crash.
+pub fn ensure_firewall_rule() {
+    let exe = match std::env::current_exe() {
+        Ok(e) => e.to_string_lossy().to_string(),
+        Err(_) => return,
+    };
+    let rule_name = "LUODA Direct Access";
+    // netsh advfirewall firewall add rule name="..." dir=in action=allow
+    // protocol=TCP localport=21118-21128 program="..." enable=yes
+    // Using the program path scoping ensures only LUODA can receive on these
+    // ports, which is safer than opening the ports globally.
+    let cmds = format!(
+        r#"chcp 65001 >nul 2>&1
+netsh advfirewall firewall delete rule name="{rule}" >nul 2>&1
+netsh advfirewall firewall add rule name="{rule}" dir=in action=allow protocol=TCP localport=21118-21128 program="{exe}" enable=yes >nul 2>&1
+netsh advfirewall firewall add rule name="{rule} UDP" dir=in action=allow protocol=UDP localport=21116-21119 program="{exe}" enable=yes >nul 2>&1
+"#,
+        rule = rule_name,
+        exe = exe
+    );
+    // Run silently – this may trigger a UAC prompt on non-elevated portable
+    // runs, but netsh firewall changes for inbound rules are typically allowed
+    // for the current user's own program.  If it fails the connection simply
+    // falls back to relay.
+    match run_cmds(&cmds, false, "ensure_firewall_rule") {
+        Ok(_) => log::info!("Firewall rule '{}' ensured for {}", rule_name, exe),
+        Err(e) => log::warn!("Failed to ensure firewall rule (non-fatal, relay still works): {}", e),
+    }
+}
+
 pub fn bootstrap() -> bool {
     if let Ok(lic) = get_license_from_exe_name() {
         *config::EXE_RENDEZVOUS_SERVER.write().unwrap() = lic.host.clone();

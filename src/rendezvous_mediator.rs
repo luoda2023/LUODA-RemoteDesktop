@@ -322,14 +322,14 @@ impl RendezvousMediator {
                 update_latency();
                 if rpr.request_pk {
                     log::info!("request_pk received from {}", self.host);
-                    // hbbs still wants the PK handshake.  Send it, but keep
-                    // pk_attempts growing so we eventually escalate to a direct
-                    // RegisterPeer (see register_peer) in case the OK response
-                    // keeps getting lost over UDP.
-                    // Reset pk_attempts so the next timer-tick call to
-                    // register_peer() starts from scratch instead of immediately
-                    // escalating to RegisterPeer again.
-                    self.pk_attempts = 0;
+                    // hbbs still wants the PK handshake.  Send it but do NOT
+                    // reset pk_attempts here – that would prevent the escalation
+                    // in register_peer() from ever triggering (hbbs replies
+                    // request_pk every cycle, resetting the counter to 0 each
+                    // time, so the ID never gets registered and callers see
+                    // "ID does not exist").  Let pk_attempts keep climbing so
+                    // register_peer() escalates to a direct RegisterPeer after
+                    // a few cycles.
                     self.register_pk(sink).await?;
                 } else {
                     // Real registration acknowledged —the ID is now online.
