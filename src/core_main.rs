@@ -53,6 +53,7 @@ pub fn core_main() -> Option<Vec<String>> {
     // every startup so the built-in default is always used.
     {
         use hbb_common::config as hbb_config;
+        use hbb_config::keys;
         let builtin_host = hbb_config::RENDEZVOUS_SERVERS
             .first()
             .map(|s| s.split(':').next().unwrap_or(s))
