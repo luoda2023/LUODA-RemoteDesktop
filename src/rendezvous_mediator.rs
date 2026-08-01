@@ -862,24 +862,23 @@ impl RendezvousMediator {
             // registering the ID.  But over lossy UDP the OK response can be
             // dropped, leaving us stuck sending RegisterPk forever while the
             // caller sees "ID does not exist".  After just 2 unanswered
-            // handshake attempts, escalate: send BOTH RegisterPk (to complete
-            // the handshake) AND RegisterPeer (to register the ID) in the same
-            // cycle.  This way the ID reaches hbbs even if the OK packet is
-            // lost, because RegisterPeer is sent regardless.
+            // handshake attempts, escalate: send RegisterPeer directly.
+            // register_pk() consumes the Sink, so we cannot call it here and
+            // then reuse the socket for RegisterPeer in the same call.  Instead
+            // we skip the PK handshake and let hbbs request it again if it
+            // still needs it (it replies with request_pk on the next cycle).
             const PK_ESCALATION_THRESHOLD: u32 = 2;
             self.pk_attempts = self.pk_attempts.saturating_add(1);
             if self.pk_attempts >= PK_ESCALATION_THRESHOLD {
                 crate::runtime_logger::warn(
                     "NETWORK",
                     &format!(
-                        "pk handshake not confirmed after {} attempts; sending RegisterPk+RegisterPeer together; server={}",
+                        "pk handshake not confirmed after {} attempts; sending RegisterPeer directly; server={}",
                         self.pk_attempts, self.host
                     ),
                 );
-                // Send the PK handshake first (may complete identity), then
-                // fall through to send RegisterPeer below in the same call.
-                let _ = self.register_pk(socket).await;
                 self.pk_attempts = 0;
+                // Fall through to send RegisterPeer below.
             } else {
                 log::info!(
                     "register_pk of {} due to key not confirmed (key_confirmed={}, host_key_confirmed={}, attempt={})",
