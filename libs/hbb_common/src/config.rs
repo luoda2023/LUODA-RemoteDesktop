@@ -975,8 +975,29 @@ impl Config {
  if rendezvous_server.is_empty() {
  rendezvous_server = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
  }
+ // LUODA custom build: the built-in RENDEZVOUS_SERVERS (rev.dicad.cn) is the
+ // canonical server.  CONFIG2.rendezvous_server may contain a stale IP:port
+ // left over from a previous connection to a different/test server
+ // (update_latency persists the lowest-latency server there).  Using that
+ // stale value causes the VPS to register its ID on a different hbbs than the
+ // one the local clients query, producing "ID does not exist".  So we prefer
+ // the built-in default over CONFIG2.rendezvous_server unless CONFIG2 contains
+ // the same host (in which case it is harmless).
+ let builtin = RENDEZVOUS_SERVERS
+ .first()
+ .map(|s| s.to_string())
+ .unwrap_or_default();
  if rendezvous_server.is_empty() {
- rendezvous_server = CONFIG2.read().unwrap().rendezvous_server.clone();
+ let config2_rs = CONFIG2.read().unwrap().rendezvous_server.clone();
+ if !config2_rs.is_empty()
+ && !is_loopback_or_test_server(&config2_rs)
+ && config2_rs.split(':').next().unwrap_or("") == builtin.split(':').next().unwrap_or("")
+ {
+ // CONFIG2 matches the built-in host – safe to use (may add the port).
+ rendezvous_server = config2_rs;
+ } else {
+ rendezvous_server = builtin.clone();
+ }
  }
  // 同样对 CONFIG2.rendezvous_server 做 sanitize,
  // 防止用户手工或旧版本写入 127.0.0.1:23456.

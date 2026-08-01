@@ -650,16 +650,13 @@ class _ServerAddressWidgetState extends State<_ServerAddressWidget> {
   }
 
   void _loadServer() {
-    // For branded/custom client, always show the brand domain 'rev.dicad.cn'
-    // regardless of custom-rendezvous-server option, which may contain an
-    // IP:port that looks wrong in the status bar.
-    if (!bind.isIncomingOnly()) {
-      final custom =
-          bind.mainGetOptionSync(key: 'custom-rendezvous-server').trim();
-      if (custom.isNotEmpty) {
-        _server = custom;
-      }
-    }
+    // LUODA custom build: always show the canonical brand domain
+    // 'rev.dicad.cn' in the status bar.  The custom-rendezvous-server option
+    // may contain a stale IP:port left over from a previous test server, which
+    // looked wrong and confused users ("IP:port 已连接" vs "rev.dicad.cn 已连接").
+    // The actual rendezvous server used by the Rust side is already sanitised
+    // in Config::get_rendezvous_server().
+    _server = 'rev.dicad.cn';
     if (mounted) setState(() {});
   }
 
