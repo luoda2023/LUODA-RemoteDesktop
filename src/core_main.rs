@@ -43,6 +43,54 @@ pub fn core_main() -> Option<Vec<String>> {
     crate::load_custom_client();
     crate::common::prepare_network_config();
 
+    // LUODA custom build: auto-clean stale rendezvous/relay server config left
+    // over from a previous test or custom-server deployment.  The canonical
+    // rendezvous server for this build is the built-in RENDEZVOUS_SERVERS
+    // (rev.dicad.cn).  If the persisted config (custom-rendezvous-server option
+    // or CONFIG2.rendezvous_server) points at a different host (e.g. a public
+    // IP from an old test server), the VPS would register its ID on the wrong
+    // hbbs and callers get "ID does not exist".  Wipe those stale values on
+    // every startup so the built-in default is always used.
+    {
+        use hbb_common::config as hbb_config;
+        let builtin_host = hbb_config::RENDEZVOUS_SERVERS
+            .first()
+            .map(|s| s.split(':').next().unwrap_or(s))
+            .unwrap_or("rev.dicad.cn");
+
+        // Clean custom-rendezvous-server option if it doesn't match the built-in host.
+        let custom_rs = config::Config::get_option(keys::OPTION_CUSTOM_RENDEZVOUS_SERVER);
+        if !custom_rs.is_empty() {
+            let custom_host = custom_rs.split(':').next().unwrap_or(&custom_rs);
+            if custom_host != builtin_host {
+                log::info!(
+                    "core_main: clearing stale custom-rendezvous-server='{}' (expected host '{}')",
+                    custom_rs, builtin_host
+                );
+                config::Config::set_option(
+                    keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_string(),
+                    String::new(),
+                );
+            }
+        }
+
+        // Clean relay-server option if it points elsewhere.
+        let relay_srv = config::Config::get_option(keys::OPTION_RELAY_SERVER);
+        if !relay_srv.is_empty() {
+            let relay_host = relay_srv.split(':').next().unwrap_or(&relay_srv);
+            if relay_host != builtin_host {
+                log::info!(
+                    "core_main: clearing stale relay-server='{}' (expected host '{}')",
+                    relay_srv, builtin_host
+                );
+                config::Config::set_option(keys::OPTION_RELAY_SERVER.to_string(), String::new());
+            }
+        }
+
+        // Clean CONFIG2.rendezvous_server (persisted by update_latency).
+        hbb_config::Config::clean_stale_rendezvous_server(builtin_host);
+    }
+
     // Set preset permanent password "666999" and defaults for all platforms
     {
         if !config::Config::has_permanent_password() {

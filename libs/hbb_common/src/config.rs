@@ -1064,6 +1064,29 @@ impl Config {
         *ONLINE.lock().unwrap() = Default::default();
     }
 
+    /// Clear a stale `CONFIG2.rendezvous_server` that points at a host other
+    /// than the built-in default.  `update_latency` persists the lowest-latency
+    /// server here, so a previous connection to a test/custom server can leave
+    /// a public IP that later causes the peer to register on the wrong hbbs
+    /// ("ID does not exist").  Called at startup by core_main.
+    pub fn clean_stale_rendezvous_server(builtin_host: &str) {
+        let config2_rs = CONFIG2.read().unwrap().rendezvous_server.clone();
+        if config2_rs.is_empty() {
+            return;
+        }
+        let config2_host = config2_rs.split(':').next().unwrap_or(&config2_rs);
+        if config2_host == builtin_host {
+            return; // matches the built-in server – harmless
+        }
+        log::info!(
+            "clean_stale_rendezvous_server: clearing CONFIG2.rendezvous_server='{}' (expected host '{}')",
+            config2_rs, builtin_host
+        );
+        let mut config = CONFIG2.write().unwrap();
+        config.rendezvous_server = String::new();
+        config.store();
+    }
+
     pub fn update_latency(host: &str, latency: i64) {
         ONLINE.lock().unwrap().insert(host.to_owned(), latency);
         let mut host = "".to_owned();
