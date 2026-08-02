@@ -2924,8 +2924,20 @@ pub fn option2bool(option: &str, value: &str) -> bool {
 }
 
 pub fn use_ws() -> bool {
-    let option = keys::OPTION_ALLOW_WEBSOCKET;
-    option2bool(option, &Config::get_option(option))
+ let option = keys::OPTION_ALLOW_WEBSOCKET;
+ let val = Config::get_option(option);
+ if val.is_empty() {
+ // On mobile (Android/iOS), carrier networks frequently block
+ // non-standard ports (21116-21119).  Default to WebSocket-over-443
+ // (wss://) which goes through nginx on port 443 and is virtually
+ // always reachable.  Desktop users can still toggle it in settings.
+ #[cfg(any(target_os = "android", target_os = "ios"))]
+ return true;
+ #[cfg(not(any(target_os = "android", target_os = "ios")))]
+ return false;
+ } else {
+ option2bool(option, &val)
+ }
 }
 
 pub fn allow_insecure_tls_fallback() -> bool {
