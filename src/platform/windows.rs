@@ -2063,6 +2063,51 @@ pub fn is_win_10_or_greater() -> bool {
     unsafe { is_windows_10_or_greater() > 0 }
 }
 
+/// On first run (or when setup hasn't been completed), pop a single UAC prompt
+/// to launch `--portable-setup` as an elevated child process.  That child
+/// installs the firewall rule and the virtual display driver, then exits.  The
+/// `portable-setup-done` option is set so subsequent launches skip the prompt.
+/// If the user denies UAC, we continue anyway (relay-only / no virtual display).
+pub fn portable_setup_if_needed() {
+    // Already done? Skip silently.
+    if hbb_common::config::Config::get_option("portable-setup-done") == "Y" {
+        // Still ensure the firewall rule exists (idempotent, no UAC needed
+        // when already elevated or when the rule already exists).
+        ensure_firewall_rule();
+        return;
+    }
+    // Don't prompt if we're already elevated (e.g. running as portable-service).
+    if is_elevated(None).unwrap_or(false) {
+        ensure_firewall_rule();
+        if crate::virtual_display_manager::is_virtual_display_supported() {
+            let _ = crate::virtual_display_manager::preinstall_headless_driver();
+        }
+        hbb_common::config::Config::set_option(
+            "portable-setup-done".to_string(),
+            "Y".to_string(),
+        );
+        return;
+    }
+    // Pop a UAC prompt to run --portable-setup elevated.
+    log::info!("portable_setup_if_needed: prompting UAC for one-time setup");
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.to_string_lossy().to_string();
+        match run_uac(&exe, "--portable-setup") {
+            Ok(true) => {
+                log::info!("portable-setup elevated process launched");
+                // The child sets portable-setup-done; also set it here in case
+                // the child is slow or the user needs to reconnect quickly.
+                hbb_common::config::Config::set_option(
+                    "portable-setup-done".to_string(),
+                    "Y".to_string(),
+                );
+            }
+            Ok(false) => log::warn!("portable-setup UAC was denied or failed (non-fatal)"),
+            Err(e) => log::warn!("portable-setup UAC error (non-fatal): {}", e),
+        }
+    }
+}
+
 /// Add (or refresh) a Windows Firewall inbound rule that allows TCP traffic on
 /// the direct-access port (21118) and the relay/punch range (21119-21128) so
 /// that remote peers can reach this machine by IP and LAN direct connections

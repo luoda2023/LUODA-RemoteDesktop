@@ -132,15 +132,14 @@ pub fn core_main() -> Option<Vec<String>> {
         return None;
     }
 
-    // LUODA custom build: automatically add a Windows Firewall inbound rule for
-    // the direct-access port (21118) so that IP connections and LAN direct
-    // connections can reach this machine.  Without this, a freshly-extracted
-    // portable EXE on a new machine has no firewall exception and every
-    // inbound TCP attempt is silently dropped – the machine shows "已连接" but
-    // nobody can connect to it by IP or ID.
+    // LUODA custom build: on first run (or when the firewall rule / driver is
+    // not yet installed), pop a single UAC prompt to elevate a helper process
+    // that installs the Windows Firewall inbound rule AND the Amyuni virtual
+    // display driver in one shot.  After this one-time elevation, subsequent
+    // launches need no UAC and everything works silently.
     #[cfg(windows)]
     {
-        crate::platform::windows::ensure_firewall_rule();
+        crate::platform::windows::portable_setup_if_needed();
     }
     let mut args = Vec::new();
     let mut flutter_args = Vec::new();
@@ -379,6 +378,27 @@ pub fn core_main() -> Option<Vec<String>> {
                 if crate::virtual_display_manager::is_virtual_display_supported() {
                     hbb_common::allow_err!(
                         crate::virtual_display_manager::luoda_idd::install_update_driver()
+                    );
+                }
+                return None;
+            } else if args[0] == "--portable-setup" {
+                // Elevated one-time setup for the portable EXE: installs the
+                // Windows Firewall inbound rule and the Amyuni virtual display
+                // driver, then exits.  Launched via run_uac by
+                // portable_setup_if_needed() so it runs with admin rights.
+                #[cfg(windows)]
+                {
+                    log::info!("--portable-setup: installing firewall rule + virtual display driver");
+                    crate::platform::windows::ensure_firewall_rule();
+                    if crate::virtual_display_manager::is_virtual_display_supported() {
+                        hbb_common::allow_err!(
+                            crate::virtual_display_manager::preinstall_headless_driver()
+                        );
+                    }
+                    // Mark setup as done so we don't prompt again.
+                    hbb_common::config::Config::set_option(
+                        "portable-setup-done".to_string(),
+                        "Y".to_string(),
                     );
                 }
                 return None;
