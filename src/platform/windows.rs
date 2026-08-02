@@ -2075,26 +2075,79 @@ pub fn ensure_firewall_rule() {
         Err(_) => return,
     };
     let rule_name = "LUODA Direct Access";
-    // netsh advfirewall firewall add rule name="..." dir=in action=allow
-    // protocol=TCP localport=21118-21128 program="..." enable=yes
-    // Using the program path scoping ensures only LUODA can receive on these
-    // ports, which is safer than opening the ports globally.
-    let cmds = format!(
-        r#"chcp 65001 >nul 2>&1
-netsh advfirewall firewall delete rule name="{rule}" >nul 2>&1
-netsh advfirewall firewall add rule name="{rule}" dir=in action=allow protocol=TCP localport=21118-21128 program="{exe}" enable=yes >nul 2>&1
-netsh advfirewall firewall add rule name="{rule} UDP" dir=in action=allow protocol=UDP localport=21116-21119 program="{exe}" enable=yes >nul 2>&1
-"#,
-        rule = rule_name,
-        exe = exe
-    );
-    // Run silently – this may trigger a UAC prompt on non-elevated portable
-    // runs, but netsh firewall changes for inbound rules are typically allowed
-    // for the current user's own program.  If it fails the connection simply
-    // falls back to relay.
-    match run_cmds(cmds, false, "ensure_firewall_rule") {
-        Ok(_) => log::info!("Firewall rule '{}' ensured for {}", rule_name, exe),
-        Err(e) => log::warn!("Failed to ensure firewall rule (non-fatal, relay still works): {}", e),
+
+    // Simple shell-like word splitter that respects double-quoted strings.
+    fn shell_words_split(s: &str) -> Vec<String> {
+        let mut result = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        for ch in s.chars() {
+            match ch {
+                '"' => in_quotes = !in_quotes,
+                ' ' | '\t' if !in_quotes => {
+                    if !current.is_empty() {
+                        result.push(std::mem::take(&mut current));
+                    }
+                }
+                _ => current.push(ch),
+            }
+        }
+        if !current.is_empty() {
+            result.push(current);
+        }
+        result
+    }
+
+    // Use std::process::Command directly (NOT run_cmds which forces a UAC
+    // prompt via force_prompt(true) – on a headless VPS the UAC dialog never
+    // appears and the rule is never created).  netsh advfirewall can add
+    // per-program inbound rules; on a non-elevated process this may still fail
+    // for inbound rules, but we try anyway and silently ignore failures.
+    // When the portable EXE is run elevated (e.g. as portable-service under
+    // SYSTEM) the rule is created successfully.
+    let commands = [
+        (
+            "delete",
+            format!(
+                "advfirewall firewall delete rule name=\"{}\"",
+                rule_name
+            ),
+        ),
+        (
+            "add_tcp",
+            format!(
+                "advfirewall firewall add rule name=\"{}\" dir=in action=allow protocol=TCP localport=21118-21128 program=\"{}\" enable=yes",
+                rule_name, exe
+            ),
+        ),
+        (
+            "add_udp",
+            format!(
+                "advfirewall firewall add rule name=\"{} UDP\" dir=in action=allow protocol=UDP localport=21116-21119 program=\"{}\" enable=yes",
+                rule_name, exe
+            ),
+        ),
+    ];
+
+    for (tag, args_str) in &commands {
+        // Split the netsh arguments, handling quoted strings (e.g. program path).
+        let args: Vec<String> = shell_words_split(args_str);
+        let result = std::process::Command::new("netsh")
+            .args(&args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        match result {
+            Ok(status) if status.success() => {
+                log::info!("Firewall rule {} OK", tag);
+            }
+            Ok(status) => {
+                log::warn!("Firewall rule {} returned non-zero exit {:?} (non-fatal)", tag, status.code());
+            }
+            Err(e) => {
+                log::warn!("Failed to run netsh for firewall rule {} (non-fatal): {}", tag, e);
+            }
+        }
     }
 }
 
