@@ -216,7 +216,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v2.0.1
+          tag_name: v2.2.1
           files: res/msi/dist/*.msi
       - name: Upload runtime logs (always)
         if: always()
