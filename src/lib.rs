@@ -167,10 +167,10 @@ impl RuntimeLog {
  }
  }
 }
-    pub fn info(tag: &str, msg: &str) { if let Ok(g) = LOGGER.lock() { g.log("INFO", tag, msg); } }
-    pub fn warn(tag: &str, msg: &str) { if let Ok(g) = LOGGER.lock() { g.log("WARN", tag, msg); } }
-    pub fn error(tag: &str, msg: &str) { if let Ok(g) = LOGGER.lock() { g.log("ERROR", tag, msg); } }
-    pub fn debug(tag: &str, msg: &str) { if let Ok(g) = LOGGER.lock() { g.log("DEBUG", tag, msg); } }
+pub fn info(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("INFO", tag, msg); } }
+pub fn warn(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("WARN", tag, msg); } }
+pub fn error(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("ERROR", tag, msg); } }
+pub fn debug(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("DEBUG", tag, msg); } }
     pub fn init() {
         info("SYSTEM", &format!("LUODA v{} starting on {}", env!("CARGO_PKG_VERSION"), std::env::consts::OS));
         info("SYSTEM", &format!("Args: {:?}", std::env::args().collect::<Vec<_>>()));
