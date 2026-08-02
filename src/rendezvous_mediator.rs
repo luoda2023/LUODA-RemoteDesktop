@@ -762,17 +762,26 @@ impl RendezvousMediator {
                 )
                 .await;
         }
-        use hbb_common::protobuf::Enum;
-        let nat_type = NatType::from_i32(Config::get_nat_type()).unwrap_or(NatType::UNKNOWN_NAT);
-        let msg_punch = PunchHoleSent {
-            socket_addr: ph.socket_addr,
-            id: Config::get_id(),
-            relay_server,
-            nat_type: nat_type.into(),
-            version: crate::VERSION.to_owned(),
-            socket_addr_v6,
-            ..Default::default()
-        };
+ use hbb_common::protobuf::Enum;
+ let nat_type = NatType::from_i32(Config::get_nat_type()).unwrap_or(NatType::UNKNOWN_NAT);
+ // Report our direct_server port so the peer can try a direct TCP
+ // connection to it (essential for VPS with public IPs where UDP
+ // punch hole may fail and TCP simultaneous-open is unreliable).
+ let direct_port = if Config::get_option(DIRECT_ACCESS_STATUS_OPTION) == "listening" {
+ get_direct_port()
+ } else {
+ 0
+ };
+ let msg_punch = PunchHoleSent {
+ socket_addr: ph.socket_addr,
+ id: Config::get_id(),
+ relay_server,
+ nat_type: nat_type.into(),
+ version: crate::VERSION.to_owned(),
+ socket_addr_v6,
+ upnp_port: direct_port,
+ ..Default::default()
+ };
         if ph.udp_port > 0 {
             peer_addr.set_port(ph.udp_port as u16);
             self.punch_udp_hole(peer_addr, server, msg_punch, control_permissions)

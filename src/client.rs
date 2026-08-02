@@ -742,23 +742,44 @@ impl Client {
             }
         }
         log::info!("peer address: {}, timeout: {}", peer, connect_timeout);
-        let start = std::time::Instant::now();
+ let start = std::time::Instant::now();
 
-        let mut connect_futures = Vec::new();
-        let fut = connect_tcp_local(peer, Some(local_addr), connect_timeout);
-        connect_futures.push(
-            async move {
-                let conn = fut.await?;
-                Ok((conn, None, "TCP"))
-            }
-            .boxed(),
-        );
-        if let Some(udp_socket_nat) = udp_socket_nat {
-            connect_futures.push(udp_nat_connect(udp_socket_nat, "UDP", connect_timeout).boxed());
-        }
-        if let Some(udp_socket_v6) = udp_socket_v6 {
-            connect_futures.push(udp_nat_connect(udp_socket_v6, "IPv6", connect_timeout).boxed());
-        }
+ let mut connect_futures = Vec::new();
+ // Standard TCP punch hole: connect to peer's address as reported by hbbs.
+ let fut = connect_tcp_local(peer, Some(local_addr), connect_timeout);
+ connect_futures.push(
+ async move {
+ let conn = fut.await?;
+ Ok((conn, None, "TCP"))
+ }
+ .boxed(),
+ );
+ // Also try the peer's IP on the direct-access port (21118).  When the
+ // peer is a VPS with a public IP, its direct_server listener is the
+ // most reliable path – far more dependable than TCP simultaneous-open
+ // which only works when both sides have compatible NAT.  This extra
+ // candidate costs nothing when the standard TCP or UDP paths succeed
+ // first (select_ok returns the earliest winner).
+ if let std::net::SocketAddr::V4(v4) = peer {
+ let direct_addr = std::net::SocketAddr::new(
+ std::net::IpAddr::V4(*v4.ip()),
+ DEFAULT_DIRECT_PORT as u16,
+ );
+ let fut2 = connect_tcp_local(direct_addr, None, connect_timeout);
+ connect_futures.push(
+ async move {
+ let conn = fut2.await?;
+ Ok((conn, None, "TCP-direct"))
+ }
+ .boxed(),
+ );
+ }
+ if let Some(udp_socket_nat) = udp_socket_nat {
+ connect_futures.push(udp_nat_connect(udp_socket_nat, "UDP", connect_timeout).boxed());
+ }
+ if let Some(udp_socket_v6) = udp_socket_v6 {
+ connect_futures.push(udp_nat_connect(udp_socket_v6, "IPv6", connect_timeout).boxed());
+ }
         // Run all connection attempts concurrently, return the first successful one
         let (mut conn, kcp, mut typ) = match select_ok(connect_futures).await {
             Ok(conn) => (Ok(conn.0 .0), conn.0 .1, conn.0 .2),
