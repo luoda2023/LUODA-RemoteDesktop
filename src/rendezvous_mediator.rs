@@ -142,14 +142,21 @@ impl RendezvousMediator {
                             log::error!("{err}");
                         }
                         // SHOULD_EXIT here is to ensure once one exits, the others also exit.
-                        SHOULD_EXIT.store(true, Ordering::SeqCst);
-                    }));
-                }
-                join_all(futs).await;
-            } else {
-                server.write().unwrap().close_connections();
-            }
-            Config::reset_online();
+            SHOULD_EXIT.store(true, Ordering::SeqCst);
+            }));
+        }
+        join_all(futs).await;
+    } else {
+        server.write().unwrap().close_connections();
+    }
+    // Do NOT call reset_online() here.  Clearing all latencies causes the UI
+    // to flash "正在连接LUODA网络" every time a mediator restarts (e.g. due
+    // to a transient UDP timeout).  Instead, keep the last known latencies
+    // so the UI stays "已连接" while we reconnect.  The latency is updated
+    // again as soon as the new mediator cycle receives a response.  If the
+    // server is genuinely unreachable, update_latency(&host, -1) is called
+    // inside start_udp() on timeout, which flips only that host's state.
+    // Config::reset_online();
             let timeout = *timeout.read().unwrap();
             if !MANUAL_RESTARTED.load(Ordering::SeqCst) {
                 let elapsed = conn_start_time.elapsed().as_millis() as u64;
@@ -881,7 +888,16 @@ impl RendezvousMediator {
                         self.pk_attempts, self.host
                     ),
                 );
-                self.pk_attempts = 0;
+                // Keep pk_attempts high so that on the next register_peer()
+                // call (after hbbs replies request_pk and we call
+                // register_pk) we immediately escalate again to
+                // RegisterPeer instead of re-entering the slow handshake
+                // cycle.  Resetting to 0 would cause an infinite loop:
+                // attempt1 -> escalate -> hbbs says request_pk -> pk_attempts
+                // reset to 0 -> attempt1 -> escalate -> ...  The ID never
+                // gets registered.
+                // Set to threshold so next call is still >= threshold.
+                self.pk_attempts = PK_ESCALATION_THRESHOLD;
                 // Fall through to send RegisterPeer below.
             } else {
                 log::info!(

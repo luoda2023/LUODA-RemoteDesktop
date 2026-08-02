@@ -2092,7 +2092,7 @@ pub fn portable_setup_if_needed() {
     log::info!("portable_setup_if_needed: prompting UAC for one-time setup");
     if let Ok(exe) = std::env::current_exe() {
         let exe = exe.to_string_lossy().to_string();
-        match run_uac(&exe, "--portable-setup") {
+        match run_uac_silent(&exe, "--portable-setup") {
             Ok(true) => {
                 log::info!("portable-setup elevated process launched");
                 // The child sets portable-setup-done; also set it here in case
@@ -2422,6 +2422,32 @@ pub fn run_uac(exe: &str, arg: &str) -> ResultType<bool> {
             },
             NULL as _,
             SW_SHOWNORMAL,
+        );
+        return Ok(ret as i32 > 32);
+    }
+}
+
+/// Like `run_uac` but hides the spawned process window (SW_HIDE).  Used for
+/// background setup tasks (firewall rule, driver install) where we only want
+/// the UAC consent dialog, not a visible console/GUI window flashing on
+/// screen.
+pub fn run_uac_silent(exe: &str, arg: &str) -> ResultType<bool> {
+    let wop = wide_string("runas");
+    let wexe = wide_string(exe);
+    let warg;
+    unsafe {
+        let ret = ShellExecuteW(
+            NULL as _,
+            wop.as_ptr() as _,
+            wexe.as_ptr() as _,
+            if arg.is_empty() {
+                NULL as _
+            } else {
+                warg = wide_string(arg);
+                warg.as_ptr() as _
+            },
+            NULL as _,
+            SW_HIDE,
         );
         return Ok(ret as i32 > 32);
     }

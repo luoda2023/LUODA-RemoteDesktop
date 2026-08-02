@@ -1319,6 +1319,26 @@ pub fn session_add(
         bail!("same session id is found");
     }
 
+    // Prevent resource exhaustion from rapid double-clicks: limit the number
+    // of concurrent connections to the same peer.  Each connection spawns
+    // threads for video decode, audio, input, etc.  Too many simultaneous
+    // connections can freeze the UI or exhaust memory.
+    const MAX_CONCURRENT_SESSIONS_PER_PEER: usize = 3;
+    let existing = sessions::get_sessions()
+        .into_iter()
+        .filter(|s| {
+            s.lc.read().unwrap().get_id() == id
+                && s.lc.read().unwrap().conn_type == conn_type
+        })
+        .count();
+    if existing >= MAX_CONCURRENT_SESSIONS_PER_PEER {
+        bail!(
+            "Too many concurrent sessions to {} ({}). Please close existing sessions first.",
+            id,
+            existing
+        );
+    }
+
     LocalConfig::set_remote_id(&id);
 
     let mut preset_password = password.clone();
