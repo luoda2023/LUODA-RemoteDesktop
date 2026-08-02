@@ -381,27 +381,38 @@ impl RendezvousMediator {
                     log::info!("keep_alive: {}ms", self.keep_alive);
                 }
             }
-            Some(rendezvous_message::Union::PunchHole(ph)) => {
-                let rz = self.clone();
-                let server = server.clone();
-                tokio::spawn(async move {
-                    allow_err!(rz.handle_punch_hole(ph, server).await);
-                });
-            }
-            Some(rendezvous_message::Union::RequestRelay(rr)) => {
-                let rz = self.clone();
-                let server = server.clone();
-                tokio::spawn(async move {
-                    allow_err!(rz.handle_request_relay(rr, server).await);
-                });
-            }
-            Some(rendezvous_message::Union::FetchLocalAddr(fla)) => {
-                let rz = self.clone();
-                let server = server.clone();
-                tokio::spawn(async move {
-                    allow_err!(rz.handle_intranet(fla, server).await);
-                });
-            }
+Some(rendezvous_message::Union::PunchHole(ph)) => {
+ let rz = self.clone();
+ let server = server.clone();
+ tokio::spawn(async move {
+ // Wrap in a 30s timeout so a stuck punch hole task
+ // (e.g. peer unresponsive) does not linger forever.
+ allow_err!(tokio::time::timeout(
+ std::time::Duration::from_secs(30),
+ rz.handle_punch_hole(ph, server),
+ ).await);
+ });
+ }
+ Some(rendezvous_message::Union::RequestRelay(rr)) => {
+ let rz = self.clone();
+ let server = server.clone();
+ tokio::spawn(async move {
+ allow_err!(tokio::time::timeout(
+ std::time::Duration::from_secs(30),
+ rz.handle_request_relay(rr, server),
+ ).await);
+ });
+ }
+ Some(rendezvous_message::Union::FetchLocalAddr(fla)) => {
+ let rz = self.clone();
+ let server = server.clone();
+ tokio::spawn(async move {
+ allow_err!(tokio::time::timeout(
+ std::time::Duration::from_secs(15),
+ rz.handle_intranet(fla, server),
+ ).await);
+ });
+ }
             Some(rendezvous_message::Union::ConfigureUpdate(cu)) => {
                 let v0 = Config::get_rendezvous_servers();
                 Config::set_option(

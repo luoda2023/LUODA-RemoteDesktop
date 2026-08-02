@@ -32,13 +32,19 @@ pub fn core_main() -> Option<Vec<String>> {
     if !crate::common::global_init() {
         return None;
     }
-    // Initialize file logger for runtime diagnostics.
-    // Logs are written to %PROGRAMDATA%/LUODA/logs/luoda-YYYY-MM-DD.log
-    {
-        use hbb_common::log::LevelFilter;
-        let _ = hbb_common::file_logger::FileLogger::init(LevelFilter::Debug);
-        hbb_common::file_logger::setup_panic_hook();
-    }
+// Initialize file logger for runtime diagnostics.
+// Logs are written to %PROGRAMDATA%/LUODA/logs/luoda-YYYY-MM-DD.log
+// Use Info level in release builds to avoid excessive I/O from debug logs;
+// debug builds keep Debug level for development.
+{
+ use hbb_common::log::LevelFilter;
+ #[cfg(debug_assertions)]
+ let level = LevelFilter::Debug;
+ #[cfg(not(debug_assertions))]
+ let level = LevelFilter::Info;
+ let _ = hbb_common::file_logger::FileLogger::init(level);
+ hbb_common::file_logger::setup_panic_hook();
+}
     log::info!("=== LUODA started (v{}) ===", crate::VERSION);
     crate::load_custom_client();
     crate::common::prepare_network_config();
