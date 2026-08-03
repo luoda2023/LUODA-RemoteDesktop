@@ -37,13 +37,11 @@ pub const INIT_FPS: u32 = 30;
 const BR_MAX: f32 = 40.0; // 2000 * 2 / 100
 const BR_MIN: f32 = 0.2;
 const BR_MIN_HIGH_RESOLUTION: f32 = 0.1; // For high resolution, BR_MIN is still too high, so we set a lower limit
-// Allow the adaptive bitrate to climb up to 2.5x the target quality ratio on a
-// healthy link.  The previous 1.5 cap kept the encoder pinned near its target
-// ratio even on a low-latency, high-bandwidth direct/LAN link, which made the
-// picture stay blurry for far longer than the link could actually sustain –
-// especially noticeable at 4K where the base bitrate (5000 kbps) leaves little
-// headroom at 1.5x.
-const MAX_BR_MULTIPLE: f32 = 2.5;
+// Allow the adaptive bitrate to climb up to 1.5x the target quality ratio. The
+// previous 1.0 cap kept the encoder pinned to its quality target even on a
+// low-latency, high-bandwidth direct/LAN link, which made the picture stay blurry
+// for far longer than the link could actually sustain.
+const MAX_BR_MULTIPLE: f32 = 1.5;
 
 const HISTORY_DELAY_LEN: usize = 8;
 // Re-evaluate the quality ratio every 2s instead of 3s so that on a healthy
@@ -51,10 +49,6 @@ const HISTORY_DELAY_LEN: usize = 8;
 const ADJUST_RATIO_INTERVAL: usize = 2;
 const DYNAMIC_SCREEN_THRESHOLD: usize = 2; // Allow increase quality ratio if encode more than 2 times in one second
 const DELAY_THRESHOLD_150MS: u32 = 150; // 150ms is the threshold for good network condition
-// When the link is very fast (< 50 ms) the per-tick +300 kbps step cap is the
-// main thing keeping 4K/LAN blurry for many seconds.  Allow a much larger step
-// on a healthy link so the bitrate reaches the cap in 1-2 cycles instead of 6+.
-const FAST_LINK_STEP_KBPS: u32 = 1500;
 
 #[derive(Default, Debug, Clone)]
 struct UserDelay {
@@ -447,17 +441,10 @@ impl VideoQoS {
             None
         };
 
-        // Calculate ratio for adding bandwidth per tick.  On a very fast link
-        // (< 50 ms) we use a much larger step so 4K/LAN clears up in 1-2 cycles
-        // instead of staying blurry for many seconds; otherwise keep the modest
-        // +300 kbps step for stability on slower links.
-        let step_kbps = if max_delay < 50 {
-            FAST_LINK_STEP_KBPS
-        } else {
-            300
-        };
+        // Calculate ratio for adding 300kbps bandwidth (raised from 150kbps so
+        // the bitrate climbs faster on healthy direct/LAN links).
         let ratio_add_step_kbps = if current_bitrate > 0 {
-            Some((current_bitrate + step_kbps) as f32 * current_ratio / current_bitrate as f32)
+            Some((current_bitrate + 300) as f32 * current_ratio / current_bitrate as f32)
         } else {
             None
         };

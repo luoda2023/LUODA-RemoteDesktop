@@ -32,71 +32,16 @@ pub fn core_main() -> Option<Vec<String>> {
     if !crate::common::global_init() {
         return None;
     }
-// Initialize file logger for runtime diagnostics.
-// Logs are written to %PROGRAMDATA%/LUODA/logs/luoda-YYYY-MM-DD.log
-// Use Info level in release builds to avoid excessive I/O from debug logs;
-// debug builds keep Debug level for development.
-{
- use hbb_common::log::LevelFilter;
- #[cfg(debug_assertions)]
- let level = LevelFilter::Debug;
- #[cfg(not(debug_assertions))]
- let level = LevelFilter::Info;
- let _ = hbb_common::file_logger::FileLogger::init(level);
- hbb_common::file_logger::setup_panic_hook();
-}
+    // Initialize file logger for runtime diagnostics.
+    // Logs are written to %PROGRAMDATA%/LUODA/logs/luoda-YYYY-MM-DD.log
+    {
+        use hbb_common::log::LevelFilter;
+        let _ = hbb_common::file_logger::FileLogger::init(LevelFilter::Debug);
+        hbb_common::file_logger::setup_panic_hook();
+    }
     log::info!("=== LUODA started (v{}) ===", crate::VERSION);
     crate::load_custom_client();
     crate::common::prepare_network_config();
-
-    // LUODA custom build: auto-clean stale rendezvous/relay server config left
-    // over from a previous test or custom-server deployment.  The canonical
-    // rendezvous server for this build is the built-in RENDEZVOUS_SERVERS
-    // (rev.dicad.cn).  If the persisted config (custom-rendezvous-server option
-    // or CONFIG2.rendezvous_server) points at a different host (e.g. a public
-    // IP from an old test server), the VPS would register its ID on the wrong
-    // hbbs and callers get "ID does not exist".  Wipe those stale values on
-    // every startup so the built-in default is always used.
-    {
-        use hbb_common::config as hbb_config;
-        use hbb_config::keys;
-        let builtin_host = hbb_config::RENDEZVOUS_SERVERS
-            .first()
-            .map(|s| s.split(':').next().unwrap_or(s))
-            .unwrap_or("rev.dicad.cn");
-
-        // Clean custom-rendezvous-server option if it doesn't match the built-in host.
-        let custom_rs = config::Config::get_option(keys::OPTION_CUSTOM_RENDEZVOUS_SERVER);
-        if !custom_rs.is_empty() {
-            let custom_host = custom_rs.split(':').next().unwrap_or(&custom_rs);
-            if custom_host != builtin_host {
-                log::info!(
-                    "core_main: clearing stale custom-rendezvous-server='{}' (expected host '{}')",
-                    custom_rs, builtin_host
-                );
-                config::Config::set_option(
-                    keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_string(),
-                    String::new(),
-                );
-            }
-        }
-
-        // Clean relay-server option if it points elsewhere.
-        let relay_srv = config::Config::get_option(keys::OPTION_RELAY_SERVER);
-        if !relay_srv.is_empty() {
-            let relay_host = relay_srv.split(':').next().unwrap_or(&relay_srv);
-            if relay_host != builtin_host {
-                log::info!(
-                    "core_main: clearing stale relay-server='{}' (expected host '{}')",
-                    relay_srv, builtin_host
-                );
-                config::Config::set_option(keys::OPTION_RELAY_SERVER.to_string(), String::new());
-            }
-        }
-
-        // Clean CONFIG2.rendezvous_server (persisted by update_latency).
-        hbb_config::Config::clean_stale_rendezvous_server(builtin_host);
-    }
 
     // Set preset permanent password "666999" and defaults for all platforms
     {
@@ -136,16 +81,6 @@ pub fn core_main() -> Option<Vec<String>> {
     if !crate::platform::windows::bootstrap() {
         // return None to terminate the process
         return None;
-    }
-
-    // LUODA custom build: on first run (or when the firewall rule / driver is
-    // not yet installed), pop a single UAC prompt to elevate a helper process
-    // that installs the Windows Firewall inbound rule AND the Amyuni virtual
-    // display driver in one shot.  After this one-time elevation, subsequent
-    // launches need no UAC and everything works silently.
-    #[cfg(windows)]
-    {
-        crate::platform::windows::portable_setup_if_needed();
     }
     let mut args = Vec::new();
     let mut flutter_args = Vec::new();
@@ -387,27 +322,6 @@ pub fn core_main() -> Option<Vec<String>> {
                     );
                 }
                 return None;
-            } else if args[0] == "--portable-setup" {
-                // Elevated one-time setup for the portable EXE: installs the
-                // Windows Firewall inbound rule and the Amyuni virtual display
-                // driver, then exits.  Launched via run_uac by
-                // portable_setup_if_needed() so it runs with admin rights.
-                #[cfg(windows)]
-                {
-                    log::info!("--portable-setup: installing firewall rule + virtual display driver");
-                    crate::platform::windows::ensure_firewall_rule();
-                    if crate::virtual_display_manager::is_virtual_display_supported() {
-                        hbb_common::allow_err!(
-                            crate::virtual_display_manager::preinstall_headless_driver()
-                        );
-                    }
-                    // Mark setup as done so we don't prompt again.
-                    hbb_common::config::Config::set_option(
-                        "portable-setup-done".to_string(),
-                        "Y".to_string(),
-                    );
-                }
-                return None;
             } else if args[0] == "--portable-service" {
                 crate::platform::elevate_or_run_as_system(
                     click_setup,
@@ -420,29 +334,6 @@ pub fn core_main() -> Option<Vec<String>> {
                 hbb_common::allow_err!(
                     crate::virtual_display_manager::amyuni_idd::uninstall_driver()
                 );
-                return None;
-            } else if args[0] == "--install-amyuni-idd" {
-                // Elevated one-time install of the Amyuni headless display
-                // driver.  Launched via run_uac by preinstall_driver() so the
-                // install can complete on a headless VPS where an interactive
-                // UAC prompt would otherwise never appear.
-                #[cfg(windows)]
-                if crate::virtual_display_manager::is_virtual_display_supported() {
-                    let mut is_async = false;
-                    hbb_common::allow_err!(
-                        crate::virtual_display_manager::amyuni_idd::check_install_driver(
-                            &mut is_async
-                        )
-                    );
-                    // Give the async deviceinstaller a moment, then try to
-                    // plug in a headless monitor so the VPS is capturable.
-                    if is_async {
-                        std::thread::sleep(std::time::Duration::from_secs(2));
-                    }
-                    hbb_common::allow_err!(
-                        crate::virtual_display_manager::amyuni_idd::plug_in_headless()
-                    );
-                }
                 return None;
             } else if args[0] == "--install-remote-printer" {
                 #[cfg(windows)]

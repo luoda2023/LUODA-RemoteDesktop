@@ -235,14 +235,6 @@ pub mod server {
     }
 
     pub fn run_portable_service() {
-        // The portable-service process runs as SYSTEM (elevated by
-        // elevate_or_run_as_system).  This is the right place to ensure the
-        // Windows Firewall inbound rule exists, because adding inbound rules
-        // requires administrator/SYSTEM privileges.  When called from the
-        // non-elevated main process the netsh command silently fails.
-        #[cfg(windows)]
-        crate::platform::windows::ensure_firewall_rule();
-
         let shmem = match SharedMemory::open_existing(SHMEM_NAME) {
             Ok(shmem) => Arc::new(shmem),
             Err(e) => {

@@ -550,11 +550,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("display_is_plugged_out_msg", "显示器被拔出，切换到第一个显示器。"),
         (
             "No displays",
-            "未检测到显示器，正在自动插入虚拟显示器，请稍候重连。",
-        ),
-        (
-            "Virtual display driver not installed. Please run LUODA as administrator once to complete the first-time driver installation, then reconnect.",
-            "虚拟显示器驱动尚未安装。请以管理员身份运行一次 LUODA 完成驱动首次安装，然后重新连接。",
+            "未检测到显示器。请以管理员身份重新运行 LUODA 以完成虚拟显示驱动的首次安装，然后重新连接。",
         ),
         ("Open in new window", "在新的窗口中打开"),
         ("Show displays as individual windows", "在单个窗口中打开显示器"),

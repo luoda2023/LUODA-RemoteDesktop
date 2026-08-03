@@ -61,11 +61,6 @@ pub struct RendezvousMediator {
     host: String,
     host_prefix: String,
     keep_alive: i32,
-    /// Consecutive RegisterPk handshake attempts without receiving an OK
-    /// response.  Used to escalate to a direct RegisterPeer after a few failed
-    /// handshakes so the ID is published on hbbs even when the OK packet is
-    /// lost over UDP (the most common cause of "ID does not exist").
-    pk_attempts: u32,
 }
 
 impl RendezvousMediator {
@@ -142,21 +137,14 @@ impl RendezvousMediator {
                             log::error!("{err}");
                         }
                         // SHOULD_EXIT here is to ensure once one exits, the others also exit.
-            SHOULD_EXIT.store(true, Ordering::SeqCst);
-            }));
-        }
-        join_all(futs).await;
-    } else {
-        server.write().unwrap().close_connections();
-    }
-    // Do NOT call reset_online() here.  Clearing all latencies causes the UI
-    // to flash "正在连接LUODA网络" every time a mediator restarts (e.g. due
-    // to a transient UDP timeout).  Instead, keep the last known latencies
-    // so the UI stays "已连接" while we reconnect.  The latency is updated
-    // again as soon as the new mediator cycle receives a response.  If the
-    // server is genuinely unreachable, update_latency(&host, -1) is called
-    // inside start_udp() on timeout, which flips only that host's state.
-    // Config::reset_online();
+                        SHOULD_EXIT.store(true, Ordering::SeqCst);
+                    }));
+                }
+                join_all(futs).await;
+            } else {
+                server.write().unwrap().close_connections();
+            }
+            Config::reset_online();
             let timeout = *timeout.read().unwrap();
             if !MANUAL_RESTARTED.load(Ordering::SeqCst) {
                 let elapsed = conn_start_time.elapsed().as_millis() as u64;
@@ -192,7 +180,6 @@ impl RendezvousMediator {
             host: host.clone(),
             host_prefix: Self::get_host_prefix(&host),
             keep_alive: crate::DEFAULT_KEEP_ALIVE,
-            pk_attempts: 0,
         };
 
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
@@ -329,18 +316,8 @@ impl RendezvousMediator {
                 update_latency();
                 if rpr.request_pk {
                     log::info!("request_pk received from {}", self.host);
-                    // hbbs still wants the PK handshake.  Send it but do NOT
-                    // reset pk_attempts here – that would prevent the escalation
-                    // in register_peer() from ever triggering (hbbs replies
-                    // request_pk every cycle, resetting the counter to 0 each
-                    // time, so the ID never gets registered and callers see
-                    // "ID does not exist").  Let pk_attempts keep climbing so
-                    // register_peer() escalates to a direct RegisterPeer after
-                    // a few cycles.
                     self.register_pk(sink).await?;
                 } else {
-                    // Real registration acknowledged —the ID is now online.
-                    self.pk_attempts = 0;
                     crate::runtime_logger::info(
                         "NETWORK",
                         &format!(
@@ -357,7 +334,6 @@ impl RendezvousMediator {
                         Config::set_key_confirmed(true);
                         Config::set_host_key_confirmed(&self.host_prefix, true);
                         *SOLVING_PK_MISMATCH.lock().await = "".to_owned();
-                        self.pk_attempts = 0;
                         // RegisterPk confirms identity but does not keep the peer
                         // online. Do not wait for the next 15-second refresh.
                         self.register_peer(sink).await?;
@@ -381,38 +357,27 @@ impl RendezvousMediator {
                     log::info!("keep_alive: {}ms", self.keep_alive);
                 }
             }
-Some(rendezvous_message::Union::PunchHole(ph)) => {
- let rz = self.clone();
- let server = server.clone();
- tokio::spawn(async move {
- // Wrap in a 30s timeout so a stuck punch hole task
- // (e.g. peer unresponsive) does not linger forever.
- allow_err!(tokio::time::timeout(
- std::time::Duration::from_secs(30),
- rz.handle_punch_hole(ph, server),
- ).await);
- });
- }
- Some(rendezvous_message::Union::RequestRelay(rr)) => {
- let rz = self.clone();
- let server = server.clone();
- tokio::spawn(async move {
- allow_err!(tokio::time::timeout(
- std::time::Duration::from_secs(30),
- rz.handle_request_relay(rr, server),
- ).await);
- });
- }
- Some(rendezvous_message::Union::FetchLocalAddr(fla)) => {
- let rz = self.clone();
- let server = server.clone();
- tokio::spawn(async move {
- allow_err!(tokio::time::timeout(
- std::time::Duration::from_secs(15),
- rz.handle_intranet(fla, server),
- ).await);
- });
- }
+            Some(rendezvous_message::Union::PunchHole(ph)) => {
+                let rz = self.clone();
+                let server = server.clone();
+                tokio::spawn(async move {
+                    allow_err!(rz.handle_punch_hole(ph, server).await);
+                });
+            }
+            Some(rendezvous_message::Union::RequestRelay(rr)) => {
+                let rz = self.clone();
+                let server = server.clone();
+                tokio::spawn(async move {
+                    allow_err!(rz.handle_request_relay(rr, server).await);
+                });
+            }
+            Some(rendezvous_message::Union::FetchLocalAddr(fla)) => {
+                let rz = self.clone();
+                let server = server.clone();
+                tokio::spawn(async move {
+                    allow_err!(rz.handle_intranet(fla, server).await);
+                });
+            }
             Some(rendezvous_message::Union::ConfigureUpdate(cu)) => {
                 let v0 = Config::get_rendezvous_servers();
                 Config::set_option(
@@ -447,21 +412,18 @@ Some(rendezvous_message::Union::PunchHole(ph)) => {
                     .await?
             }
         };
-        // NOTE: The hbbs TCP rendezvous protocol does NOT use a key-exchange
-        // handshake.  The server waits for the client to send the first message
-        // (RegisterPeer / PunchHoleRequest).  Calling secure_tcp() here would
-        // block for READ_TIMEOUT waiting for a KeyExchange that never arrives.
-        // Only WebSocket connections (wss://) have transport-level encryption.
-        if conn.is_websocket() {
-            let key = crate::get_key(true).await;
-            crate::secure_tcp(&mut conn, &key).await?;
-        }
+ // NOTE: The hbbs TCP rendezvous protocol does NOT use a key-exchange
+ // handshake.  The server waits for the client to send the first message
+ // (RegisterPeer / PunchHoleRequest).  Calling secure_tcp() here would
+ // block for READ_TIMEOUT waiting for a KeyExchange that never arrives.
+ // hbbs does NOT support KeyExchange on its WebSocket (21118) port either.
+ // WebSocket (wss://) already provides TLS encryption via nginx on port 443.
+ // Do NOT call secure_tcp() for any rendezvous connection (TCP or WebSocket).
         let mut rz = Self {
             addr: conn.local_addr().into_target_addr()?,
             host: host.clone(),
             host_prefix: Self::get_host_prefix(&host),
             keep_alive: crate::DEFAULT_KEEP_ALIVE,
-            pk_attempts: 0,
         };
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
         let mut last_recv_msg = Instant::now();
@@ -641,7 +603,7 @@ Some(rendezvous_message::Union::PunchHole(ph)) => {
             )
             .await;
         }
-        if !relay {
+        if is_ipv4(&self.addr) && !relay {
             // When the peer reports a private (LAN) IPv4 address, attempt a
             // direct intranet connection even if local TCP listening is disabled.
             // `disable-tcp-listen` only turns off the inbound listener on this
@@ -742,22 +704,11 @@ Some(rendezvous_message::Union::PunchHole(ph)) => {
             .await;
         }
         let relay_server = self.get_relay_server(ph.relay_server);
-        // If the peer's reported address is a private (LAN) IPv4, never force a
-        // relay —we can reach it directly.  `disable-tcp-listen` only turns off
-        // our own inbound listener; it must not prevent us from dialing out to a
-        // peer on the same LAN.  Without this override, an ID connection between
-        // two machines on one LAN silently fell through to the relay when either
-        // side had TCP listening off and the UDP hole-punch port was unavailable.
-        let peer_is_lan_ipv4 = match peer_addr {
-            std::net::SocketAddr::V4(v4) => v4.ip().is_private(),
-            _ => false,
-        };
         // for ensure, websocket go relay directly
-        if (ph.nat_type.enum_value() == Ok(NatType::SYMMETRIC)
+        if ph.nat_type.enum_value() == Ok(NatType::SYMMETRIC)
             || Config::get_nat_type() == NatType::SYMMETRIC as i32
             || relay
-            || (config::is_disable_tcp_listen() && ph.udp_port <= 0))
-            && !peer_is_lan_ipv4
+            || (config::is_disable_tcp_listen() && ph.udp_port <= 0)
         {
             let uuid = Uuid::new_v4().to_string();
             return self
@@ -773,26 +724,17 @@ Some(rendezvous_message::Union::PunchHole(ph)) => {
                 )
                 .await;
         }
- use hbb_common::protobuf::Enum;
- let nat_type = NatType::from_i32(Config::get_nat_type()).unwrap_or(NatType::UNKNOWN_NAT);
- // Report our direct_server port so the peer can try a direct TCP
- // connection to it (essential for VPS with public IPs where UDP
- // punch hole may fail and TCP simultaneous-open is unreliable).
- let direct_port = if Config::get_option(DIRECT_ACCESS_STATUS_OPTION) == "listening" {
- get_direct_port()
- } else {
- 0
- };
- let msg_punch = PunchHoleSent {
- socket_addr: ph.socket_addr,
- id: Config::get_id(),
- relay_server,
- nat_type: nat_type.into(),
- version: crate::VERSION.to_owned(),
- socket_addr_v6,
- upnp_port: direct_port,
- ..Default::default()
- };
+        use hbb_common::protobuf::Enum;
+        let nat_type = NatType::from_i32(Config::get_nat_type()).unwrap_or(NatType::UNKNOWN_NAT);
+        let msg_punch = PunchHoleSent {
+            socket_addr: ph.socket_addr,
+            id: Config::get_id(),
+            relay_server,
+            nat_type: nat_type.into(),
+            version: crate::VERSION.to_owned(),
+            socket_addr_v6,
+            ..Default::default()
+        };
         if ph.udp_port > 0 {
             peer_addr.set_port(ph.udp_port as u16);
             self.punch_udp_hole(peer_addr, server, msg_punch, control_permissions)
@@ -889,50 +831,23 @@ Some(rendezvous_message::Union::PunchHole(ph)) => {
         let key_confirmed = Config::get_key_confirmed();
         let host_key_confirmed = Config::get_host_key_confirmed(&self.host_prefix);
         if !key_confirmed || !host_key_confirmed {
-            // Normally we send the RegisterPk handshake and wait for OK before
-            // registering the ID.  But over lossy UDP the OK response can be
-            // dropped, leaving us stuck sending RegisterPk forever while the
-            // caller sees "ID does not exist".  After just 2 unanswered
-            // handshake attempts, escalate: send RegisterPeer directly.
-            // register_pk() consumes the Sink, so we cannot call it here and
-            // then reuse the socket for RegisterPeer in the same call.  Instead
-            // we skip the PK handshake and let hbbs request it again if it
-            // still needs it (it replies with request_pk on the next cycle).
-            const PK_ESCALATION_THRESHOLD: u32 = 2;
-            self.pk_attempts = self.pk_attempts.saturating_add(1);
-            if self.pk_attempts >= PK_ESCALATION_THRESHOLD {
-                crate::runtime_logger::warn(
-                    "NETWORK",
-                    &format!(
-                        "pk handshake not confirmed after {} attempts; sending RegisterPeer directly; server={}",
-                        self.pk_attempts, self.host
-                    ),
-                );
-                // Keep pk_attempts high so that on the next register_peer()
-                // call (after hbbs replies request_pk and we call
-                // register_pk) we immediately escalate again to
-                // RegisterPeer instead of re-entering the slow handshake
-                // cycle.  Resetting to 0 would cause an infinite loop:
-                // attempt1 -> escalate -> hbbs says request_pk -> pk_attempts
-                // reset to 0 -> attempt1 -> escalate -> ...  The ID never
-                // gets registered.
-                // Set to threshold so next call is still >= threshold.
-                self.pk_attempts = PK_ESCALATION_THRESHOLD;
-                // Fall through to send RegisterPeer below.
-            } else {
-                log::info!(
-                    "register_pk of {} due to key not confirmed (key_confirmed={}, host_key_confirmed={}, attempt={})",
-                    self.host_prefix, key_confirmed, host_key_confirmed, self.pk_attempts
-                );
-                crate::runtime_logger::warn(
-                    "NETWORK",
-                    &format!(
-                        "id not registered yet; sending RegisterPk handshake only; server={}; key_confirmed={}; host_key_confirmed={}; attempt={}",
-                        self.host, key_confirmed, host_key_confirmed, self.pk_attempts
-                    ),
-                );
-                return self.register_pk(socket).await;
-            }
+            // Only the RegisterPk handshake is sent here - the ID is NOT yet
+            // registered as an online peer on hbbs. This is the most common reason
+            // for "ID does not exist" on the caller side: the controlled peer keeps
+            // sending handshakes but never reaches the RegisterPeer step (e.g. UDP
+            // packet loss, key mismatch, or the hbbs response never arrives).
+            log::info!(
+                "register_pk of {} due to key not confirmed (key_confirmed={}, host_key_confirmed={})",
+                self.host_prefix, key_confirmed, host_key_confirmed
+            );
+            crate::runtime_logger::warn(
+                "NETWORK",
+                &format!(
+                    "id not registered yet; sending RegisterPk handshake only; server={}; key_confirmed={}; host_key_confirmed={}",
+                    self.host, key_confirmed, host_key_confirmed
+                ),
+            );
+            return self.register_pk(socket).await;
         }
         let id = Config::get_id();
         log::trace!(
@@ -1123,7 +1038,7 @@ async fn direct_server(server: ServerPtr) {
                 log::info!("Exit direct access listen");
                 listener = None;
                 set_direct_access_status("stopped");
-                // 重置端口到21118，下次启动可重新使用默认端口
+                // 重置端口到 21118，下次启动可重新使用默认端口
                 reset_direct_port();
                 continue;
             }

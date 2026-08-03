@@ -440,14 +440,13 @@ impl Client {
         log::info!("rendezvous server: {}", rendezvous_server);
         let mut socket = socket?;
         let my_addr = socket.local_addr();
-let mut signed_id_pk = Vec::new();
-let mut relay_server = "".to_owned();
-let mut peer_addr = Config::get_any_listen_addr(true);
-let mut peer_nat_type = NatType::UNKNOWN_NAT;
-let my_nat_type = crate::get_nat_type(100).await;
-let mut is_local = false;
-let mut feedback = 0;
-let mut peer_direct_port: i32 = 0;
+        let mut signed_id_pk = Vec::new();
+        let mut relay_server = "".to_owned();
+        let mut peer_addr = Config::get_any_listen_addr(true);
+        let mut peer_nat_type = NatType::UNKNOWN_NAT;
+        let my_nat_type = crate::get_nat_type(100).await;
+        let mut is_local = false;
+        let mut feedback = 0;
         use hbb_common::protobuf::Enum;
         let nat_type = if interface.is_force_relay() {
             NatType::SYMMETRIC
@@ -559,12 +558,11 @@ let mut peer_direct_port: i32 = 0;
                                 _ => bail!("other punch hole failure"),
                             }
                         } else {
-peer_nat_type = ph.nat_type();
-is_local = ph.is_local();
-signed_id_pk = ph.pk.into();
-relay_server = ph.relay_server;
-peer_addr = AddrMangle::decode(&ph.socket_addr);
-peer_direct_port = ph.upnp_port;
+                            peer_nat_type = ph.nat_type();
+                            is_local = ph.is_local();
+                            signed_id_pk = ph.pk.into();
+                            relay_server = ph.relay_server;
+                            peer_addr = AddrMangle::decode(&ph.socket_addr);
                             feedback = ph.feedback;
                             let s = udp.0.take();
                             if ph.is_udp && s.is_some() {
@@ -660,26 +658,25 @@ peer_direct_port = ph.upnp_port;
             }
         );
         Ok((
-Self::connect(
-my_addr,
-peer_addr,
-&peer,
-signed_id_pk,
-&relay_server,
-&rendezvous_server,
-time_used,
-peer_nat_type,
-my_nat_type,
-is_local,
-&key,
-&token,
-conn_type,
-interface,
-udp.0,
-ipv6.0,
-punch_type,
-peer_direct_port,
-)
+            Self::connect(
+                my_addr,
+                peer_addr,
+                &peer,
+                signed_id_pk,
+                &relay_server,
+                &rendezvous_server,
+                time_used,
+                peer_nat_type,
+                my_nat_type,
+                is_local,
+                &key,
+                &token,
+                conn_type,
+                interface,
+                udp.0,
+                ipv6.0,
+                punch_type,
+            )
             .await?,
             (feedback, rendezvous_server),
             true,
@@ -687,32 +684,31 @@ peer_direct_port,
     }
 
     /// Connect to the peer.
-async fn connect(
-local_addr: SocketAddr,
-peer: SocketAddr,
-peer_id: &str,
-signed_id_pk: Vec<u8>,
-relay_server: &str,
-rendezvous_server: &str,
-punch_time_used: u64,
-peer_nat_type: NatType,
-my_nat_type: i32,
-is_local: bool,
-key: &str,
-token: &str,
-conn_type: ConnType,
-interface: impl Interface,
-udp_socket_nat: Option<Arc<UdpSocket>>,
-udp_socket_v6: Option<Arc<UdpSocket>>,
-punch_type: &str,
-peer_direct_port: i32,
-) -> ResultType<(
-Stream,
-bool,
-Option<Vec<u8>>,
-Option<KcpStream>,
-&'static str,
-)> {
+    async fn connect(
+        local_addr: SocketAddr,
+        peer: SocketAddr,
+        peer_id: &str,
+        signed_id_pk: Vec<u8>,
+        relay_server: &str,
+        rendezvous_server: &str,
+        punch_time_used: u64,
+        peer_nat_type: NatType,
+        my_nat_type: i32,
+        is_local: bool,
+        key: &str,
+        token: &str,
+        conn_type: ConnType,
+        interface: impl Interface,
+        udp_socket_nat: Option<Arc<UdpSocket>>,
+        udp_socket_v6: Option<Arc<UdpSocket>>,
+        punch_type: &str,
+    ) -> ResultType<(
+        Stream,
+        bool,
+        Option<Vec<u8>>,
+        Option<KcpStream>,
+        &'static str,
+    )> {
         let direct_failures = interface.get_lch().read().unwrap().direct_failures;
         let mut connect_timeout = 0;
         const MIN: u64 = 1000;
@@ -746,52 +742,23 @@ Option<KcpStream>,
             }
         }
         log::info!("peer address: {}, timeout: {}", peer, connect_timeout);
- let start = std::time::Instant::now();
+        let start = std::time::Instant::now();
 
- let mut connect_futures = Vec::new();
- // Standard TCP punch hole: connect to peer's address as reported by hbbs.
- let fut = connect_tcp_local(peer, Some(local_addr), connect_timeout);
- connect_futures.push(
- async move {
- let conn = fut.await?;
- Ok((conn, None, "TCP"))
- }
- .boxed(),
- );
- // Also try the peer's IP on the direct-access port.  When the
- // peer is a VPS with a public IP, its direct_server listener is the
- // most reliable path – far more dependable than TCP simultaneous-open
- // which only works when both sides have compatible NAT.  This extra
- // candidate costs nothing when the standard TCP or UDP paths succeed
- // first (select_ok returns the earliest winner).
- //
- // Use the peer's actual direct_server port (reported via upnp_port in
- // the PunchHoleResponse) rather than hard-coding DEFAULT_DIRECT_PORT.
- // The peer may be listening on a different port (21119, 21120, ...) if
- // 21118 was already in use.  Only add this candidate when the peer
- // reports a non-zero direct port.
- if peer_direct_port > 0 {
- if let std::net::SocketAddr::V4(v4) = peer {
- let direct_addr = std::net::SocketAddr::new(
- std::net::IpAddr::V4(*v4.ip()),
- peer_direct_port as u16,
- );
- let fut2 = connect_tcp_local(direct_addr, None, connect_timeout);
- connect_futures.push(
- async move {
- let conn = fut2.await?;
- Ok((conn, None, "TCP-direct"))
- }
- .boxed(),
- );
- }
- }
- if let Some(udp_socket_nat) = udp_socket_nat {
- connect_futures.push(udp_nat_connect(udp_socket_nat, "UDP", connect_timeout).boxed());
- }
- if let Some(udp_socket_v6) = udp_socket_v6 {
- connect_futures.push(udp_nat_connect(udp_socket_v6, "IPv6", connect_timeout).boxed());
- }
+        let mut connect_futures = Vec::new();
+        let fut = connect_tcp_local(peer, Some(local_addr), connect_timeout);
+        connect_futures.push(
+            async move {
+                let conn = fut.await?;
+                Ok((conn, None, "TCP"))
+            }
+            .boxed(),
+        );
+        if let Some(udp_socket_nat) = udp_socket_nat {
+            connect_futures.push(udp_nat_connect(udp_socket_nat, "UDP", connect_timeout).boxed());
+        }
+        if let Some(udp_socket_v6) = udp_socket_v6 {
+            connect_futures.push(udp_nat_connect(udp_socket_v6, "IPv6", connect_timeout).boxed());
+        }
         // Run all connection attempts concurrently, return the first successful one
         let (mut conn, kcp, mut typ) = match select_ok(connect_futures).await {
             Ok(conn) => (Ok(conn.0 .0), conn.0 .1, conn.0 .2),

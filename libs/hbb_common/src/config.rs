@@ -975,29 +975,8 @@ impl Config {
  if rendezvous_server.is_empty() {
  rendezvous_server = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
  }
- // LUODA custom build: the built-in RENDEZVOUS_SERVERS (rev.dicad.cn) is the
- // canonical server.  CONFIG2.rendezvous_server may contain a stale IP:port
- // left over from a previous connection to a different/test server
- // (update_latency persists the lowest-latency server there).  Using that
- // stale value causes the VPS to register its ID on a different hbbs than the
- // one the local clients query, producing "ID does not exist".  So we prefer
- // the built-in default over CONFIG2.rendezvous_server unless CONFIG2 contains
- // the same host (in which case it is harmless).
- let builtin = RENDEZVOUS_SERVERS
- .first()
- .map(|s| s.to_string())
- .unwrap_or_default();
  if rendezvous_server.is_empty() {
- let config2_rs = CONFIG2.read().unwrap().rendezvous_server.clone();
- if !config2_rs.is_empty()
- && !is_loopback_or_test_server(&config2_rs)
- && config2_rs.split(':').next().unwrap_or("") == builtin.split(':').next().unwrap_or("")
- {
- // CONFIG2 matches the built-in host – safe to use (may add the port).
- rendezvous_server = config2_rs;
- } else {
- rendezvous_server = builtin.clone();
- }
+ rendezvous_server = CONFIG2.read().unwrap().rendezvous_server.clone();
  }
  // 同样对 CONFIG2.rendezvous_server 做 sanitize,
  // 防止用户手工或旧版本写入 127.0.0.1:23456.
@@ -1062,29 +1041,6 @@ impl Config {
 
     pub fn reset_online() {
         *ONLINE.lock().unwrap() = Default::default();
-    }
-
-    /// Clear a stale `CONFIG2.rendezvous_server` that points at a host other
-    /// than the built-in default.  `update_latency` persists the lowest-latency
-    /// server here, so a previous connection to a test/custom server can leave
-    /// a public IP that later causes the peer to register on the wrong hbbs
-    /// ("ID does not exist").  Called at startup by core_main.
-    pub fn clean_stale_rendezvous_server(builtin_host: &str) {
-        let config2_rs = CONFIG2.read().unwrap().rendezvous_server.clone();
-        if config2_rs.is_empty() {
-            return;
-        }
-        let config2_host = config2_rs.split(':').next().unwrap_or(&config2_rs);
-        if config2_host == builtin_host {
-            return; // matches the built-in server – harmless
-        }
-        log::info!(
-            "clean_stale_rendezvous_server: clearing CONFIG2.rendezvous_server='{}' (expected host '{}')",
-            config2_rs, builtin_host
-        );
-        let mut config = CONFIG2.write().unwrap();
-        config.rendezvous_server = String::new();
-        config.store();
     }
 
     pub fn update_latency(host: &str, latency: i64) {
@@ -2905,16 +2861,11 @@ pub fn is_disable_installation() -> bool {
 // flutter: flutter/lib/common.dart -> option2bool()
 // sciter: Does not have the function, but it should be kept the same.
 pub fn option2bool(option: &str, value: &str) -> bool {
-    if option.starts_with("enable-")
-        || option == keys::OPTION_DIRECT_SERVER
-    {
-        // enable-* and direct-server default ON.  direct-server powers the
-        // raw-IP direct-access listener (port 21118); defaulting it ON lets
-        // LAN / direct-IP connections work out of the box without the user
-        // having to set "direct-server=Y". Users who want it off can set "N".
+    if option.starts_with("enable-") {
         value != "N"
     } else if option.starts_with("allow-")
         || option == "stop-service"
+        || option == keys::OPTION_DIRECT_SERVER
         || option == "force-always-relay"
     {
         value == "Y"
@@ -2938,7 +2889,7 @@ pub fn use_ws() -> bool {
  } else {
  option2bool(option, &val)
  }
-}
+ }
 
 pub fn allow_insecure_tls_fallback() -> bool {
     let option = keys::OPTION_ALLOW_INSECURE_TLS_FALLBACK;
