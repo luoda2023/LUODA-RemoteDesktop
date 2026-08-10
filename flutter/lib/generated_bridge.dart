@@ -1663,6 +1663,10 @@ abstract class Luoda {
 
   FlutterRustBridgeTaskConstMeta get kMainGetBuildinOptionConstMeta;
 
+  String getSettingsTabConfig({dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kGetSettingsTabConfigConstMeta;
+
   Future<void> mainCheckHwcodec({dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kMainCheckHwcodecConstMeta;
@@ -1724,10 +1728,6 @@ abstract class Luoda {
       dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kSessionGetCommonConstMeta;
-
-  String getSettingsTabConfig({dynamic hint});
-
-  FlutterRustBridgeTaskConstMeta get kGetSettingsTabConfigConstMeta;
 }
 
 @freezed
@@ -13798,6 +13798,16 @@ class LuodaWire implements FlutterRustBridgeWireBase {
               ffi.Pointer<wire_uint_8_list>)>>('wire_main_get_buildin_option');
   late final _wire_main_get_buildin_option = _wire_main_get_buildin_optionPtr
       .asFunction<WireSyncReturn Function(ffi.Pointer<wire_uint_8_list>)>();
+
+  WireSyncReturn wire_get_settings_tab_config() {
+    return _wire_get_settings_tab_config();
+  }
+
+  late final _wire_get_settings_tab_configPtr =
+      _lookup<ffi.NativeFunction<WireSyncReturn Function()>>(
+          'wire_get_settings_tab_config');
+  late final _wire_get_settings_tab_config =
+      _wire_get_settings_tab_configPtr.asFunction<WireSyncReturn Function()>();
 
   void wire_main_check_hwcodec(
     int port_,

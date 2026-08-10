@@ -48,7 +48,11 @@ quest = "0.3"
 
 [build-dependencies]
 target_build_utils = "0.3"
-bindgen = "0.65"
+# bindgen >= 0.70 needed for libvpx >= 1.15 / aom >= 3.10 headers:
+# older bindgen resolves `vpx_codec_enc_cfg` / `aom_codec_dec_cfg` (referenced
+# as incomplete structs via pointer in vpx_codec.h / aom_codec.h before their
+# full definition) to opaque `_address` types, which breaks the build.
+bindgen = "0.72"
 pkg-config = { version = "0.3.27", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]

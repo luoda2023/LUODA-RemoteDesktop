@@ -704,11 +704,23 @@ impl RendezvousMediator {
             .await;
         }
         let relay_server = self.get_relay_server(ph.relay_server);
+        // If the caller's reported address is a private (LAN) IPv4, never force a
+        // relay – we can reach it directly on the same LAN.  `disable-tcp-listen`
+        // only turns off our own inbound listener; it must not prevent us from
+        // dialing out to a peer on the same LAN.  Without this override, an ID
+        // connection between two machines on one LAN silently fell through to
+        // the relay when either side had TCP listening off and the UDP
+        // hole-punch port was unavailable.
+        let peer_is_lan_ipv4 = match peer_addr {
+            std::net::SocketAddr::V4(v4) => v4.ip().is_private(),
+            _ => false,
+        };
         // for ensure, websocket go relay directly
-        if ph.nat_type.enum_value() == Ok(NatType::SYMMETRIC)
+        if (ph.nat_type.enum_value() == Ok(NatType::SYMMETRIC)
             || Config::get_nat_type() == NatType::SYMMETRIC as i32
             || relay
-            || (config::is_disable_tcp_listen() && ph.udp_port <= 0)
+            || (config::is_disable_tcp_listen() && ph.udp_port <= 0))
+            && !peer_is_lan_ipv4
         {
             let uuid = Uuid::new_v4().to_string();
             return self
@@ -726,6 +738,16 @@ impl RendezvousMediator {
         }
         use hbb_common::protobuf::Enum;
         let nat_type = NatType::from_i32(Config::get_nat_type()).unwrap_or(NatType::UNKNOWN_NAT);
+        // Report our direct_server port so the caller can try a direct TCP
+        // connection to it.  Essential for VPS with public IPs (public↔public
+        // direct connect) where UDP punch hole may fail and TCP
+        // simultaneous-open is unreliable: the caller can connect straight to
+        // our listening direct-server port instead of falling back to relay.
+        let direct_port = if Config::get_option(DIRECT_ACCESS_STATUS_OPTION) == "listening" {
+            get_direct_port()
+        } else {
+            0
+        };
         let msg_punch = PunchHoleSent {
             socket_addr: ph.socket_addr,
             id: Config::get_id(),
@@ -733,6 +755,7 @@ impl RendezvousMediator {
             nat_type: nat_type.into(),
             version: crate::VERSION.to_owned(),
             socket_addr_v6,
+            upnp_port: direct_port,
             ..Default::default()
         };
         if ph.udp_port > 0 {

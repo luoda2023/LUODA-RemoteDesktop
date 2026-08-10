@@ -447,6 +447,7 @@ impl Client {
         let my_nat_type = crate::get_nat_type(100).await;
         let mut is_local = false;
         let mut feedback = 0;
+        let mut peer_direct_port: i32 = 0;
         use hbb_common::protobuf::Enum;
         let nat_type = if interface.is_force_relay() {
             NatType::SYMMETRIC
@@ -563,6 +564,7 @@ impl Client {
                             signed_id_pk = ph.pk.into();
                             relay_server = ph.relay_server;
                             peer_addr = AddrMangle::decode(&ph.socket_addr);
+                            peer_direct_port = ph.upnp_port;
                             feedback = ph.feedback;
                             let s = udp.0.take();
                             if ph.is_udp && s.is_some() {
@@ -676,6 +678,7 @@ impl Client {
                 udp.0,
                 ipv6.0,
                 punch_type,
+                peer_direct_port,
             )
             .await?,
             (feedback, rendezvous_server),
@@ -702,6 +705,7 @@ impl Client {
         udp_socket_nat: Option<Arc<UdpSocket>>,
         udp_socket_v6: Option<Arc<UdpSocket>>,
         punch_type: &str,
+        peer_direct_port: i32,
     ) -> ResultType<(
         Stream,
         bool,
@@ -745,6 +749,7 @@ impl Client {
         let start = std::time::Instant::now();
 
         let mut connect_futures = Vec::new();
+        // Standard TCP punch hole: connect to peer's address as reported by hbbs.
         let fut = connect_tcp_local(peer, Some(local_addr), connect_timeout);
         connect_futures.push(
             async move {
@@ -753,6 +758,34 @@ impl Client {
             }
             .boxed(),
         );
+        // Also try the peer's IP on the direct-access port.  When the
+        // peer is a VPS with a public IP, its direct_server listener is the
+        // most reliable path – far more dependable than TCP simultaneous-open
+        // which only works when both sides have compatible NAT.  This extra
+        // candidate costs nothing when the standard TCP or UDP paths succeed
+        // first (select_ok returns the earliest winner).
+        //
+        // Use the peer's actual direct_server port (reported via upnp_port in
+        // the PunchHoleResponse) rather than hard-coding DEFAULT_DIRECT_PORT.
+        // The peer may be listening on a different port (21119, 21120, ...) if
+        // 21118 was already in use.  Only add this candidate when the peer
+        // reports a non-zero direct port.
+        if peer_direct_port > 0 {
+            if let std::net::SocketAddr::V4(v4) = peer {
+                let direct_addr = std::net::SocketAddr::new(
+                    std::net::IpAddr::V4(*v4.ip()),
+                    peer_direct_port as u16,
+                );
+                let fut2 = connect_tcp_local(direct_addr, None, connect_timeout);
+                connect_futures.push(
+                    async move {
+                        let conn = fut2.await?;
+                        Ok((conn, None, "TCP-direct"))
+                    }
+                    .boxed(),
+                );
+            }
+        }
         if let Some(udp_socket_nat) = udp_socket_nat {
             connect_futures.push(udp_nat_connect(udp_socket_nat, "UDP", connect_timeout).boxed());
         }

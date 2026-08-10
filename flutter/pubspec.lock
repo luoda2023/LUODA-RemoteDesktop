@@ -308,7 +308,7 @@ packages:
       path: "."
       ref: HEAD
       resolved-ref: bd6b5b41254e57c5bcece202ebfb234de63e6487
-      url: "https://github.com/rustdesk-org/Dash-Chat-2"
+      url: "https://github.com/luoda2023/Dash-Chat-2"
     source: git
     version: "0.0.18"
   dbus:
@@ -341,7 +341,7 @@ packages:
       path: "."
       ref: HEAD
       resolved-ref: b47e8385e5a75d38319ad706a64b0ead3108b093
-      url: "https://github.com/rustdesk-org/rustdesk_desktop_multi_window"
+      url: "https://github.com/luoda2023/luoda_desktop_multi_window"
     source: git
     version: "0.1.0"
   device_info_plus:
@@ -379,11 +379,9 @@ packages:
   dynamic_layouts:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "24cb88413fa5181d949ddacbb30a65d5c459e7d9"
-      resolved-ref: "24cb88413fa5181d949ddacbb30a65d5c459e7d9"
-      url: "https://github.com/rustdesk-org/dynamic_layouts.git"
-    source: git
+      path: dynamic_layouts
+      relative: true
+    source: path
     version: "0.0.1+1"
   equatable:
     dependency: transitive
@@ -540,7 +538,7 @@ packages:
       path: "."
       ref: "08a471bb8ceccdd50483c81cdfa8b81b07b14b87"
       resolved-ref: "08a471bb8ceccdd50483c81cdfa8b81b07b14b87"
-      url: "https://github.com/rustdesk-org/flutter_gpu_texture_renderer"
+      url: "https://github.com/luoda2023/flutter_gpu_texture_renderer"
     source: git
     version: "0.0.1"
   flutter_keyboard_visibility:
@@ -1300,7 +1298,7 @@ packages:
       path: "."
       ref: "42797e0f03141dc2b585f76c64a13974508058b4"
       resolved-ref: "42797e0f03141dc2b585f76c64a13974508058b4"
-      url: "https://github.com/rustdesk-org/flutter_texture_rgba_renderer"
+      url: "https://github.com/luoda2023/flutter_texture_rgba_renderer"
     source: git
     version: "0.0.16"
   timing:
@@ -1341,7 +1339,7 @@ packages:
       path: uni_links
       ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
       resolved-ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
-      url: "https://github.com/rustdesk-org/uni_links"
+      url: "https://github.com/luoda2023/uni_links"
     source: git
     version: "0.5.1"
   uni_links_desktop:
@@ -1473,7 +1471,7 @@ packages:
     source: hosted
     version: "1.1.16"
   vector_math:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: vector_math
       sha256: "80b3257d1492ce4d091729e3a67a60407d227c27241d6927be0130c98e741803"
@@ -1590,7 +1588,7 @@ packages:
       path: "."
       ref: HEAD
       resolved-ref: "85789bfe6e4cfaf4ecc00c52857467fdb7f26879"
-      url: "https://github.com/rustdesk-org/window_manager"
+      url: "https://github.com/luoda2023/window_manager"
     source: git
     version: "0.3.6"
   window_size:

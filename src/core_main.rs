@@ -335,6 +335,29 @@ pub fn core_main() -> Option<Vec<String>> {
                     crate::virtual_display_manager::amyuni_idd::uninstall_driver()
                 );
                 return None;
+            } else if args[0] == "--install-amyuni-idd" {
+                // Elevated one-time install of the Amyuni headless display
+                // driver.  Launched via run_uac by preinstall_driver() so the
+                // install can complete on a headless VPS where an interactive
+                // UAC prompt would otherwise never appear.
+                #[cfg(windows)]
+                if crate::virtual_display_manager::is_virtual_display_supported() {
+                    let mut is_async = false;
+                    hbb_common::allow_err!(
+                        crate::virtual_display_manager::amyuni_idd::check_install_driver(
+                            &mut is_async
+                        )
+                    );
+                    // Give the async deviceinstaller a moment, then try to
+                    // plug in a headless monitor so the VPS is capturable.
+                    if is_async {
+                        std::thread::sleep(std::time::Duration::from_secs(2));
+                    }
+                    hbb_common::allow_err!(
+                        crate::virtual_display_manager::amyuni_idd::plug_in_headless()
+                    );
+                }
+                return None;
             } else if args[0] == "--install-remote-printer" {
                 #[cfg(windows)]
                 if crate::platform::is_win_10_or_greater() {
