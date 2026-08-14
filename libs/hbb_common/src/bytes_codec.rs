@@ -23,11 +23,11 @@ impl Default for BytesCodec {
 
 impl BytesCodec {
     pub fn new() -> Self {
-        Self {
-            state: DecodeState::Head,
-            raw: false,
-            max_packet_length: usize::MAX,
-        }
+ Self {
+ state: DecodeState::Head,
+ raw: false,
+ max_packet_length: 64 * 1024 * 1024, // 64 MB — enough for the largest video frame, blocks DoS
+ }
     }
 
     pub fn set_raw(&mut self) {

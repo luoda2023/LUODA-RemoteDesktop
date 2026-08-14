@@ -45,3 +45,11 @@ settings_update.json
 
 # ZCode 计划文件（个人临时计划，不共享）
 .zcode/
+# Runtime databases and local configs
+.freebuff/
+Release/
+libs/portable/app_metadata.toml
+*.db
+*.db-shm
+*.db-wal
+

@@ -97,54 +97,83 @@ mod kcp_stream;
 
 // === AUTO-INJECTED RUNTIME LOGGER ===
 pub mod runtime_logger {
-    use std::path::PathBuf;
-    use std::fs::{OpenOptions, create_dir_all};
-    use std::io::Write;
-    use std::time::{SystemTime, UNIX_EPOCH};
-    use std::sync::Mutex;
-    use once_cell::sync::Lazy;
+use std::path::PathBuf;
+use std::fs::{File, OpenOptions, create_dir_all};
+use std::io::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
+use once_cell::sync::Lazy;
 
-    static LOGGER: Lazy<Mutex<RuntimeLog>> = Lazy::new(|| {
-        Mutex::new(RuntimeLog::new())
-    });
+static LOGGER: Lazy<Mutex<RuntimeLog>> = Lazy::new(|| {
+Mutex::new(RuntimeLog::new())
+});
 
-    struct RuntimeLog { log_path: PathBuf, enabled: bool }
+const MAX_LOG_SIZE: u64 = 5 * 1024 * 1024; // 5 MB rotation limit
 
-    impl RuntimeLog {
-        fn new() -> Self {
-            let base = if cfg!(target_os = "windows") {
-                std::env::var("APPDATA").map(|p| PathBuf::from(p).join("LUODA").join("logs"))
-                    .unwrap_or_else(|_| PathBuf::from("C:\\LUODA\\logs"))
-            } else if cfg!(target_os = "macos") {
-                PathBuf::from(std::env::var("HOME").unwrap_or_default())
-                    .join("Library").join("Logs").join("LUODA")
-            } else {
-                PathBuf::from(std::env::var("HOME").unwrap_or_default())
-                    .join(".config").join("luoda").join("logs")
-            };
-            let log_file = base.join("luoda_runtime.log");
-            let _ = create_dir_all(&base);
-            if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log_file) {
-                let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-                let _ = writeln!(file, "[{}] [INIT] Runtime logger initialized", ts);
-            }
-            RuntimeLog { log_path: log_file, enabled: true }
-        }
-        fn log(&self, level: &str, tag: &str, msg: &str) {
-            if !self.enabled { return; }
-            if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&self.log_path) {
-                let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-                let _ = writeln!(file, "[{}] [{}] [{}] {}", ts, level, tag, msg);
-            }
-        }
-    }
-    pub fn info(tag: &str, msg: &str) { if let Ok(g) = LOGGER.lock() { g.log("INFO", tag, msg); } }
-    pub fn warn(tag: &str, msg: &str) { if let Ok(g) = LOGGER.lock() { g.log("WARN", tag, msg); } }
-    pub fn error(tag: &str, msg: &str) { if let Ok(g) = LOGGER.lock() { g.log("ERROR", tag, msg); } }
-    pub fn debug(tag: &str, msg: &str) { if let Ok(g) = LOGGER.lock() { g.log("DEBUG", tag, msg); } }
-    pub fn init() {
-        info("SYSTEM", &format!("LUODA v{} starting on {}", env!("CARGO_PKG_VERSION"), std::env::consts::OS));
-        info("SYSTEM", &format!("Args: {:?}", std::env::args().collect::<Vec<_>>()));
-    }
+struct RuntimeLog {
+ log_path: PathBuf,
+ file: Option<File>,
+ written: u64,
+ enabled: bool,
+}
+
+impl RuntimeLog {
+fn new() -> Self {
+let base = if cfg!(target_os = "windows") {
+std::env::var("APPDATA").map(|p| PathBuf::from(p).join("LUODA").join("logs"))
+.unwrap_or_else(|_| PathBuf::from("C:\\LUODA\\logs"))
+} else if cfg!(target_os = "macos") {
+PathBuf::from(std::env::var("HOME").unwrap_or_default())
+.join("Library").join("Logs").join("LUODA")
+} else {
+PathBuf::from(std::env::var("HOME").unwrap_or_default())
+.join(".config").join("luoda").join("logs")
+};
+let log_file = base.join("luoda_runtime.log");
+let _ = create_dir_all(&base);
+let mut written = 0u64;
+let file = OpenOptions::new().create(true).append(true).open(&log_file).ok().map(|mut f| {
+let _ = writeln!(f, "[{}] [INIT] Runtime logger initialized", SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs());
+// estimate current file size from metadata
+if let Ok(meta) = f.metadata() { written = meta.len(); }
+f
+});
+RuntimeLog { log_path: log_file, file, written, enabled: true }
+}
+
+fn reopen(&mut self) {
+self.file = OpenOptions::new().create(true).append(true).open(&self.log_path).ok();
+self.written = 0;
+}
+
+fn log(&mut self, level: &str, tag: &str, msg: &str) {
+if !self.enabled { return; }
+// Rotate if file exceeds size limit
+if self.written >= MAX_LOG_SIZE {
+// Rename current log to .old
+let old = self.log_path.with_extension("log.old");
+let _ = std::fs::rename(&self.log_path, &old);
+self.reopen();
+}
+if self.file.is_none() {
+self.reopen();
+}
+if let Some(f) = self.file.as_mut() {
+let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+let line = format!("[{}] [{}] [{}] {}\n", ts, level, tag, msg);
+let _ = f.write_all(line.as_bytes());
+let _ = f.flush();
+self.written += line.len() as u64;
+}
+}
+}
+pub fn info(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("INFO", tag, msg); } }
+pub fn warn(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("WARN", tag, msg); } }
+pub fn error(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("ERROR", tag, msg); } }
+pub fn debug(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("DEBUG", tag, msg); } }
+pub fn init() {
+info("SYSTEM", &format!("LUODA v{} starting on {}", env!("CARGO_PKG_VERSION"), std::env::consts::OS));
+info("SYSTEM", &format!("Args: {:?}", std::env::args().collect::<Vec<_>>()));
+}
 }
 // === END RUNTIME LOGGER ===

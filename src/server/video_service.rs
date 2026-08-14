@@ -135,16 +135,22 @@ impl VideoFrameController {
         self.send_conn_ids.clear();
     }
 
-    fn set_send(&mut self, tm: Instant, conn_ids: HashSet<i32>) {
-        if !conn_ids.is_empty() {
-            self.cur = tm;
-            self.send_conn_ids = conn_ids;
-            DISPLAY_CONN_IDS
-                .lock()
-                .unwrap()
-                .insert(self.display_idx, self.send_conn_ids.clone());
-        }
-    }
+fn set_send(&mut self, tm: Instant, conn_ids: HashSet<i32>) {
+ if !conn_ids.is_empty() {
+ self.cur = tm;
+ // Only update the global map when the set of subscribers has changed,
+ // avoiding a per-frame clone + global lock acquisition when the
+ // connection set is stable (the common case during active streaming).
+ let changed = conn_ids != self.send_conn_ids;
+ self.send_conn_ids = conn_ids;
+ if changed {
+ DISPLAY_CONN_IDS
+ .lock()
+ .unwrap()
+ .insert(self.display_idx, self.send_conn_ids.clone());
+ }
+ }
+ }
 
     #[tokio::main(flavor = "current_thread")]
     async fn try_wait_next(&mut self, fetched_conn_ids: &mut HashSet<i32>, timeout_millis: u64) {

@@ -230,9 +230,9 @@ pub mod server {
 
     use super::*;
 
-    lazy_static::lazy_static! {
-        static ref EXIT: Arc<Mutex<bool>> = Default::default();
-    }
+lazy_static::lazy_static! {
+ static ref EXIT: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false), Condvar::new()));
+}
 
     pub fn run_portable_service() {
         let shmem = match SharedMemory::open_existing(SHMEM_NAME) {
@@ -272,33 +272,39 @@ pub mod server {
         }
     }
 
-    fn run_exit_check() {
-        loop {
-            if EXIT.lock().unwrap().clone() {
-                std::thread::sleep(Duration::from_millis(50));
-                std::process::exit(0);
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-    }
+fn run_exit_check() {
+ let (lock, cvar) = &*EXIT;
+ let mut started = lock.lock().unwrap();
+ loop {
+ if *started {
+ drop(started);
+ std::thread::sleep(Duration::from_millis(50)); // give other threads a moment to clean up
+ std::process::exit(0);
+ }
+ // Wait for EXIT to be set, waking up immediately when notified
+ let result = cvar.wait_timeout(started, Duration::from_secs(1));
+ started = result.0.unwrap();
+ }
+}
 
-    fn run_get_cursor_info(shmem: Arc<SharedMemory>) {
-        loop {
-            if EXIT.lock().unwrap().clone() {
-                break;
-            }
-            unsafe {
-                let para = shmem.as_ptr().add(ADDR_CURSOR_PARA) as *mut CURSORINFO;
-                (*para).cbSize = size_of::<CURSORINFO>() as _;
-                let result = winuser::GetCursorInfo(para);
-                if result == TRUE {
-                    utils::increase_counter(shmem.as_ptr().add(ADDR_CURSOR_COUNTER));
-                }
-            }
-            // more frequent in case of `Error of mouse_cursor service`
-            std::thread::sleep(Duration::from_millis(15));
-        }
-    }
+fn run_get_cursor_info(shmem: Arc<SharedMemory>) {
+ let (lock, _cvar) = &*EXIT;
+ loop {
+ if *lock.lock().unwrap() {
+ break;
+ }
+ unsafe {
+ let para = shmem.as_ptr().add(ADDR_CURSOR_PARA) as *mut CURSORINFO;
+ (*para).cbSize = size_of::<CURSORINFO>() as _;
+ let result = winuser::GetCursorInfo(para);
+ if result == TRUE {
+ utils::increase_counter(shmem.as_ptr().add(ADDR_CURSOR_COUNTER));
+ }
+ }
+ // more frequent in case of `Error of mouse_cursor service`
+ std::thread::sleep(Duration::from_millis(15));
+ }
+}
 
     fn run_capture(shmem: Arc<SharedMemory>) {
         let mut c = None;
@@ -312,9 +318,9 @@ pub mod server {
         let mut display_height = 0;
         let mut last_display_wait_log = None;
         loop {
-            if EXIT.lock().unwrap().clone() {
-                break;
-            }
+ if EXIT.0.lock().unwrap().clone() {
+ break;
+ }
             unsafe {
                 let para = utils::get_para(&shmem);
                 let recreate = para.recreate;
@@ -492,9 +498,9 @@ pub mod server {
                             utils::set_i32(&shmem, ADDR_CAPTURE_WOULDBLOCK, TRUE);
                         }
                     }
-                    _ => {
-                        println!("unreachable!");
-                    }
+ _ => {
+ log::warn!("unreachable branch in run_capture");
+ }
                 }
             }
         }
@@ -578,8 +584,12 @@ pub mod server {
             }
         }
 
-        *EXIT.lock().unwrap() = true;
-    }
+ {
+ let (lock, cvar) = &*EXIT;
+ *lock.lock().unwrap() = true;
+ cvar.notify_all();
+ }
+}
 }
 
 // functions called in main process.

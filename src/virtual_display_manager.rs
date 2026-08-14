@@ -996,13 +996,13 @@ mod windows {
             )
         };
 
-        if device_info_set == INVALID_HANDLE_VALUE {
-            println!(
-                "Failed to get device information set. Error: {}",
-                std::io::Error::last_os_error()
-            );
-            return display_drivers;
-        }
+ if device_info_set == INVALID_HANDLE_VALUE {
+ log::warn!(
+ "Failed to get device information set. Error: {}",
+ std::io::Error::last_os_error()
+ );
+ return display_drivers;
+ }
 
         let mut device_info_data = SP_DEVINFO_DATA {
             cbSize: std::mem::size_of::<SP_DEVINFO_DATA>() as u32,
@@ -1049,7 +1049,7 @@ mod windows {
             }
 
             let Ok(driver_description) = String::from_utf16(&buffer) else {
-                println!("Failed to convert driver description to string");
+                log::warn!("Failed to convert driver description to string");
                 device_index += 1;
                 continue;
             };
@@ -1065,11 +1065,11 @@ mod windows {
                     0,
                 )
             };
-            if config_ret != CR_SUCCESS {
-                println!(
-                    "Failed to get device status. Error: {}",
-                    std::io::Error::last_os_error()
-                );
+ if config_ret != CR_SUCCESS {
+ log::warn!(
+ "Failed to get device status. Error: {}",
+ std::io::Error::last_os_error()
+ );
                 device_index += 1;
                 continue;
             }
