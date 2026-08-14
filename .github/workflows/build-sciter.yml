@@ -23,10 +23,11 @@ jobs:
         with:
           submodules: false
 
+
       - name: Extract version
         id: version
         run: |
-          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*\"\(.*\)\"/\1/')
           echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
           echo "Version: $LUODA_VERSION"
 
@@ -103,5 +104,5 @@ jobs:
         with:
           name: runtime-logs-sciter
           path: .auto_build_logs/
-    if-no-files-found: ignore
+          if-no-files-found: ignore
 
