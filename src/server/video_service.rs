@@ -73,9 +73,10 @@ lazy_static::lazy_static! {
  pub static ref IS_UAC_RUNNING: Arc<Mutex<bool>> = Default::default();
  pub static ref IS_FOREGROUND_WINDOW_ELEVATED: Arc<Mutex<bool>> = Default::default();
  static ref SCREENSHOTS: Mutex<HashMap<usize, Screenshot>> = Default::default();
- #[cfg(windows)]
- static UAC_CHECK_EXIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 }
+
+#[cfg(windows)]
+static UAC_CHECK_EXIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(windows)]
 pub fn stop_uac_elevation_check() {

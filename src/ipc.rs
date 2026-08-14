@@ -422,7 +422,7 @@ pub async fn start_with_ready(
             }
         }
     }
-    let error = last_error.unwrap_or_else(|| anyhow::anyhow!("IPC startup failed with unknown error"));
+    let error = last_error.unwrap_or_else(|| hbb_common::anyhow::anyhow!("IPC startup failed with unknown error"));
     let _ = ready.send(Err(error.to_string()));
     Err(error)
 }
