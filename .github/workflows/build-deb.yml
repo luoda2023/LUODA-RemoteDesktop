@@ -37,6 +37,7 @@ jobs:
 
       - name: Extract version
         id: version
+        shell: bash
         run: |
           LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
           echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
