@@ -895,27 +895,28 @@ pub mod amyuni_idd {
 }
 
 mod windows {
-    use std::ptr::null_mut;
-    use winapi::{
-        shared::{
-            devguid::GUID_DEVCLASS_DISPLAY,
-            minwindef::{DWORD, FALSE},
-            ntdef::ULONG,
-        },
-        um::{
-            cfgmgr32::{CM_Get_DevNode_Status, CR_SUCCESS},
-            cguid::GUID_NULL,
-            setupapi::{
-                SetupDiEnumDeviceInfo, SetupDiGetClassDevsW, SetupDiGetDeviceRegistryPropertyW,
-                SP_DEVINFO_DATA,
-            },
-            wingdi::{
-                DEVMODEW, DISPLAY_DEVICEW, DISPLAY_DEVICE_ACTIVE, DISPLAY_DEVICE_MIRRORING_DRIVER,
-            },
-            winnt::HANDLE,
-            winuser::{EnumDisplayDevicesW, EnumDisplaySettingsExW, ENUM_CURRENT_SETTINGS},
-        },
-    };
+ use std::ptr::null_mut;
+ use hbb_common::log;
+ use winapi::{
+ shared::{
+ devguid::GUID_DEVCLASS_DISPLAY,
+ minwindef::{DWORD, FALSE},
+ ntdef::ULONG,
+ },
+ um::{
+ cfgmgr32::{CM_Get_DevNode_Status, CR_SUCCESS},
+ cguid::GUID_NULL,
+ setupapi::{
+ SetupDiEnumDeviceInfo, SetupDiGetClassDevsW, SetupDiGetDeviceRegistryPropertyW,
+ SP_DEVINFO_DATA,
+ },
+ wingdi::{
+ DEVMODEW, DISPLAY_DEVICEW, DISPLAY_DEVICE_ACTIVE, DISPLAY_DEVICE_MIRRORING_DRIVER,
+ },
+ winnt::HANDLE,
+ winuser::{EnumDisplayDevicesW, EnumDisplaySettingsExW, ENUM_CURRENT_SETTINGS},
+ },
+ };
 
     const DIGCF_PRESENT: DWORD = 0x00000002;
     const SPDRP_DEVICEDESC: DWORD = 0x00000000;

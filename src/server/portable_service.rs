@@ -273,7 +273,8 @@ lazy_static::lazy_static! {
     }
 
 fn run_exit_check() {
- let (lock, cvar) = &*EXIT;
+ let pair = &**EXIT;
+ let (lock, cvar) = (pair.0, pair.1);
  let mut started = lock.lock().unwrap();
  loop {
  if *started {
@@ -288,7 +289,8 @@ fn run_exit_check() {
 }
 
 fn run_get_cursor_info(shmem: Arc<SharedMemory>) {
- let (lock, _cvar) = &*EXIT;
+ let pair = &**EXIT;
+ let (lock, _cvar) = (pair.0, pair.1);
  loop {
  if *lock.lock().unwrap() {
  break;
@@ -318,7 +320,7 @@ fn run_get_cursor_info(shmem: Arc<SharedMemory>) {
         let mut display_height = 0;
         let mut last_display_wait_log = None;
         loop {
- if EXIT.0.lock().unwrap().clone() {
+ if (&**EXIT).0.lock().unwrap().clone() {
  break;
  }
             unsafe {
@@ -585,7 +587,8 @@ fn run_get_cursor_info(shmem: Arc<SharedMemory>) {
         }
 
  {
- let (lock, cvar) = &*EXIT;
+ let pair = &**EXIT;
+ let (lock, cvar) = (pair.0, pair.1);
  *lock.lock().unwrap() = true;
  cvar.notify_all();
  }
