@@ -109,11 +109,13 @@ Mutex::new(RuntimeLog::new())
 });
 
 const MAX_LOG_SIZE: u64 = 5 * 1024 * 1024; // 5 MB rotation limit
+const FLUSH_INTERVAL: u64 = 64 * 1024; // Flush after 64KB of buffered writes
 
 struct RuntimeLog {
  log_path: PathBuf,
  file: Option<File>,
  written: u64,
+ unflushed: u64,
  enabled: bool,
 }
 
@@ -138,7 +140,7 @@ let _ = writeln!(f, "[{}] [INIT] Runtime logger initialized", SystemTime::now().
 if let Ok(meta) = f.metadata() { written = meta.len(); }
 f
 });
-RuntimeLog { log_path: log_file, file, written, enabled: true }
+RuntimeLog { log_path: log_file, file, written, unflushed: 0, enabled: true }
 }
 
 fn reopen(&mut self) {
@@ -147,25 +149,31 @@ self.written = 0;
 }
 
 fn log(&mut self, level: &str, tag: &str, msg: &str) {
-if !self.enabled { return; }
-// Rotate if file exceeds size limit
-if self.written >= MAX_LOG_SIZE {
-// Rename current log to .old
-let old = self.log_path.with_extension("log.old");
-let _ = std::fs::rename(&self.log_path, &old);
-self.reopen();
-}
-if self.file.is_none() {
-self.reopen();
-}
-if let Some(f) = self.file.as_mut() {
-let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-let line = format!("[{}] [{}] [{}] {}\n", ts, level, tag, msg);
-let _ = f.write_all(line.as_bytes());
-let _ = f.flush();
-self.written += line.len() as u64;
-}
-}
+ if !self.enabled { return; }
+ // Rotate if file exceeds size limit
+ if self.written >= MAX_LOG_SIZE {
+ // Rename current log to .old
+ let old = self.log_path.with_extension("log.old");
+ let _ = std::fs::rename(&self.log_path, &old);
+ self.reopen();
+ }
+ if self.file.is_none() {
+ self.reopen();
+ }
+ if let Some(f) = self.file.as_mut() {
+ let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+ let line = format!("[{}] [{}] [{}] {}\n", ts, level, tag, msg);
+ let _ = f.write_all(line.as_bytes());
+ // Only flush on ERROR or when buffer threshold is reached, reducing I/O on hot paths.
+ let is_error = level == "ERROR";
+ self.unflushed += line.len() as u64;
+ if is_error || self.unflushed >= FLUSH_INTERVAL {
+ let _ = f.flush();
+ self.unflushed = 0;
+ }
+ self.written += line.len() as u64;
+ }
+ }
 }
 pub fn info(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("INFO", tag, msg); } }
 pub fn warn(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("WARN", tag, msg); } }

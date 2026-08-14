@@ -32,6 +32,12 @@ jobs:
         with:
           submodules: false
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract version
+        id: version
+        run: |
+          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
+          echo "Version: $LUODA_VERSION"
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -213,12 +219,13 @@ jobs:
         with:
           name: runtime-logs-${{ matrix.arch }}
           path: .auto_build_logs/
+          if-no-files-found: ignore
       - name: Upload to Release (nightly x64 only)
         if: matrix.arch == 'x64'
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v2.2.1
+          tag_name: v${{ env.LUODA_VERSION }}
           files: |
             SignOutput/LUODA-portable-x64.exe
             SignOutput/LUODA-install.exe

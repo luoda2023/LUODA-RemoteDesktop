@@ -5190,12 +5190,34 @@ impl Default for PortableState {
 }
 
 impl Drop for Connection {
-    fn drop(&mut self) {
-        // Clean expired sessions on connection close to avoid deleting active sessions in is_recent_session
-        SESSIONS
-            .lock()
-            .unwrap()
-            .retain(|_, s| s.last_recv_time.lock().unwrap().elapsed() < SESSION_TIMEOUT);
+ fn drop(&mut self) {
+ // Clean expired sessions on connection close to avoid deleting active sessions in is_recent_session
+ // Clone Arc references out of SESSIONS, then check timeouts after releasing the lock
+ // to eliminate any nested-locking risk.
+ let (keys, recv_times): (Vec<SessionKey>, Vec<Arc<Mutex<Instant>>>) = {
+ let sessions = SESSIONS.lock().unwrap();
+ sessions
+ .iter()
+ .map(|(k, s)| (k.clone(), s.last_recv_time.clone()))
+ .unzip()
+ };
+ let expired_keys: Vec<SessionKey> = keys
+ .into_iter()
+ .zip(recv_times.into_iter())
+ .filter_map(|(k, t)| {
+ let is_expired = t
+ .lock()
+ .map(|guard| guard.elapsed() >= SESSION_TIMEOUT)
+ .unwrap_or(false);
+ if is_expired { Some(k) } else { None }
+ })
+ .collect();
+ if !expired_keys.is_empty() {
+ let mut sessions = SESSIONS.lock().unwrap();
+ for k in &expired_keys {
+ sessions.remove(k);
+ }
+ }
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         self.release_pressed_modifiers();
@@ -5458,34 +5480,36 @@ mod raii {
                 .count()
         }
 
-        pub fn check_remove_session(conn_id: i32, key: SessionKey) {
-            let mut lock = SESSIONS.lock().unwrap();
-            let contains = lock.contains_key(&key);
-            if contains {
-                // No two remote connections with the same session key, just for ensure.
-                let is_remote = AUTHED_CONNS
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .any(|c| c.conn_id == conn_id && c.conn_type == AuthConnType::Remote);
-                // If there are 2 connections with the same peer_id and session_id, a remote connection and a file transfer or port forward connection,
-                // If any of the connections is closed allowing retry, this will not be called;
-                // If the file transfer/port forward connection is closed with no retry, the session should be kept for remote control menu action;
-                // If the remote connection is closed with no retry, keep the session is not reasonable in case there is a retry button in the remote side, and ignore network fluctuations.
-                let another_remote = AUTHED_CONNS.lock().unwrap().iter().any(|c| {
-                    c.conn_id != conn_id
-                        && c.session_key == key
-                        && c.conn_type == AuthConnType::Remote
-                });
-                if is_remote || !another_remote {
-                    lock.remove(&key);
-                    log::info!("remove session");
-                } else {
-                    // Keep the session if there is another remote connection with same peer_id and session_id.
-                    log::info!("skip remove session");
-                }
-            }
-        }
+ pub fn check_remove_session(conn_id: i32, key: SessionKey) {
+ let contains = SESSIONS.lock().unwrap().contains_key(&key);
+ if !contains {
+ return;
+ }
+ // Check AUTHED_CONNS outside the SESSIONS lock to avoid nested locking deadlock risk.
+ let (is_remote, another_remote) = {
+ let conns = AUTHED_CONNS.lock().unwrap();
+ let is_remote = conns
+ .iter()
+ .any(|c| c.conn_id == conn_id && c.conn_type == AuthConnType::Remote);
+ let another_remote = conns.iter().any(|c| {
+ c.conn_id != conn_id
+ && c.session_key == key
+ && c.conn_type == AuthConnType::Remote
+ });
+ (is_remote, another_remote)
+ };
+ // If there are 2 connections with the same peer_id and session_id, a remote connection and a file transfer or port forward connection,
+ // If any of the connections is closed allowing retry, this will not be called;
+ // If the file transfer/port forward connection is closed with no retry, the session should be kept for remote control menu action;
+ // If the remote connection is closed with no retry, keep the session is not reasonable in case there is a retry button in the remote side, and ignore network fluctuations.
+ if is_remote || !another_remote {
+ SESSIONS.lock().unwrap().remove(&key);
+ log::info!("remove session");
+ } else {
+ // Keep the session if there is another remote connection with same peer_id and session_id.
+ log::info!("skip remove session");
+ }
+ }
 
         pub fn update_or_insert_session(
             key: SessionKey,

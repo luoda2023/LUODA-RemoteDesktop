@@ -23,6 +23,13 @@ jobs:
         with:
           submodules: false
 
+      - name: Extract version
+        id: version
+        run: |
+          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
+          echo "Version: $LUODA_VERSION"
+
       - name: Setup Rust (i686)
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -88,7 +95,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v2.2.1
+          tag_name: v${{ env.LUODA_VERSION }}
           files: SignOutput/LUODA-portable-x86-sciter.exe
       - name: Upload runtime logs (always)
         if: always()
@@ -96,4 +103,5 @@ jobs:
         with:
           name: runtime-logs-sciter
           path: .auto_build_logs/
+    if-no-files-found: ignore
 

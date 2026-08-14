@@ -429,8 +429,8 @@ impl VideoQoS {
             return;
         };
 
-        let target_quality = self.latest_quality();
-        let target_ratio = self.latest_quality().ratio();
+ let target_quality = self.latest_quality();
+ let target_ratio = target_quality.ratio();
         let current_ratio = self.ratio;
         let current_bitrate = self.bitrate();
 
@@ -556,35 +556,42 @@ impl RttCalculator {
     const MIN_SAMPLES: usize = 10; // Require at least 10 samples
     const ALPHA: f32 = 0.5; // Smoothing factor for weighted average
 
-    /// Update RTT estimates with a new sample
-    pub fn update(&mut self, delay: u32) {
-        // 1. Update historical minimum RTT
-        match self.min_rtt {
-            Some(min_rtt) if delay < min_rtt => self.min_rtt = Some(delay),
-            None => self.min_rtt = Some(delay),
-            _ => {}
-        }
+ /// Update RTT estimates with a new sample
+ pub fn update(&mut self, delay: u32) {
+ // 1. Update historical minimum RTT
+ match self.min_rtt {
+ Some(min_rtt) if delay < min_rtt => self.min_rtt = Some(delay),
+ None => self.min_rtt = Some(delay),
+ _ => {}
+ }
 
-        // 2. Update sample window
-        if self.samples.len() >= Self::WINDOW_SAMPLES {
-            self.samples.pop_front();
-        }
-        self.samples.push_back(delay);
+ // 2. Update sample window
+ if self.samples.len() >= Self::WINDOW_SAMPLES {
+ let old = self.samples.pop_front();
+ // If the removed sample was the window minimum, recompute it.
+ if old.is_some() && old == self.window_min_rtt {
+ self.window_min_rtt = self.samples.iter().min().copied();
+ }
+ }
+ self.samples.push_back(delay);
+ // Update window minimum incrementally instead of full scan.
+ self.window_min_rtt = match self.window_min_rtt {
+ Some(wm) if delay < wm => Some(delay),
+ None => Some(delay),
+ _ => self.window_min_rtt,
+ };
 
-        // 3. Calculate minimum RTT within the window
-        self.window_min_rtt = self.samples.iter().min().copied();
-
-        // 4. Calculate smoothed RTT
-        // Use weighted average if we have enough samples
-        if self.samples.len() >= Self::WINDOW_SAMPLES {
-            if let (Some(min), Some(window_min)) = (self.min_rtt, self.window_min_rtt) {
-                // Weighted average of historical minimum and window minimum
-                let new_srtt =
-                    ((1.0 - Self::ALPHA) * min as f32 + Self::ALPHA * window_min as f32) as u32;
-                self.smoothed_rtt = Some(new_srtt);
-            }
-        }
-    }
+ // 4. Calculate smoothed RTT
+ // Use weighted average if we have enough samples
+ if self.samples.len() >= Self::WINDOW_SAMPLES {
+ if let (Some(min), Some(window_min)) = (self.min_rtt, self.window_min_rtt) {
+ // Weighted average of historical minimum and window minimum
+ let new_srtt =
+ ((1.0 - Self::ALPHA) * min as f32 + Self::ALPHA * window_min as f32) as u32;
+ self.smoothed_rtt = Some(new_srtt);
+ }
+ }
+ }
 
     /// Get current RTT estimate
     /// Returns None if no valid estimation is available

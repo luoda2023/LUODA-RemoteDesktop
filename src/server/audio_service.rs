@@ -50,15 +50,20 @@ pub fn get_voice_call_input_device() -> Option<String> {
 
 #[inline]
 pub fn set_voice_call_input_device(device: Option<String>, set_if_present: bool) {
-    if !set_if_present && VOICE_CALL_INPUT_DEVICE.lock().unwrap().is_some() {
-        return;
-    }
-
-    if *VOICE_CALL_INPUT_DEVICE.lock().unwrap() == device {
-        return;
-    }
-    *VOICE_CALL_INPUT_DEVICE.lock().unwrap() = device;
-    restart();
+ let changed = {
+ let mut dev = VOICE_CALL_INPUT_DEVICE.lock().unwrap();
+ if !set_if_present && dev.is_some() {
+ return;
+ }
+ if *dev == device {
+ return;
+ }
+ *dev = device;
+ true
+ };
+ if changed {
+ restart();
+ }
 }
 
 #[inline]
@@ -465,7 +470,7 @@ const MAX_AUDIO_ZERO_COUNT: u16 = 800;
 static AUDIO_ZERO_COUNT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
 
 fn send_f32(data: &[f32], encoder: &mut Encoder, sp: &GenericService) {
-    if data.iter().filter(|x| **x != 0.).next().is_some() {
+ if data.iter().any(|x| *x != 0.) {
         AUDIO_ZERO_COUNT.store(0, std::sync::atomic::Ordering::Relaxed);
     } else {
         let count = AUDIO_ZERO_COUNT.load(std::sync::atomic::Ordering::Relaxed);

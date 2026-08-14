@@ -10,7 +10,7 @@ name: Build LUODA Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [master,v2.0.0,v2.0.1,2.1.1]
+    branches: [master,v2.0.0,v2.0.1,v2.1.1]
     paths:
       - 'build.rs'
       - 'src/**'
@@ -29,13 +29,20 @@ jobs:
     timeout-minutes: 120
     
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+- name: Checkout
+ uses: actions/checkout@v4
+ with:
+ submodules: false
+ token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Cache Cargo registry
+ - name: Extract version
+ id: version
+ run: |
+ LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+ echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
+ echo "Version: $LUODA_VERSION"
+
+ - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
           path: |
@@ -435,15 +442,16 @@ jobs:
           path: flutter/build/app/outputs/dist-apk/*.apk
           if-no-files-found: error
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v1
-        with:
-          prerelease: false
-          tag_name: v2.2.1
-          files: flutter/build/app/outputs/dist-apk/*.apk
+- name: Upload to Release
+ uses: softprops/action-gh-release@v1
+ with:
+ prerelease: false
+ tag_name: v${{ env.LUODA_VERSION }}
+ files: flutter/build/app/outputs/dist-apk/*.apk
       - name: Upload runtime logs (always)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: runtime-logs-apk
           path: .auto_build_logs/
+    if-no-files-found: ignore

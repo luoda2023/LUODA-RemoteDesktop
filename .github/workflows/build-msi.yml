@@ -10,7 +10,7 @@ name: Build LUODA Windows MSI
 on:
   workflow_dispatch:
   push:
-    branches: [master,v2.0.0,v2.0.1,2.1.1]
+    branches: [master,v2.0.0,v2.0.1,v2.1.1]
     paths:
       - 'build.rs'
       - 'src/**'
@@ -32,6 +32,13 @@ jobs:
         with:
           submodules: false
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: |
+          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
+          echo "Version: $LUODA_VERSION"
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -216,7 +223,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v2.2.1
+          tag_name: v${{ env.LUODA_VERSION }}
           files: res/msi/dist/*.msi
       - name: Upload runtime logs (always)
         if: always()
@@ -224,6 +231,7 @@ jobs:
         with:
           name: runtime-logs-msi
           path: .auto_build_logs/
+    if-no-files-found: ignore
 
 
 

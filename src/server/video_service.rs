@@ -30,14 +30,7 @@ use crate::{
     privacy_mode::{is_current_privacy_mode_impl, PRIVACY_MODE_IMPL_WIN_MAG},
     ui_interface::is_installed,
 };
-use hbb_common::{
-    anyhow::anyhow,
-    config,
-    tokio::sync::{
-        mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-        Mutex as TokioMutex,
-    },
-};
+use hbb_common::{anyhow::anyhow, config};
 #[cfg(feature = "hwcodec")]
 use scrap::hwcodec::{HwRamEncoder, HwRamEncoderConfig};
 #[cfg(feature = "vram")]
@@ -53,6 +46,8 @@ use scrap::{
 };
 #[cfg(windows)]
 use std::sync::Once;
+#[cfg(windows)]
+use std::sync::atomic::Ordering;
 use std::{
     collections::HashSet,
     io::ErrorKind::WouldBlock,
@@ -62,22 +57,29 @@ use std::{
 
 pub const OPTION_REFRESH: &'static str = "refresh";
 
-type FrameFetchedNotifierSender = UnboundedSender<(i32, Option<Instant>)>;
-type FrameFetchedNotifierReceiver = Arc<TokioMutex<UnboundedReceiver<(i32, Option<Instant>)>>>;
+type FrameFetchedNotifierSender = std::sync::mpsc::Sender<(i32, Option<Instant>)>;
+type FrameFetchedNotifierReceiver = Arc<std::sync::Mutex<std::sync::mpsc::Receiver<(i32, Option<Instant>)>>>;
 
 lazy_static::lazy_static! {
-    static ref FRAME_FETCHED_NOTIFIERS: Mutex<HashMap<usize, (FrameFetchedNotifierSender, FrameFetchedNotifierReceiver)>> = Mutex::new(HashMap::default());
+ static ref FRAME_FETCHED_NOTIFIERS: Mutex<HashMap<usize, (FrameFetchedNotifierSender, FrameFetchedNotifierReceiver)>> = Mutex::new(HashMap::default());
 
-    // display_idx -> set of conn id.
-    // Used to record which connections need to be notified when
-    // 1. A new frame is received from a web client.
-    //   Because web client does not send the display index in message `VideoReceived`.
-    // 2. The client is closing.
-    static ref DISPLAY_CONN_IDS: Arc<Mutex<HashMap<usize, HashSet<i32>>>> = Default::default();
-    pub static ref VIDEO_QOS: Arc<Mutex<VideoQoS>> = Default::default();
-    pub static ref IS_UAC_RUNNING: Arc<Mutex<bool>> = Default::default();
-    pub static ref IS_FOREGROUND_WINDOW_ELEVATED: Arc<Mutex<bool>> = Default::default();
-    static ref SCREENSHOTS: Mutex<HashMap<usize, Screenshot>> = Default::default();
+ // display_idx -> set of conn id.
+ // Used to record which connections need to be notified when
+ // 1. A new frame is received from a web client.
+ // Because web client does not send the display index in message `VideoReceived`.
+ // 2. The client is closing.
+ static ref DISPLAY_CONN_IDS: Arc<Mutex<HashMap<usize, HashSet<i32>>>> = Default::default();
+ pub static ref VIDEO_QOS: Arc<Mutex<VideoQoS>> = Default::default();
+ pub static ref IS_UAC_RUNNING: Arc<Mutex<bool>> = Default::default();
+ pub static ref IS_FOREGROUND_WINDOW_ELEVATED: Arc<Mutex<bool>> = Default::default();
+ static ref SCREENSHOTS: Mutex<HashMap<usize, Screenshot>> = Default::default();
+ #[cfg(windows)]
+ static UAC_CHECK_EXIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+}
+
+#[cfg(windows)]
+pub fn stop_uac_elevation_check() {
+ UAC_CHECK_EXIT.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
 struct Screenshot {
@@ -152,50 +154,58 @@ fn set_send(&mut self, tm: Instant, conn_ids: HashSet<i32>) {
  }
  }
 
-    #[tokio::main(flavor = "current_thread")]
-    async fn try_wait_next(&mut self, fetched_conn_ids: &mut HashSet<i32>, timeout_millis: u64) {
-        if self.send_conn_ids.is_empty() {
-            return;
-        }
+ fn try_wait_next(&mut self, fetched_conn_ids: &mut HashSet<i32>, timeout_millis: u64) {
+ if self.send_conn_ids.is_empty() {
+ return;
+ }
 
-        let timeout_dur = Duration::from_millis(timeout_millis as u64);
-        let receiver = {
-            match FRAME_FETCHED_NOTIFIERS
-                .lock()
-                .unwrap()
-                .get(&self.display_idx)
-            {
-                Some(notifier) => notifier.1.clone(),
-                None => {
-                    return;
-                }
-            }
-        };
-        let mut receiver_guard = receiver.lock().await;
-        match tokio::time::timeout(timeout_dur, receiver_guard.recv()).await {
-            Err(_) => {
-                // break if timeout
-                // log::error!("blocking wait frame receiving timeout {}", timeout_millis);
-            }
-            Ok(Some((id, instant))) => {
-                if let Some(tm) = instant {
-                    log::trace!("Channel recv latency: {}", tm.elapsed().as_secs_f32());
-                }
-                fetched_conn_ids.insert(id);
-            }
-            Ok(None) => {
-                // this branch would never be reached
-            }
-        }
-        while !receiver_guard.is_empty() {
-            if let Some((id, instant)) = receiver_guard.recv().await {
-                if let Some(tm) = instant {
-                    log::trace!("Channel recv latency: {}", tm.elapsed().as_secs_f32());
-                }
-                fetched_conn_ids.insert(id);
-            }
-        }
-    }
+ let receiver = {
+ match FRAME_FETCHED_NOTIFIERS
+ .lock()
+ .unwrap()
+ .get(&self.display_idx)
+ {
+ Some(notifier) => notifier.1.clone(),
+ None => {
+ return;
+ }
+ }
+ };
+ // Use synchronous recv_timeout instead of creating a Tokio Runtime per frame.
+ // Previously this was #[tokio::main(flavor = "current_thread")] which created
+ // and destroyed a full Runtime on every video frame (30-60 times/second).
+ let mut receiver_guard = match receiver.lock() {
+ Ok(g) => g,
+ Err(e) => e.into_inner(),
+ };
+ let deadline = Instant::now() + Duration::from_millis(timeout_millis);
+ loop {
+ let remaining = deadline.checked_duration_since(Instant::now());
+ match remaining {
+ Some(dur) if !dur.is_zero() => {
+ match receiver_guard.recv_timeout(dur) {
+ Ok((id, instant)) => {
+ if let Some(tm) = instant {
+ log::trace!("Channel recv latency: {}", tm.elapsed().as_secs_f32());
+ }
+ fetched_conn_ids.insert(id);
+ // Drain any immediately available messages without blocking.
+ while let Ok((id, instant)) = receiver_guard.try_recv() {
+ if let Some(tm) = instant {
+ log::trace!("Channel recv latency: {}", tm.elapsed().as_secs_f32());
+ }
+ fetched_conn_ids.insert(id);
+ }
+ break;
+ }
+ Err(std::sync::mpsc::RecvTimeoutError::Timeout) => break,
+ Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+ }
+ }
+ _ => break,
+ }
+ }
+ }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -247,14 +257,14 @@ pub fn get_service_name(source: VideoSource, idx: usize) -> String {
 }
 
 pub fn new(source: VideoSource, idx: usize) -> GenericService {
-    let _ = FRAME_FETCHED_NOTIFIERS
-        .lock()
-        .unwrap()
-        .entry(idx)
-        .or_insert_with(|| {
-            let (tx, rx) = unbounded_channel();
-            (tx, Arc::new(TokioMutex::new(rx)))
-        });
+ let _ = FRAME_FETCHED_NOTIFIERS
+ .lock()
+ .unwrap()
+ .entry(idx)
+ .or_insert_with(|| {
+ let (tx, rx) = std::sync::mpsc::channel();
+ (tx, Arc::new(std::sync::Mutex::new(rx)))
+ });
     let vs = VideoService {
         sp: GenericService::new(get_service_name(source, idx), true),
         idx,
@@ -661,16 +671,17 @@ fn run(vs: VideoService) -> ResultType<()> {
     start_uac_elevation_check();
 
     #[cfg(target_os = "linux")]
-    let mut would_block_count = 0u32;
-    let mut yuv = Vec::new();
-    let mut mid_data = Vec::new();
-    let mut repeat_encode_counter = 0;
-    let repeat_encode_max = 3;
-    let mut encode_fail_counter = 0;
-    let mut first_frame = true;
-    let capture_width = c.width;
-    let capture_height = c.height;
-    let (mut second_instant, mut send_counter) = (Instant::now(), 0);
+ let mut would_block_count = 0u32;
+ let mut yuv = Vec::new();
+ let mut mid_data = Vec::new();
+ let mut repeat_encode_counter = 0;
+ let repeat_encode_max = 3;
+ let mut encode_fail_counter = 0;
+ let mut first_frame = true;
+ let capture_width = c.width;
+ let capture_height = c.height;
+ let (mut second_instant, mut send_counter) = (Instant::now(), 0);
+ let mut fetched_conn_ids = HashSet::new();
 
     while sp.ok() {
         #[cfg(windows)]
@@ -997,11 +1008,11 @@ fn run(vs: VideoService) -> ResultType<()> {
             }
         }
 
-        // 修复画面不更新问题：移除阻塞等待，直接继续下一帧
-        // 原逻辑等待客户端ACK会导致3秒超时，严重降低帧率
-        let mut fetched_conn_ids = HashSet::new();
-        frame_controller.try_wait_next(&mut fetched_conn_ids, 10);
-        DISPLAY_CONN_IDS.lock().unwrap().remove(&display_idx);
+ // 修复画面不更新问题：移除阻塞等待，直接继续下一帧
+ // 原逻辑等待客户端ACK会导致3秒超时，严重降低帧率
+ fetched_conn_ids.clear();
+ frame_controller.try_wait_next(&mut fetched_conn_ids, 10);
+ DISPLAY_CONN_IDS.lock().unwrap().remove(&display_idx);
 
         #[cfg(windows)]
         if vs.source.is_monitor()
@@ -1356,20 +1367,26 @@ pub fn refresh() {
 
 #[cfg(windows)]
 fn start_uac_elevation_check() {
-    static START: Once = Once::new();
-    START.call_once(|| {
-        if !crate::platform::is_installed() && !crate::platform::is_root() {
-            std::thread::spawn(|| loop {
-                std::thread::sleep(std::time::Duration::from_secs(1));
-                if let Ok(uac) = is_process_consent_running() {
-                    *IS_UAC_RUNNING.lock().unwrap() = uac;
-                }
-                if !crate::platform::is_elevated(None).unwrap_or(false) {
-                    if let Ok(elevated) = crate::platform::is_foreground_window_elevated() {
-                        *IS_FOREGROUND_WINDOW_ELEVATED.lock().unwrap() = elevated;
-                    }
-                }
-            });
+ static START: Once = Once::new();
+ START.call_once(|| {
+ if !crate::platform::is_installed() && !crate::platform::is_root() {
+ std::thread::spawn(|| {
+ let interval = std::time::Duration::from_secs(1);
+ loop {
+ std::thread::sleep(interval);
+ if UAC_CHECK_EXIT.load(Ordering::SeqCst) {
+ break;
+ }
+ if let Ok(uac) = is_process_consent_running() {
+ *IS_UAC_RUNNING.lock().unwrap() = uac;
+ }
+ if !crate::platform::is_elevated(None).unwrap_or(false) {
+ if let Ok(elevated) = crate::platform::is_foreground_window_elevated() {
+ *IS_FOREGROUND_WINDOW_ELEVATED.lock().unwrap() = elevated;
+ }
+ }
+ }
+ });
         }
     });
 }

@@ -422,7 +422,7 @@ pub async fn start_with_ready(
             }
         }
     }
-    let error = last_error.expect("IPC startup attempted at least once");
+    let error = last_error.unwrap_or_else(|| anyhow::anyhow!("IPC startup failed with unknown error"));
     let _ = ready.send(Err(error.to_string()));
     Err(error)
 }
