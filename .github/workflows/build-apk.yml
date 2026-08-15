@@ -272,11 +272,27 @@ jobs:
             RUSTFLAGS="$VCPKG_LIB_FLAG" \
             cargo ndk -t $TARGET_ABI -o $OUT build --release --features flutter --features use_dasp --features mediacodec --target $RUST_TARGET
 
-            echo "OK: $TARGET_ABI build complete"
-          done
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
+ echo "OK: $TARGET_ABI build complete"
+
+ # Copy libc++_shared.so from NDK to jniLibs so it gets packaged into the APK
+ # libluoda.so dynamically links against libc++_shared.so; without it the app
+ # crashes on launch with "library libc++_shared.so not found"
+ case $TARGET_ABI in
+   armeabi-v7a) NDK_LIBCXX="arm-linux-androideabi" ;;
+   arm64-v8a)   NDK_LIBCXX="aarch64-linux-android" ;;
+   x86_64)      NDK_LIBCXX="x86_64-linux-android" ;;
+ esac
+ NDK_LIBCXX_PATH="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$NDK_LIBCXX/libc++_shared.so"
+ if [ -f "$NDK_LIBCXX_PATH" ]; then
+   cp "$NDK_LIBCXX_PATH" "$OUT/$TARGET_ABI/"
+   echo "Copied libc++_shared.so for $TARGET_ABI"
+ else
+   echo "WARNING: libc++_shared.so not found at $NDK_LIBCXX_PATH"
+ fi
+ done
+ env:
+ ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+ VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
 
       - name: Flutter pub get
         run: |
