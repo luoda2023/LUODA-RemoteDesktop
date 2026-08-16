@@ -100,7 +100,7 @@ dependencies:
   dynamic_layouts:
     path: dynamic_layouts
   pull_down_button: ^0.9.3
-  device_info_plus: ^12.4.0
+  device_info_plus: ^11.1.1
   qr_flutter: ^4.1.0
   extended_text: ^15.0.2
   xterm: 4.0.0
@@ -115,7 +115,7 @@ dev_dependencies:
   build_runner: ^2.4.6
   freezed: ^2.4.2
   flutter_lints: ^2.0.2
-  ffigen: ^21.0.0
+  ffigen: ^8.0.2
 
 dependency_overrides:
   intl: ^0.19.0

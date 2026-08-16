@@ -351,10 +351,10 @@ packages:
     dependency: "direct main"
     description:
       name: device_info_plus
-      sha256: b4fed1b2835da9d670d7bed7db79ae2a94b0f5ad6312268158a9b5479abbacdd
+      sha256: "72d146c6d7098689ff5c5f66bcf593ac11efc530095385356e131070333e64da"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "12.4.0"
+    version: "11.3.0"
   device_info_plus_platform_interface:
     dependency: transitive
     description:
@@ -430,18 +430,18 @@ packages:
     dependency: "direct dev"
     description:
       name: ffigen
-      sha256: "56fc0be88937409839a59c133dfdee4165e80da324c9e39f59013060249ffb44"
+      sha256: d3e76c2ad48a4e7f93a29a162006f00eba46ce7c08194a77bb5c5e97d1b5ff0a
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "21.0.0"
+    version: "8.0.2"
   file:
     dependency: transitive
     description:
       name: file
-      sha256: a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4
+      sha256: "1b92bec4fc2a72f59a8e15af5f52cd441e4a7860b49499d69dfa817af20e925d"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "7.0.1"
+    version: "6.1.4"
   file_picker:
     dependency: "direct main"
     description:
@@ -959,14 +959,6 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.0.0"
-  native_toolchain_c:
-    dependency: transitive
-    description:
-      name: native_toolchain_c
-      sha256: a1c26117c48cebe5677b0cf0e33a980a79a7c5577effc86f52e5a0d309cdcb60
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "0.19.3"
   nested:
     dependency: transitive
     description:
