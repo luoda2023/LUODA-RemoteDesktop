@@ -484,7 +484,59 @@ def main():
                 print(f"  OK: {name}")
     
     print(f"\n=== Result: {total_checked} checked, {total_fixed} fixed ===")
+    fix_uni_links_v1(candidates)
     return 0 if total_fixed >= 0 else 1
+
+
+def fix_uni_links_v1(cache_dirs):
+    """
+    Flutter 3.47 removed the v1 embedding API (PluginRegistry.Registrar).
+    uni_links (git pin) still ships a legacy `registerWith` method that references
+    it, which breaks the Android Java compile. Remove that method; the v2
+    FlutterPlugin path (onAttachedToEngine) is unaffected.
+    """
+    import glob as _glob
+    fixed_any = False
+    for cache_dir in cache_dirs:
+        if not os.path.isdir(cache_dir):
+            continue
+        pattern = os.path.join(cache_dir, '**', 'UniLinksPlugin.java')
+        for fp in sorted(_glob.glob(pattern, recursive=True)):
+            try:
+                with open(fp, 'r', encoding='utf-8', errors='replace') as f:
+                    content = f.read()
+            except Exception as e:
+                print(f"  SKIP uni_links java {fp}: {e}")
+                continue
+            marker = 'public static void registerWith(@NonNull PluginRegistry.Registrar registrar)'
+            if marker not in content:
+                print(f"  OK uni_links (no v1 registerWith): {fp}")
+                continue
+            # Remove the whole registerWith method block (balanced braces).
+            idx = content.index(marker)
+            start = content.rfind('\n', 0, idx) + 1
+            depth = 0
+            i = idx
+            while i < len(content):
+                if content[i] == '{':
+                    depth += 1
+                elif content[i] == '}':
+                    depth -= 1
+                    if depth == 0:
+                        i += 1
+                        break
+                i += 1
+            removed = content[start:i]
+            new_content = content[:start] + content[i:]
+            # Drop the now-unused registerWith comment block if present.
+            if '/** Plugin registration. */' in new_content:
+                new_content = new_content.replace('/** Plugin registration. */\n', '')
+            with open(fp, 'w', encoding='utf-8', errors='replace') as f:
+                f.write(new_content)
+            fixed_any = True
+            print(f"  FIXED uni_links v1 registerWith: {fp}")
+    if not fixed_any:
+        print("  uni_links: no v1 registerWith needed fixing")
 
 
 if __name__ == '__main__':
