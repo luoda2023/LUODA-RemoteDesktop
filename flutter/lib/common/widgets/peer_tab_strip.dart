@@ -63,7 +63,7 @@ class PeerTabStrip extends StatelessWidget {
  decoration: BoxDecoration(
  color: selected
  ? indicatorColor
- : indicatorColor.withValues(alpha: 0.08),
+ : indicatorColor.withOpacity(0.08),
  borderRadius: BorderRadius.circular(20),
  ),
  child: Row(
@@ -74,7 +74,7 @@ class PeerTabStrip extends StatelessWidget {
  size: 16,
  color: selected
  ? Colors.white
- : indicatorColor.withValues(alpha: 0.6),
+ : indicatorColor.withOpacity(0.6),
  ),
  if (selected) ...[
  SizedBox(width: 5),

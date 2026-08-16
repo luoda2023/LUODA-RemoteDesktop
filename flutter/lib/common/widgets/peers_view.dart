@@ -258,9 +258,9 @@ class _PeersViewState extends State<_PeersView>
  height: 80,
  decoration: BoxDecoration(
  shape: BoxShape.circle,
- color: iconColor.withValues(alpha: 0.1),
+ color: iconColor.withOpacity(0.1),
  border: Border.all(
- color: iconColor.withValues(alpha: 0.15),
+ color: iconColor.withOpacity(0.15),
  width: 1,
  ),
  ),
@@ -277,7 +277,7 @@ class _PeersViewState extends State<_PeersView>
  translate(titleKey),
  style: Theme.of(context).textTheme.titleMedium?.copyWith(
  fontWeight: FontWeight.w600,
- color: Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.7),
+ color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.7),
  ),
  ),
  const SizedBox(height: 8),
@@ -287,7 +287,7 @@ class _PeersViewState extends State<_PeersView>
  textAlign: TextAlign.center,
  style: TextStyle(
  fontSize: 13,
- color: Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.4),
+ color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.4),
  height: 1.4,
  ),
  ),

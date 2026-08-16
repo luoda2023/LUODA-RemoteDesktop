@@ -125,6 +125,64 @@ child: Text(translate('Close')),
 );
 }
 
+/// Show a QR code dialog that encodes the PC's ID + one-time password
+/// so a mobile device can scan and connect in one tap.
+void _showConnectQrDialog(BuildContext context, ServerModel model) {
+final qrData = model.connectQrData;
+final idStr = model.serverId.id;
+final pwdStr = model.serverPasswd.text;
+showDialog(
+context: context,
+builder: (ctx) => AlertDialog(
+title: Row(
+children: [
+Icon(Icons.qr_code_2, color: MyTheme.accent),
+SizedBox(width: 8),
+Text(translate('QR Connect')),
+],
+),
+content: Column(
+mainAxisSize: MainAxisSize.min,
+children: [
+if (qrData.isEmpty)
+Text(translate('Waiting for ID and password...'),
+style: TextStyle(fontSize: 14, color: Colors.grey))
+else
+QrImageView(
+data: qrData,
+version: QrVersions.auto,
+size: 220.0,
+gapless: true,
+backgroundColor: Colors.white,
+),
+SizedBox(height: 12),
+Text(
+translate('qr_connect_tip'),
+textAlign: TextAlign.center,
+style: TextStyle(fontSize: 13, color: Colors.grey),
+maxLines: 3,
+),
+if (idStr.isNotEmpty && pwdStr.isNotEmpty && pwdStr != '-')
+Padding(
+padding: const EdgeInsets.only(top: 8),
+child: Text(
+'ID: $idStr\n${translate("One-time Password")}: $pwdStr',
+textAlign: TextAlign.center,
+style: TextStyle(fontSize: 12, fontFamily: 'monospace'),
+),
+),
+],
+),
+actions: [
+TextButton(
+onPressed: () => Navigator.of(ctx).pop(),
+child: Text(translate('Close')),
+),
+],
+),
+);
+}
+
 // 用 户 反 馈 round-23: 删 除 _directConnect 函 数 — _ipCard 不 再 显 "直 连" 按钮
 // 该 函 数 之 前 给 公 网 / 内 网 IP 行 右 侧 的 "直 连" InkWell 调 用, 已 删.
 // 用 户 若 要 连 IP, 双 击 IP 行 复 制 后 粘 到 远 程 ID 输 入 框 即 可.
@@ -491,7 +549,7 @@ color: Theme.of(context)
 .textTheme
 .titleLarge
 ?.color
-?.withValues(alpha: 0.45)),
+?.withOpacity(0.45)),
 ).marginOnly(top: 8),
 IconButton(
 tooltip: translate('QR Connect'),
@@ -503,7 +561,7 @@ color: Theme.of(context)
 .textTheme
 .titleLarge
 ?.color
-?.withValues(alpha: 0.45)),
+?.withOpacity(0.45)),
 onPressed: () => _showConnectQrDialog(context, model),
 ),
 ],
