@@ -308,9 +308,11 @@ packages:
   dash_chat_2:
     dependency: "direct main"
     description:
-      path: ".pub_deps/Dash-Chat-2-bd6b5b41254e57c5bcece202ebfb234de63e6487"
-      relative: true
-    source: path
+      path: "."
+      ref: HEAD
+      resolved-ref: bd6b5b41254e57c5bcece202ebfb234de63e6487
+      url: "https://github.com/luoda2023/Dash-Chat-2"
+    source: git
     version: "0.0.18"
   dbus:
     dependency: transitive
@@ -339,9 +341,11 @@ packages:
   desktop_multi_window:
     dependency: "direct main"
     description:
-      path: ".pub_deps/luoda_desktop_multi_window-b47e8385e5a75d38319ad706a64b0ead3108b093"
-      relative: true
-    source: path
+      path: "."
+      ref: HEAD
+      resolved-ref: b47e8385e5a75d38319ad706a64b0ead3108b093
+      url: "https://github.com/luoda2023/luoda_desktop_multi_window"
+    source: git
     version: "0.1.0"
   device_info_plus:
     dependency: "direct main"
@@ -534,9 +538,11 @@ packages:
   flutter_gpu_texture_renderer:
     dependency: "direct main"
     description:
-      path: ".pub_deps/flutter_gpu_texture_renderer-08a471bb8ceccdd50483c81cdfa8b81b07b14b87"
-      relative: true
-    source: path
+      path: "."
+      ref: "08a471bb8ceccdd50483c81cdfa8b81b07b14b87"
+      resolved-ref: "08a471bb8ceccdd50483c81cdfa8b81b07b14b87"
+      url: "https://github.com/luoda2023/flutter_gpu_texture_renderer"
+    source: git
     version: "0.0.1"
   flutter_keyboard_visibility:
     dependency: "direct main"
@@ -1401,9 +1407,11 @@ packages:
   texture_rgba_renderer:
     dependency: "direct main"
     description:
-      path: ".pub_deps/flutter_texture_rgba_renderer-42797e0f03141dc2b585f76c64a13974508058b4"
-      relative: true
-    source: path
+      path: "."
+      ref: "42797e0f03141dc2b585f76c64a13974508058b4"
+      resolved-ref: "42797e0f03141dc2b585f76c64a13974508058b4"
+      url: "https://github.com/luoda2023/flutter_texture_rgba_renderer"
+    source: git
     version: "0.0.16"
   timing:
     dependency: transitive
@@ -1440,9 +1448,11 @@ packages:
   uni_links:
     dependency: "direct main"
     description:
-      path: ".pub_deps/uni_links-f416118d843a7e9ed117c7bb7bdc2deda5a9e86f/uni_links"
-      relative: true
-    source: path
+      path: uni_links
+      ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
+      resolved-ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
+      url: "https://github.com/luoda2023/uni_links"
+    source: git
     version: "0.5.1"
   uni_links_desktop:
     dependency: "direct main"
@@ -1695,16 +1705,20 @@ packages:
   window_manager:
     dependency: "direct main"
     description:
-      path: ".pub_deps/window_manager-85789bfe6e4cfaf4ecc00c52857467fdb7f26879"
-      relative: true
-    source: path
+      path: "."
+      ref: HEAD
+      resolved-ref: "85789bfe6e4cfaf4ecc00c52857467fdb7f26879"
+      url: "https://github.com/luoda2023/window_manager"
+    source: git
     version: "0.3.6"
   window_size:
     dependency: "direct main"
     description:
-      path: ".pub_deps/flutter-desktop-embedding-eb3964990cf19629c89ff8cb4a37640c7b3d5601/plugins/window_size"
-      relative: true
-    source: path
+      path: "plugins/window_size"
+      ref: eb3964990cf19629c89ff8cb4a37640c7b3d5601
+      resolved-ref: eb3964990cf19629c89ff8cb4a37640c7b3d5601
+      url: "https://github.com/google/flutter-desktop-embedding.git"
+    source: git
     version: "0.1.0"
   xdg_directories:
     dependency: transitive
