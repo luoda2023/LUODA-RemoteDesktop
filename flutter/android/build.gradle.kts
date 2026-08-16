@@ -1,8 +1,3 @@
-plugins {
-    id("com.android.application") version "8.1.0" apply false
-    id("org.jetbrains.kotlin.android") version "1.8.22" apply false
-}
-
 rootProject.buildDir = file("../build")
 subprojects {
     project.buildDir = file("${rootProject.buildDir}/${project.name}")
@@ -27,4 +22,22 @@ subprojects {
     // Java 17 is the default for Android Gradle Plugin 8.x
     // The whenPluginAdded block was removed because it conflicts with
     // newer Gradle Kotlin DSL versions.
+
+    // AGP 8.x requires an explicit namespace on every Android module.
+    // Older third-party plugins (e.g. external_path) omit it, so we inject
+    // it from their AndroidManifest.xml package attribute when missing.
+    plugins.withId("com.android.library") {
+        extensions.configure<com.android.build.gradle.LibraryExtension> {
+            if (namespace == null) {
+                val manifestFile = file("src/main/AndroidManifest.xml")
+                if (manifestFile.exists()) {
+                    val m = Regex("""package\s*=\s*"([^"]+)"""").find(manifestFile.readText())
+                    if (m != null) {
+                        namespace = m.groupValues[1]
+                        println("Injected namespace ${m.groupValues[1]} for ${project.name}")
+                    }
+                }
+            }
+        }
+    }
 }

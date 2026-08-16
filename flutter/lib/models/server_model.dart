@@ -123,11 +123,23 @@ class ServerModel with ChangeNotifier {
         kOptionAllowNumericOneTimePassword, !_allowNumericOneTimePassword);
   }
 
-  TextEditingController get serverId => _serverId;
+IDTextEditingController get serverId => _serverId;
 
-  TextEditingController get serverPasswd => _serverPasswd;
+TextEditingController get serverPasswd => _serverPasswd;
 
-  List<Client> get clients => _clients;
+List<Client> get clients => _clients;
+
+/// QR data for one-tap connect: encodes ID + password so the mobile
+/// scanner can connect without manual entry.
+String get connectQrData {
+  final id = _serverId.id;
+  final pwd = _serverPasswd.text;
+  if (id.isEmpty || id == _emptyIdShow || pwd.isEmpty || pwd == '-') {
+    return '';
+  }
+  final prefix = bind.mainUriPrefixSync();
+  return '$prefix--connect $id --password $pwd';
+}
 
   final controller = ScrollController();
 

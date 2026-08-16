@@ -65,16 +65,61 @@ class _ScanPageState extends State<ScanPage> {
     );
   }
 
-  void _onQRViewCreated(QRViewController controller) {
-    setState(() {
-      this.controller = controller;
-    });
-    scanSubscription = controller.scannedDataStream.listen((scanData) {
-      if (scanData.code != null) {
-        showServerSettingFromQr(scanData.code!);
-      }
-    });
-  }
+ void _onQRViewCreated(QRViewController controller) {
+ setState(() {
+ this.controller = controller;
+ });
+ scanSubscription = controller.scannedDataStream.listen((scanData) {
+ if (scanData.code != null) {
+ _handleQrCode(scanData.code!);
+ }
+ });
+ }
+
+ /// Dispatch a scanned code: if it looks like a connect QR (--connect),
+ /// initiate a direct connection; otherwise fall back to server config.
+ void _handleQrCode(String code) async {
+ await controller?.pauseCamera();
+ // Connect QR: "luoda://--connect <id> --password <pwd>" or "--connect <id> --password <pwd>"
+ final uriPrefix = bind.mainUriPrefixSync();
+ String raw = code;
+ if (raw.startsWith(uriPrefix)) {
+ raw = raw.substring(uriPrefix.length);
+ }
+ if (raw.contains('--connect')) {
+ _parseAndConnect(raw);
+ return;
+ }
+ // URI link with full prefix (e.g. deep link)
+ if (code.startsWith(uriPrefix)) {
+ Navigator.of(context).pop();
+ handleUriLink(uriString: code);
+ return;
+ }
+ // Fall back to server config QR
+ showServerSettingFromQr(code);
+ }
+
+ void _parseAndConnect(String raw) async {
+ final parts = raw.split(RegExp(r'\s+'));
+ String? id;
+ String? password;
+ for (int i = 0; i < parts.length; i++) {
+ if (parts[i] == '--connect' && i + 1 < parts.length) {
+ id = parts[i + 1];
+ i++;
+ } else if (parts[i] == '--password' && i + 1 < parts.length) {
+ password = parts[i + 1];
+ i++;
+ }
+ }
+ if (id != null && id.isNotEmpty) {
+ Navigator.of(context).pop();
+ connect(context, id, password: password);
+ } else {
+ showToast('Invalid QR code');
+ }
+ }
 
   void _onPermissionSet(BuildContext context, QRViewController ctrl, bool p) {
     if (!p) {
@@ -95,13 +140,9 @@ class _ScanPageState extends State<ScanPage> {
         );
         var bitmap = BinaryBitmap(HybridBinarizer(source));
 
-        var reader = QRCodeReader();
-        var result = reader.decode(bitmap);
-        if (result.text.startsWith(bind.mainUriPrefixSync())) {
-          handleUriLink(uriString: result.text);
-        } else {
-          showServerSettingFromQr(result.text);
-        }
+var reader = QRCodeReader();
+var result = reader.decode(bitmap);
+_handleQrCode(result.text);
       } catch (e) {
         showToast('No QR code found');
       }

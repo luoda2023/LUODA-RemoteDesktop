@@ -13,6 +13,7 @@ import '../../models/platform_model.dart';
 import '../../models/state_model.dart';
 import '../first_run_permission_flow.dart';
 import 'connection_page.dart';
+import 'scan_page.dart';
 
 const _kFirstRunAuthorization = 'android-first-run-authorization-v2';
 
@@ -348,9 +349,9 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initPages() {
     _pages.clear();
     if (!bind.isIncomingOnly()) {
-      _pages.add(ConnectionPage(
-        appBarActions: [],
-      ));
+_pages.add(ConnectionPage(
+appBarActions: bind.isDisableSettings() ? [] : [_ScanConnectButton()],
+));
     }
     if (isAndroid && !bind.isOutgoingOnly()) {
       _chatPageTabIndex = _pages.length;
@@ -544,12 +545,30 @@ class WebHomePage extends StatelessWidget {
           break;
       }
     }
-    if (id != null) {
-      connect(context, id, 
-        isFileTransfer: isFileTransfer, 
-        isViewCamera: isViewCamera, 
-        isTerminal: isTerminal,
-        password: password);
-    }
+if (id != null) {
+connect(context, id,
+isFileTransfer: isFileTransfer,
+isViewCamera: isViewCamera,
+isTerminal: isTerminal,
+password: password);
+}
+}
+
+}
+
+/// AppBar button that opens the QR scanner for one-tap connect.
+class _ScanConnectButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(Icons.qr_code_scanner),
+      tooltip: translate('Scan QR'),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (ctx) => ScanPage()),
+        );
+      },
+    );
   }
 }

@@ -1659,9 +1659,13 @@ abstract class Luoda {
 
   FlutterRustBridgeTaskConstMeta get kMainGetHardOptionConstMeta;
 
-  String mainGetBuildinOption({required String key, dynamic hint});
+String mainGetBuildinOption({required String key, dynamic hint});
 
-  FlutterRustBridgeTaskConstMeta get kMainGetBuildinOptionConstMeta;
+FlutterRustBridgeTaskConstMeta get kMainGetBuildinOptionConstMeta;
+
+void mainSetBuildinOption({required String key, required String value, dynamic hint});
+
+FlutterRustBridgeTaskConstMeta get kMainSetBuildinOptionConstMeta;
 
   String getSettingsTabConfig({dynamic hint});
 
@@ -7747,11 +7751,29 @@ class LuodaImpl implements Luoda {
     ));
   }
 
-  FlutterRustBridgeTaskConstMeta get kMainGetBuildinOptionConstMeta =>
-      const FlutterRustBridgeTaskConstMeta(
-        debugName: "main_get_buildin_option",
-        argNames: ["key"],
-      );
+FlutterRustBridgeTaskConstMeta get kMainGetBuildinOptionConstMeta =>
+const FlutterRustBridgeTaskConstMeta(
+debugName: "main_get_buildin_option",
+argNames: ["key"],
+);
+
+void mainSetBuildinOption({required String key, required String value, dynamic hint}) {
+var arg0 = _platform.api2wire_String(key);
+var arg1 = _platform.api2wire_String(value);
+return _platform.executeSync(FlutterRustBridgeSyncTask(
+callFfi: () => _platform.inner.wire_main_set_buildin_option(arg0, arg1),
+parseSuccessData: _wire2api_unit,
+constMeta: kMainSetBuildinOptionConstMeta,
+argValues: [key, value],
+hint: hint,
+));
+}
+
+FlutterRustBridgeTaskConstMeta get kMainSetBuildinOptionConstMeta =>
+const FlutterRustBridgeTaskConstMeta(
+debugName: "main_set_buildin_option",
+argNames: ["key", "value"],
+);
 
   String getSettingsTabConfig({dynamic hint}) {
     return _platform.executeSync(FlutterRustBridgeSyncTask(
@@ -13796,8 +13818,26 @@ class LuodaWire implements FlutterRustBridgeWireBase {
       ffi.NativeFunction<
           WireSyncReturn Function(
               ffi.Pointer<wire_uint_8_list>)>>('wire_main_get_buildin_option');
-  late final _wire_main_get_buildin_option = _wire_main_get_buildin_optionPtr
-      .asFunction<WireSyncReturn Function(ffi.Pointer<wire_uint_8_list>)>();
+late final _wire_main_get_buildin_option = _wire_main_get_buildin_optionPtr
+.asFunction<WireSyncReturn Function(ffi.Pointer<wire_uint_8_list>)>();
+
+WireSyncReturn wire_main_set_buildin_option(
+ffi.Pointer<wire_uint_8_list> key,
+ffi.Pointer<wire_uint_8_list> value,
+) {
+return _wire_main_set_buildin_option(
+key,
+value,
+);
+}
+
+late final _wire_main_set_buildin_optionPtr = _lookup<
+ffi.NativeFunction<
+WireSyncReturn Function(
+ffi.Pointer<wire_uint_8_list>,
+ffi.Pointer<wire_uint_8_list>)>>('wire_main_set_buildin_option');
+late final _wire_main_set_buildin_option = _wire_main_set_buildin_optionPtr
+.asFunction<WireSyncReturn Function(ffi.Pointer<wire_uint_8_list>, ffi.Pointer<wire_uint_8_list>)>();
 
   WireSyncReturn wire_get_settings_tab_config() {
     return _wire_get_settings_tab_config();

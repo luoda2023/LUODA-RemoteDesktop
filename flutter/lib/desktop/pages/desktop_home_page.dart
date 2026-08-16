@@ -10,6 +10,7 @@ import 'package:luoda_flutter/common/formatter/id_formatter.dart';
 import 'package:luoda_flutter/common/widgets/animated_rotation_widget.dart';
 import 'package:luoda_flutter/common/widgets/custom_password.dart';
 import 'package:luoda_flutter/consts.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:luoda_flutter/desktop/pages/connection_page.dart';
 import 'package:luoda_flutter/desktop/pages/desktop_setting_page.dart';
 import 'package:luoda_flutter/desktop/pages/desktop_tab_page.dart';
@@ -75,6 +76,64 @@ class _DesktopHomePageState extends State<DesktopHomePage>
  final trimmed = id.trim();
  if (trimmed.isEmpty) return;
  connect(buildCtx, trimmed);
+}
+
+/// Show a QR code dialog that encodes the PC's ID + one-time password
+/// so a mobile device can scan and connect in one tap.
+void _showConnectQrDialog(BuildContext context, ServerModel model) {
+final qrData = model.connectQrData;
+final idStr = model.serverId.id;
+final pwdStr = model.serverPasswd.text;
+showDialog(
+context: context,
+builder: (ctx) => AlertDialog(
+title: Row(
+children: [
+Icon(Icons.qr_code_2, color: MyTheme.accent),
+SizedBox(width: 8),
+Text(translate('QR Connect')),
+],
+),
+content: Column(
+mainAxisSize: MainAxisSize.min,
+children: [
+if (qrData.isEmpty)
+Text(translate('Waiting for ID and password...'),
+style: TextStyle(fontSize: 14, color: Colors.grey))
+else
+QrImageView(
+data: qrData,
+version: QrVersions.auto,
+size: 220.0,
+gapless: true,
+backgroundColor: Colors.white,
+),
+SizedBox(height: 12),
+Text(
+translate('qr_connect_tip'),
+textAlign: TextAlign.center,
+style: TextStyle(fontSize: 13, color: Colors.grey),
+maxLines: 3,
+),
+if (idStr.isNotEmpty && pwdStr.isNotEmpty && pwdStr != '-')
+Padding(
+padding: const EdgeInsets.only(top: 8),
+child: Text(
+'ID: $idStr\n${translate("One-time Password")}: $pwdStr',
+textAlign: TextAlign.center,
+style: TextStyle(fontSize: 12, fontFamily: 'monospace'),
+),
+),
+],
+),
+actions: [
+TextButton(
+onPressed: () => Navigator.of(ctx).pop(),
+child: Text(translate('Close')),
+),
+],
+),
+);
 }
 
 // 用 户 反 馈 round-23: 删 除 _directConnect 函 数 — _ipCard 不 再 显 "直 连" 按钮
@@ -464,23 +523,36 @@ Positioned(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        translate("ID"),
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.color
-                                ?.withOpacity(0.45)),
-                      ).marginOnly(top: 8),
-                    ],
-                  ),
+Row(
+mainAxisAlignment: MainAxisAlignment.spaceBetween,
+crossAxisAlignment: CrossAxisAlignment.start,
+children: [
+Text(
+translate("ID"),
+style: TextStyle(
+fontSize: 12,
+fontWeight: FontWeight.w600,
+color: Theme.of(context)
+.textTheme
+.titleLarge
+?.color
+?.withOpacity(0.45)),
+).marginOnly(top: 8),
+IconButton(
+tooltip: translate('QR Connect'),
+padding: EdgeInsets.zero,
+constraints:
+BoxConstraints.tightFor(width: 30, height: 30),
+icon: Icon(Icons.qr_code_2, size: 18,
+color: Theme.of(context)
+.textTheme
+.titleLarge
+?.color
+?.withOpacity(0.45)),
+onPressed: () => _showConnectQrDialog(context, model),
+),
+],
+),
                   GestureDetector(
                     onDoubleTap: () {
                       Clipboard.setData(

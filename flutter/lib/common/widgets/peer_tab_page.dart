@@ -151,7 +151,7 @@ class _PeerTabPageState extends State<PeerTabPage>
     final model = Provider.of<PeerTabModel>(context);
     return PeerTabStrip(
       selectedIndex: model.currentTab,
-      labels: PeerTabModel.tabNames,
+      labels: PeerTabModel.tabNames.map((e) => translate(e)).toList(),
       icons: PeerTabModel.icons,
       visibleIndexes: model.visibleEnabledOrderedIndexs,
       onSelected: (index) async {

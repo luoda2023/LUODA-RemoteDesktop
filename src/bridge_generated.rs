@@ -4926,19 +4926,36 @@ fn wire_main_get_hard_option_impl(
     )
 }
 fn wire_main_get_buildin_option_impl(
-    key: impl Wire2Api<String> + UnwindSafe,
+key: impl Wire2Api<String> + UnwindSafe,
 ) -> support::WireSyncReturn {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync(
-        WrapInfo {
-            debug_name: "main_get_buildin_option",
-            port: None,
-            mode: FfiCallMode::Sync,
-        },
-        move || {
-            let api_key = key.wire2api();
-            Ok(main_get_buildin_option(api_key))
-        },
-    )
+FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync(
+WrapInfo {
+debug_name: "main_get_buildin_option",
+port: None,
+mode: FfiCallMode::Sync,
+},
+move || {
+let api_key = key.wire2api();
+Ok(main_get_buildin_option(api_key))
+},
+)
+}
+fn wire_main_set_buildin_option_impl(
+key: impl Wire2Api<String> + UnwindSafe,
+value: impl Wire2Api<String> + UnwindSafe,
+) -> support::WireSyncReturn {
+FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync(
+WrapInfo {
+debug_name: "main_set_buildin_option",
+port: None,
+mode: FfiCallMode::Sync,
+},
+move || {
+let api_key = key.wire2api();
+let api_value = value.wire2api();
+Ok(main_set_buildin_option(api_key, api_value))
+},
+)
 }
 fn wire_get_settings_tab_config_impl() -> support::WireSyncReturn {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync(

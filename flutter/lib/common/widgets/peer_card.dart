@@ -80,16 +80,21 @@ class _PeerCardState extends State<_PeerCard>
         child: child);
   }
 
-  Widget _buildPortrait() {
-    final peer = super.widget.peer;
-    return Card(
-        margin: EdgeInsets.symmetric(horizontal: 2),
-        child: gestureDetector(
-          child: Container(
-              padding: EdgeInsets.only(left: 12, top: 8, bottom: 8),
-              child: _buildPeerTile(context, peer, null)),
-        ));
-  }
+ Widget _buildPortrait() {
+ final peer = super.widget.peer;
+ return Card(
+ elevation: 2,
+ shadowColor: MyTheme.accent.withOpacity(0.12),
+ margin: EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+ shape: RoundedRectangleBorder(
+ borderRadius: BorderRadius.circular(14),
+ ),
+ child: gestureDetector(
+ child: Container(
+ padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+ child: _buildPeerTile(context, peer, null)),
+ ));
+ }
 
   Widget _buildLandscape() {
     final peer = super.widget.peer;
@@ -131,138 +136,290 @@ class _PeerCardState extends State<_PeerCard>
     return peerTabShowNote(widget.tab) && peer.note.isNotEmpty;
   }
 
-  makeChild(bool isPortrait, Peer peer) {
-    final name = hideUsernameOnCard == true
-        ? peer.hostname
-        : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
-    final greyStyle = TextStyle(
-        fontSize: 11,
-        color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.6));
-    final showNote = _showNote(peer);
-    final platformInfo = _getPlatformInfo(peer.platform);
-    final isListMode = peerCardUiType.value == PeerUiType.list;
-    final platformColor = str2color('${peer.id}${peer.platform}', 0x7f);
+ makeChild(bool isPortrait, Peer peer) {
+ final name = hideUsernameOnCard == true
+ ? peer.hostname
+ : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
+ final greyStyle = TextStyle(
+ fontSize: 12,
+ color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.5));
+ final showNote = _showNote(peer);
+ final platformInfo = _getPlatformInfo(peer.platform);
+ final isListMode = peerCardUiType.value == PeerUiType.list;
+ final platformColor = str2color('${peer.id}${peer.platform}', 0x7f);
 
-    return Row(
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        // 左侧平台图标区域 - 根据不同模式不同大小
-        Container(
-          decoration: BoxDecoration(
-            color: platformColor.withOpacity(0.15),
-            borderRadius: isPortrait
-                ? BorderRadius.circular(_tileRadius)
-                : BorderRadius.only(
-                    topLeft: Radius.circular(_tileRadius),
-                    bottomLeft: Radius.circular(_tileRadius),
-                  ),
-          ),
-          alignment: Alignment.center,
-          width: isPortrait ? 50 : (isListMode ? 36 : 42),
-          child: Icon(
-            platformInfo['icon'] as IconData,
-            size: isPortrait ? 22 : (isListMode ? 16 : 18),
-            color: platformColor,
-          ),
-        ),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.background,
-              borderRadius: BorderRadius.only(
-                topRight: Radius.circular(_tileRadius),
-                bottomRight: Radius.circular(_tileRadius),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        // 在线状态指示点
-                        Container(
-                          width: isPortrait ? 4 : (isListMode ? 6 : 8),
-                          height: isPortrait ? 4 : (isListMode ? 6 : 8),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: peer.online ? Color(0xFF2ECC71) : Colors.grey.shade300,
-                          ),
-                        ),
-                        SizedBox(width: 6),
-                        // 设备ID或别名
-                        Expanded(
-                            child: Text(
-                          peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: peer.online ? FontWeight.w600 : FontWeight.normal,
-                          ),
-                        )),
-                        // 列表模式额外显示系统标签
-                        if (isListMode)
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: platformColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text(
-                              platformInfo['label'] as String,
-                              style: TextStyle(fontSize: 9, color: platformColor),
-                            ),
-                          ),
-                      ]).marginOnly(top: isPortrait ? 0 : 2),
-                      // 第二行：用户名@主机名
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Tooltip(
-                              message: name,
-                              waitDuration: const Duration(seconds: 1),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  name,
-                                  style: isPortrait ? null : greyStyle,
-                                  textAlign: TextAlign.start,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (showNote)
-                            Expanded(
-                              child: Tooltip(
-                                message: peer.note,
-                                waitDuration: const Duration(seconds: 1),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    peer.note,
-                                    style: isPortrait ? null : greyStyle,
-                                    textAlign: TextAlign.start,
-                                    overflow: TextOverflow.ellipsis,
-                                  ).marginOnly(left: isListMode ? 16 : 4),
-                                ),
-                              ),
-                            )
-                        ],
-                      ),
-                    ],
-                  ).marginOnly(top: 2),
-                ),
-                isPortrait
-                    ? checkBoxOrActionMorePortrait(peer)
-                    : checkBoxOrActionMoreLandscape(peer, isTile: true),
-              ],
-            ).paddingOnly(left: 8.0, top: 3.0),
-          ),
-        )
-      ],
-    );
-  }
+ if (isPortrait) {
+ // 竖屏：现代圆角卡片布局
+ return _buildPortraitContent(
+ peer, name, platformInfo, platformColor, greyStyle, showNote);
+ }
+
+ // 横屏：保持原有布局
+ return Row(
+ mainAxisSize: MainAxisSize.max,
+ children: [
+ Container(
+ decoration: BoxDecoration(
+ color: platformColor.withOpacity(0.15),
+ borderRadius: BorderRadius.only(
+ topLeft: Radius.circular(_tileRadius),
+ bottomLeft: Radius.circular(_tileRadius),
+ ),
+ ),
+ alignment: Alignment.center,
+ width: isListMode ? 36 : 42,
+ child: Icon(
+ platformInfo['icon'] as IconData,
+ size: isListMode ? 16 : 18,
+ color: platformColor,
+ ),
+ ),
+ Expanded(
+ child: Container(
+ decoration: BoxDecoration(
+ color: Theme.of(context).colorScheme.background,
+ borderRadius: BorderRadius.only(
+ topRight: Radius.circular(_tileRadius),
+ bottomRight: Radius.circular(_tileRadius),
+ ),
+ ),
+ child: Row(
+ children: [
+ Expanded(
+ child: Column(
+ crossAxisAlignment: CrossAxisAlignment.start,
+ children: [
+ Row(children: [
+ Container(
+ width: isListMode ? 6 : 8,
+ height: isListMode ? 6 : 8,
+ decoration: BoxDecoration(
+ shape: BoxShape.circle,
+ color: peer.online ? Color(0xFF2ECC71) : Colors.grey.shade300,
+ ),
+ ),
+ SizedBox(width: 6),
+ Expanded(
+ child: Text(
+ peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
+ overflow: TextOverflow.ellipsis,
+ style: Theme.of(context).textTheme.titleSmall?.copyWith(
+ fontWeight: peer.online ? FontWeight.w600 : FontWeight.normal,
+ ),
+ )),
+ if (isListMode)
+ Container(
+ padding: EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+ decoration: BoxDecoration(
+ color: platformColor.withOpacity(0.1),
+ borderRadius: BorderRadius.circular(3),
+ ),
+ child: Text(
+ platformInfo['label'] as String,
+ style: TextStyle(fontSize: 9, color: platformColor),
+ ),
+ ),
+ ]).marginOnly(top: 2),
+ Row(
+ children: [
+ Flexible(
+ child: Tooltip(
+ message: name,
+ waitDuration: const Duration(seconds: 1),
+ child: Align(
+ alignment: Alignment.centerLeft,
+ child: Text(
+ name,
+ style: greyStyle,
+ textAlign: TextAlign.start,
+ overflow: TextOverflow.ellipsis,
+ ),
+ ),
+ ),
+ ),
+ if (showNote)
+ Expanded(
+ child: Tooltip(
+ message: peer.note,
+ waitDuration: const Duration(seconds: 1),
+ child: Align(
+ alignment: Alignment.centerLeft,
+ child: Text(
+ peer.note,
+ style: greyStyle,
+ textAlign: TextAlign.start,
+ overflow: TextOverflow.ellipsis,
+ ).marginOnly(left: isListMode ? 16 : 4),
+ ),
+ ),
+ )
+ ],
+ ),
+ ],
+ ).marginOnly(top: 2),
+ ),
+ checkBoxOrActionMoreLandscape(peer, isTile: true),
+ ],
+ ).paddingOnly(left: 8.0, top: 3.0),
+ ),
+ )
+ ],
+ );
+ }
+
+ /// 竖屏模式：现代圆角卡片内容
+ Widget _buildPortraitContent(
+ Peer peer,
+ String name,
+ Map<String, dynamic> platformInfo,
+ Color platformColor,
+ TextStyle greyStyle,
+ bool showNote,
+ ) {
+ return Row(
+ mainAxisSize: MainAxisSize.max,
+ children: [
+ // 左侧：渐变圆形平台图标 + 在线状态点
+ Stack(
+ clipBehavior: Clip.none,
+ children: [
+ Container(
+ width: 48,
+ height: 48,
+ decoration: BoxDecoration(
+ shape: BoxShape.circle,
+ gradient: LinearGradient(
+ begin: Alignment.topLeft,
+ end: Alignment.bottomRight,
+ colors: [
+ platformColor,
+ platformColor.withOpacity(0.7),
+ ],
+ ),
+ boxShadow: [
+ BoxShadow(
+ color: platformColor.withOpacity(0.25),
+ blurRadius: 6,
+ offset: Offset(0, 2),
+ ),
+ ],
+ ),
+ alignment: Alignment.center,
+ child: Icon(
+ platformInfo['icon'] as IconData,
+ size: 24,
+ color: Colors.white,
+ ),
+ ),
+ // 在线状态指示点 — 叠在右下角
+ Positioned(
+ bottom: -1,
+ right: -1,
+ child: Container(
+ width: 14,
+ height: 14,
+ decoration: BoxDecoration(
+ shape: BoxShape.circle,
+ color: peer.online ? Color(0xFF2ECC71) : Colors.grey.shade400,
+ border: Border.all(
+ color: Theme.of(context).cardColor,
+ width: 2.5,
+ ),
+ boxShadow: peer.online
+ ? [
+ BoxShadow(
+ color: Color(0xFF2ECC71).withOpacity(0.4),
+ blurRadius: 4,
+ spreadRadius: 0.5,
+ ),
+ ]
+ : null,
+ ),
+ ),
+ ),
+ ],
+ ).marginOnly(right: 12),
+ // 中间：文字内容
+ Expanded(
+ child: Column(
+ crossAxisAlignment: CrossAxisAlignment.start,
+ mainAxisSize: MainAxisSize.min,
+ children: [
+ // 第一行：设备别名/ID
+ Row(
+ children: [
+ Expanded(
+ child: Text(
+ peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
+ overflow: TextOverflow.ellipsis,
+ style: Theme.of(context).textTheme.titleMedium?.copyWith(
+ fontWeight: peer.online ? FontWeight.w600 : FontWeight.w500,
+ fontSize: 15,
+ ),
+ ),
+ ),
+ ],
+ ),
+ SizedBox(height: 2),
+ // 第二行：用户名@主机名 + 平台标签
+ Row(
+ children: [
+ Flexible(
+ child: Tooltip(
+ message: name,
+ waitDuration: const Duration(seconds: 1),
+ child: Text(
+ name.isEmpty ? translate('Unknown device') : name,
+ style: greyStyle,
+ overflow: TextOverflow.ellipsis,
+ ),
+ ),
+ ),
+ SizedBox(width: 6),
+ // 平台胶囊标签
+ Container(
+ padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+ decoration: BoxDecoration(
+ color: platformColor.withOpacity(0.1),
+ borderRadius: BorderRadius.circular(20),
+ border: Border.all(
+ color: platformColor.withOpacity(0.15),
+ width: 0.5,
+ ),
+ ),
+ child: Text(
+ platformInfo['label'] as String,
+ style: TextStyle(
+ fontSize: 10,
+ color: platformColor,
+ fontWeight: FontWeight.w500,
+ ),
+ ),
+ ),
+ if (showNote) ...[
+ SizedBox(width: 6),
+ Flexible(
+ child: Tooltip(
+ message: peer.note,
+ waitDuration: const Duration(seconds: 1),
+ child: Text(
+ peer.note,
+ style: greyStyle,
+ overflow: TextOverflow.ellipsis,
+ ),
+ ),
+ ),
+ ],
+ ],
+ ),
+ ],
+ ),
+ ),
+ // 右侧：更多按钮
+ checkBoxOrActionMorePortrait(peer),
+ ],
+ );
+ }
 
   Widget _buildPeerTile(
       BuildContext context, Peer peer, Rx<BoxDecoration?>? deco) {
@@ -539,33 +696,44 @@ class _PeerCardState extends State<_PeerCard>
     }
   }
 
-  Widget checkBoxOrActionMorePortrait(Peer peer) {
-    final PeerTabModel peerTabModel = Provider.of(context);
-    final selected = peerTabModel.isPeerSelected(peer.id);
-    if (peerTabModel.multiSelectionMode) {
-      return Padding(
-        padding: const EdgeInsets.all(12),
-        child: selected
-            ? Icon(
-                Icons.check_box,
-                color: MyTheme.accent,
-              )
-            : Icon(Icons.check_box_outline_blank),
-      );
-    } else {
-      return InkWell(
-          child: const Padding(
-              padding: EdgeInsets.all(12), child: Icon(Icons.more_vert)),
-          onTapDown: (e) {
-            final x = e.globalPosition.dx;
-            final y = e.globalPosition.dy;
-            _menuPos = RelativeRect.fromLTRB(x, y, x, y);
-          },
-          onTap: () {
-            _showPeerMenu(peer.id);
-          });
-    }
-  }
+ Widget checkBoxOrActionMorePortrait(Peer peer) {
+ final PeerTabModel peerTabModel = Provider.of(context);
+ final selected = peerTabModel.isPeerSelected(peer.id);
+ if (peerTabModel.multiSelectionMode) {
+ return Padding(
+ padding: const EdgeInsets.all(10),
+ child: selected
+ ? Icon(
+ Icons.check_box,
+ color: MyTheme.accent,
+ size: 24,
+ )
+ : Icon(Icons.check_box_outline_blank, size: 24),
+ );
+ } else {
+ return InkWell(
+ customBorder: RoundedRectangleBorder(
+ borderRadius: BorderRadius.circular(20),
+ ),
+ child: Container(
+ padding: const EdgeInsets.all(8),
+ decoration: BoxDecoration(
+ shape: BoxShape.circle,
+ color: Theme.of(context).colorScheme.background,
+ ),
+ child: Icon(Icons.more_horiz, size: 20,
+ color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.5)),
+ ),
+ onTapDown: (e) {
+ final x = e.globalPosition.dx;
+ final y = e.globalPosition.dy;
+ _menuPos = RelativeRect.fromLTRB(x, y, x, y);
+ },
+ onTap: () {
+ _showPeerMenu(peer.id);
+ });
+ }
+ }
 
   Widget checkBoxOrActionMoreLandscape(Peer peer, {required bool isTile}) {
     final PeerTabModel peerTabModel = Provider.of(context);

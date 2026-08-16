@@ -2178,9 +2178,17 @@ pub extern "C" fn wire_main_get_hard_option(key: *mut wire_uint_8_list) -> suppo
 
 #[no_mangle]
 pub extern "C" fn wire_main_get_buildin_option(
-    key: *mut wire_uint_8_list,
+key: *mut wire_uint_8_list,
 ) -> support::WireSyncReturn {
-    wire_main_get_buildin_option_impl(key)
+wire_main_get_buildin_option_impl(key)
+}
+
+#[no_mangle]
+pub extern "C" fn wire_main_set_buildin_option(
+key: *mut wire_uint_8_list,
+value: *mut wire_uint_8_list,
+) -> support::WireSyncReturn {
+wire_main_set_buildin_option_impl(key, value)
 }
 
 #[no_mangle]

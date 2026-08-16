@@ -2907,7 +2907,28 @@ pub fn main_get_hard_option(key: String) -> SyncReturn<String> {
 }
 
 pub fn main_get_buildin_option(key: String) -> SyncReturn<String> {
-    SyncReturn(get_builtin_option(&key))
+// For keys that are persisted at runtime (set via UI), fall back to LocalConfig
+// so they survive restarts — BUILTIN_SETTINGS alone is memory-only.
+if key == "default-connect-password" {
+let v = config::LocalConfig::get_option(&key);
+if !v.is_empty() {
+return SyncReturn(v);
+}
+}
+SyncReturn(get_builtin_option(&key))
+}
+
+pub fn main_set_buildin_option(key: String, value: String) -> SyncReturn<()> {
+// Persist runtime-set builtin options to LocalConfig so they survive restarts.
+if key == "default-connect-password" {
+config::LocalConfig::set_option(key, value);
+} else {
+config::BUILTIN_SETTINGS
+.write()
+.unwrap()
+.insert(key, value);
+}
+SyncReturn(())
 }
 
 pub fn get_settings_tab_config() -> SyncReturn<String> {

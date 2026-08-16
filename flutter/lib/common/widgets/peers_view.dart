@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 
 import 'package:dynamic_layouts/dynamic_layouts.dart';
 import 'package:flutter/foundation.dart';
@@ -87,15 +86,9 @@ class _PeersView extends StatefulWidget {
 
 /// State for the peer widget.
 class _PeersViewState extends State<_PeersView>
-    with WindowListener, WidgetsBindingObserver {
-  final HashMap<String, String> _emptyMessages = HashMap.from({
-    LoadEvent.recent: 'empty_recent_tip',
-    LoadEvent.favorite: 'empty_favorite_tip',
-    LoadEvent.lan: 'empty_lan_tip',
-    LoadEvent.addressBook: 'empty_address_book_tip',
-  });
-  final space = (isDesktop || isWebDesktop) ? 12.0 : 8.0;
-  final _curPeers = <String>{};
+ with WindowListener, WidgetsBindingObserver {
+ final space = (isDesktop || isWebDesktop) ? 12.0 : 6.0;
+ final _curPeers = <String>{};
   var _lastChangeTime = DateTime.now();
   var _lastQueryPeers = <String>{};
   var _lastQueryTime = DateTime.now();
@@ -182,37 +175,129 @@ class _PeersViewState extends State<_PeersView>
     return ChangeNotifierProvider<Peers>.value(
       value: widget.peers,
       child: Consumer<Peers>(builder: (context, peers, child) {
-        if (peers.peers.isEmpty) {
-          gFFI.peerTabModel.setCurrentTabCachedPeers([]);
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.sentiment_very_dissatisfied_rounded,
-                  color: Theme.of(context).tabBarTheme.labelColor,
-                  size: 40,
-                ).paddingOnly(bottom: 10),
-                Text(
-                  translate(
-                    _emptyMessages[widget.peers.loadEvent] ?? 'Empty',
-                  ),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Theme.of(context).tabBarTheme.labelColor,
-                  ),
-                ),
-              ],
-            ),
-          );
-        } else {
-          return _buildPeersView(peers);
-        }
+ if (peers.peers.isEmpty) {
+ gFFI.peerTabModel.setCurrentTabCachedPeers([]);
+ return _buildEmptyState(context);
+ } else {
+ return _buildPeersView(peers);
+ }
       }),
-    );
-  }
+ );
+ }
 
-  onVisibilityChanged(VisibilityInfo info) {
+ /// 空列表引导式空状态 UI
+ Widget _buildEmptyState(BuildContext context) {
+ final tabIndex = widget.peerTabIndex;
+ final IconData emptyIcon;
+ final Color iconColor;
+ switch (tabIndex) {
+ case PeerTabIndex.recent:
+ emptyIcon = Icons.history_rounded;
+ iconColor = const Color(0xFF4A90D9);
+ break;
+ case PeerTabIndex.fav:
+ emptyIcon = Icons.star_rounded;
+ iconColor = const Color(0xFFE74C3C);
+ break;
+ case PeerTabIndex.lan:
+ emptyIcon = Icons.radar_rounded;
+ iconColor = const Color(0xFF2E9D58);
+ break;
+ case PeerTabIndex.ab:
+ emptyIcon = Icons.contacts_rounded;
+ iconColor = const Color(0xFFD98208);
+ break;
+ case PeerTabIndex.group:
+ emptyIcon = Icons.devices_rounded;
+ iconColor = const Color(0xFF8E4DA8);
+ break;
+ case PeerTabIndex.vip:
+ emptyIcon = Icons.workspace_premium_rounded;
+ iconColor = const Color(0xFF148D83);
+ break;
+ }
+
+ final String titleKey;
+ final String subtitleKey;
+ switch (tabIndex) {
+ case PeerTabIndex.recent:
+ titleKey = 'empty_recent_title';
+ subtitleKey = 'empty_recent_tip';
+ break;
+ case PeerTabIndex.fav:
+ titleKey = 'empty_favorite_title';
+ subtitleKey = 'empty_favorite_tip';
+ break;
+ case PeerTabIndex.lan:
+ titleKey = 'empty_lan_title';
+ subtitleKey = 'empty_lan_tip';
+ break;
+ case PeerTabIndex.ab:
+ titleKey = 'empty_ab_title';
+ subtitleKey = 'empty_address_book_tip';
+ break;
+ case PeerTabIndex.group:
+ titleKey = 'empty_group_title';
+ subtitleKey = 'empty_group_tip';
+ break;
+ case PeerTabIndex.vip:
+ titleKey = 'empty_vip_title';
+ subtitleKey = 'empty_vip_tip';
+ break;
+ }
+
+ return Center(
+ child: Padding(
+ padding: const EdgeInsets.symmetric(horizontal: 32),
+ child: Column(
+ mainAxisAlignment: MainAxisAlignment.center,
+ children: [
+ // 大圆形图标容器
+ Container(
+ width: 80,
+ height: 80,
+ decoration: BoxDecoration(
+ shape: BoxShape.circle,
+ color: iconColor.withOpacity(0.1),
+ border: Border.all(
+ color: iconColor.withOpacity(0.15),
+ width: 1,
+ ),
+ ),
+ alignment: Alignment.center,
+ child: Icon(
+ emptyIcon,
+ size: 40,
+ color: iconColor,
+ ),
+ ),
+ const SizedBox(height: 20),
+ // 标题
+ Text(
+ translate(titleKey),
+ style: Theme.of(context).textTheme.titleMedium?.copyWith(
+ fontWeight: FontWeight.w600,
+ color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.7),
+ ),
+ ),
+ const SizedBox(height: 8),
+ // 副标题/引导文案
+ Text(
+ translate(subtitleKey),
+ textAlign: TextAlign.center,
+ style: TextStyle(
+ fontSize: 13,
+ color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.4),
+ height: 1.4,
+ ),
+ ),
+ ],
+ ),
+ ),
+ );
+ }
+
+ onVisibilityChanged(VisibilityInfo info) {
     final peerId = _peerId((info.key as ValueKey).value);
     if (info.visibleFraction > 0.00001) {
       _curPeers.add(peerId);
@@ -260,14 +345,15 @@ class _PeersViewState extends State<_PeersView>
             // We should avoid too many rebuilds. Win10(Some machines) on Flutter 3.19.6.
             // Continious rebuilds of `ListView.builder` will cause memory leak.
             // Simple demo can reproduce this issue.
-            final Widget child = Obx(() => stateGlobal.isPortrait.isTrue
-                ? ListView.builder(
-                    itemCount: peers.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      return buildOnePeer(peers[index], true).marginOnly(
-                          top: index == 0 ? 0 : space / 2, bottom: space / 2);
-                    },
-                  )
+ final Widget child = Obx(() => stateGlobal.isPortrait.isTrue
+ ? ListView.builder(
+ padding: const EdgeInsets.symmetric(vertical: 4),
+ itemCount: peers.length,
+ itemBuilder: (BuildContext context, int index) {
+ return buildOnePeer(peers[index], true).marginOnly(
+ top: index == 0 ? 0 : space / 2, bottom: space / 2);
+ },
+ )
                 : peerCardUiType.value == PeerUiType.list
                     ? ListView.builder(
                         controller: _scrollController,

@@ -868,11 +868,12 @@ _connectDialog(
   bool canRememberAccount = true,
 }) async {
   final errUsername = ''.obs;
-  var rememberPassword = false;
-  if (passwordController != null) {
-    rememberPassword =
-        await bind.sessionGetRemember(sessionId: sessionId) ?? false;
-  }
+var rememberPassword = false;
+if (passwordController != null) {
+// Default to remembering password for one-tap reconnect next time
+final saved = await bind.sessionGetRemember(sessionId: sessionId);
+rememberPassword = saved ?? true;
+}
   var rememberAccount = false;
   if (canRememberAccount && osUsernameController != null) {
     rememberAccount =
@@ -1001,29 +1002,43 @@ _connectDialog(
       );
     }
 
-    passwdWidget() {
-      if (passwordController == null) {
-        return Offstage();
-      }
-      return Column(
-        children: [
-          descWidget(translate('verify_luoda_password_tip')),
-          PasswordWidget(
-            controller: passwordController,
-            autoFocus: osUsernameController == null,
-          ),
-          rememberWidget(
-            translate('Remember password'),
-            rememberPassword,
-            (v) {
-              if (v != null) {
-                setState(() => rememberPassword = v);
-              }
-            },
-          ),
-        ],
-      );
-    }
+passwdWidget() {
+if (passwordController == null) {
+return Offstage();
+}
+return Column(
+children: [
+descWidget(translate('verify_luoda_password_tip')),
+PasswordWidget(
+controller: passwordController,
+autoFocus: osUsernameController == null,
+hintText: 'luoda_password_hint',
+),
+rememberWidget(
+translate('Remember password'),
+rememberPassword,
+(v) {
+if (v != null) {
+setState(() => rememberPassword = v);
+}
+},
+),
+if (rememberPassword)
+Padding(
+padding: const EdgeInsets.only(left: 16),
+child: Align(
+alignment: Alignment.centerLeft,
+child: Text(
+translate('remember_password_auto_tip'),
+maxLines: 2,
+softWrap: true,
+style: TextStyle(fontSize: 12, color: Colors.grey),
+),
+),
+),
+],
+);
+}
 
     return CustomAlertDialog(
       title: Row(

@@ -818,7 +818,7 @@ class _GeneralState extends State<_General> {
                                 initialDirectory = user_dir;
                               }
                               String? selectedDirectory =
-                                  await FilePicker.platform.getDirectoryPath(
+                                  await FilePicker.getDirectoryPath(
                                       initialDirectory: initialDirectory);
                               if (selectedDirectory != null) {
                                 await bind.mainSetLocalOption(
@@ -1285,10 +1285,12 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                   permEnabled && !locked),
             // if (usePassword)
             //   hide_cm(!locked).marginOnly(left: _kContentHSubMargin - 6),
-            if (usePassword) radios[2],
-          ]);
-        })));
-  }
+ if (usePassword) radios[2],
+ if (!locked)
+ _DefaultConnectPasswordWidget(),
+ ]);
+})));
+}
 
   Widget more(BuildContext context) {
     bool enabled = !locked;
@@ -3195,3 +3197,81 @@ void changeSocks5Proxy() async {
 }
 
 //#endregion
+
+/// Widget for setting the "default-connect-password" builtin option.
+/// When configured, mobile clients automatically use this password
+/// without any manual entry — enabling one-tap connect.
+class _DefaultConnectPasswordWidget extends StatefulWidget {
+ @override
+ State<_DefaultConnectPasswordWidget> createState() =>
+ _DefaultConnectPasswordWidgetState();
+}
+
+class _DefaultConnectPasswordWidgetState
+ extends State<_DefaultConnectPasswordWidget> {
+ late TextEditingController _controller;
+
+ @override
+ void initState() {
+ super.initState();
+ _controller = TextEditingController();
+ _loadPassword();
+ }
+
+ void _loadPassword() async {
+ final value = bind.mainGetBuildinOption(key: 'default-connect-password');
+ if (mounted) {
+ _controller.text = value;
+ }
+ }
+
+ @override
+ void dispose() {
+ _controller.dispose();
+ super.dispose();
+ }
+
+ @override
+ Widget build(BuildContext context) {
+ return _SubLabeledWidget(
+ context,
+ translate('Default connect password'),
+ Row(
+ children: [
+ Expanded(
+ child: TextField(
+ controller: _controller,
+ obscureText: true,
+ decoration: InputDecoration(
+ isDense: true,
+ contentPadding:
+ EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+ border: OutlineInputBorder(
+ borderRadius: BorderRadius.circular(6),
+ borderSide: BorderSide.none,
+ ),
+ filled: true,
+ fillColor: Theme.of(context)
+ .colorScheme
+ .background
+ .withOpacity(0.5),
+ ),
+ style: TextStyle(fontSize: 14, fontFamily: 'monospace'),
+ ),
+ ),
+ SizedBox(width: 8),
+ ElevatedButton(
+ onPressed: () {
+ final value = _controller.text.trim();
+ bind.mainSetBuildinOption(
+ key: 'default-connect-password', value: value);
+ showToast(translate('Saved'));
+ },
+ child: Text(translate('Save')),
+ ),
+ ],
+ ),
+ enabled: true,
+ ).marginOnly(left: _kContentHMargin, right: _kContentHMargin, top: 8);
+ }
+}

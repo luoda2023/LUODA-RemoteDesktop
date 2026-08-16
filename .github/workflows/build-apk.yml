@@ -293,7 +293,8 @@ jobs:
               cp "$NDK_LIBCXX_PATH" "$OUT/$TARGET_ABI/"
               echo "Copied libc++_shared.so for $TARGET_ABI"
             else
-              echo "WARNING: libc++_shared.so not found at $NDK_LIBCXX_PATH"
+              echo "ERROR: libc++_shared.so not found at $NDK_LIBCXX_PATH - APK will crash on launch without it"
+              exit 1
             fi
           done
 
@@ -435,13 +436,19 @@ jobs:
           test -x "$APKSIGNER"
 
           verify_native_lib() {
-            apk="$1"
-            abi="$2"
-            if ! unzip -Z1 "$apk" | grep -Fxq "lib/$abi/libluoda.so"; then
-              echo "ERROR: $(basename "$apk") is missing lib/$abi/libluoda.so"
-              exit 1
-            fi
-          }
+           apk="$1"
+           abi="$2"
+           missing=""
+           if ! unzip -Z1 "$apk" | grep -Fxq "lib/$abi/libluoda.so"; then
+           echo "ERROR: $(basename "$apk") is missing lib/$abi/libluoda.so"
+           missing=1
+           fi
+           if ! unzip -Z1 "$apk" | grep -Fxq "lib/$abi/libc++_shared.so"; then
+           echo "ERROR: $(basename "$apk") is missing lib/$abi/libc++_shared.so (causes startup crash)"
+           missing=1
+           fi
+           if [ -n "$missing" ]; then exit 1; fi
+           }
 
           verify_native_lib "$DIST_DIR/LUODA-armeabi-v7a.apk" "armeabi-v7a"
           verify_native_lib "$DIST_DIR/LUODA-arm64-v8a.apk" "arm64-v8a"
@@ -453,7 +460,7 @@ jobs:
           for apk in "$DIST_DIR"/*.apk; do
             "$APKSIGNER" verify --verbose "$apk"
           done
-          echo "OK: every APK contains its required LUODA native library and has a valid signature"
+          echo "OK: every APK contains libluoda.so + libc++_shared.so and has a valid signature"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4

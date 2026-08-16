@@ -26,6 +26,20 @@ val flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "
 val flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "2.0"
 
 fun findRustlsPlatformVerifierMavenDir(): String? {
+    // The rustls-platform-verifier-android crate ships a local maven repo
+    // (maven/rustls/rustls-platform-verifier/...) inside its package.
+    // Try common local locations first, then fall back to cargo metadata.
+    val candidates = listOf(
+        // unpacked crate tarball next to this project (see rustls-platform-verifier-android-0.1.1.crate)
+        rootProject.file("../.rpv-maven"),
+        file("../../.rpv-maven"),
+    )
+    for (dir in candidates) {
+        if (File(dir, "rustls/rustls-platform-verifier/0.1.1").exists()) {
+            println("Found rustls-platform-verifier maven repo at: ${dir.path}")
+            return dir.path
+        }
+    }
     try {
         val dependencyText = providers.exec {
             workingDir = File("../..")
@@ -91,7 +105,7 @@ protobuf {
 
 android {
     namespace = "com.luoda.remote"
-    compileSdkVersion(34)
+    compileSdkVersion(36)
 
     sourceSets {
         getByName("main") {
@@ -102,15 +116,18 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 
     defaultConfig {
         applicationId = "com.luoda.remote"
-        minSdkVersion(22)
+        minSdkVersion(24)
         targetSdkVersion(33)
         versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
@@ -153,11 +170,12 @@ flutter {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("com.google.protobuf:protobuf-javalite:3.20.1")
     implementation("androidx.media:media:1.6.0")
     implementation("com.github.getActivity:XXPermissions:18.5")
     implementation("org.jetbrains.kotlin:kotlin-stdlib") {
-        version { strictly("1.9.24") }
+        version { strictly("2.2.20") }
     }
     implementation("com.caverock:androidsvg-aar:1.4")
     implementation("rustls:rustls-platform-verifier:0.1.1")

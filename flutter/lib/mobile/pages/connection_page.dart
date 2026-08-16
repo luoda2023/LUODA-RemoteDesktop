@@ -148,15 +148,22 @@ class _ConnectionPageState extends State<ConnectionPage> {
   /// UI for the remote ID TextField.
   /// Search for a peer and connect to it if the id exists.
   Widget _buildRemoteIDTextField() {
-    final w = SizedBox(
-      height: 84,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.all(Radius.circular(13)),
-          ),
+ final w = SizedBox(
+ height: 72,
+ child: Padding(
+ padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+ child: Ink(
+ decoration: BoxDecoration(
+ color: Theme.of(context).cardColor,
+ borderRadius: BorderRadius.all(Radius.circular(16)),
+ boxShadow: [
+ BoxShadow(
+ color: MyTheme.accent.withOpacity(0.08),
+ blurRadius: 8,
+ offset: const Offset(0, 2),
+ ),
+ ],
+ ),
           child: Row(
             children: <Widget>[
               Expanded(
@@ -229,12 +236,12 @@ class _ConnectionPageState extends State<ConnectionPage> {
                         onChanged: (String text) {
                           _idController.id = text;
                         },
-                        style: const TextStyle(
-                          fontFamily: 'WorkSans',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 30,
-                          color: MyTheme.idColor,
-                        ),
+ style: const TextStyle(
+ fontFamily: 'WorkSans',
+ fontWeight: FontWeight.bold,
+ fontSize: 24,
+ color: MyTheme.idColor,
+ ),
                         decoration: InputDecoration(
                           labelText: translate('Remote ID'),
                           // hintText: 'Enter your remote ID',
@@ -333,15 +340,26 @@ class _ConnectionPageState extends State<ConnectionPage> {
                         },
                         icon: Icon(Icons.clear, color: MyTheme.darkGray)),
                   )),
-              SizedBox(
-                width: 60,
-                height: 60,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_forward,
-                      color: MyTheme.darkGray, size: 45),
-                  onPressed: onConnect,
-                ),
-              ),
+ SizedBox(
+ width: 56,
+ height: 56,
+ child: Padding(
+ padding: const EdgeInsets.only(right: 4),
+ child: Material(
+ color: MyTheme.accent,
+ shape: const CircleBorder(),
+ clipBehavior: Clip.antiAlias,
+ child: InkWell(
+ onTap: onConnect,
+ child: Container(
+ alignment: Alignment.center,
+ child: const Icon(Icons.arrow_forward,
+ color: Colors.white, size: 28),
+ ),
+ ),
+ ),
+ ),
+ ),
             ],
           ),
         ),
