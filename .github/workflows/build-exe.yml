@@ -194,6 +194,13 @@ jobs:
             test -f Release/usbmmidd_v2/usbmmidd.cat
             test -f Release/usbmmidd_v2/x64/usbmmIdd.dll
             test -f Release/usbmmidd_v2/License.txt
+            echo "=== Adding printer driver adapter ==="
+            PRINTER_ZIP="res/drivers/printer_driver_adapter.zip"
+            PRINTER_SHA256="e90e5d52c8807b4c6293c78a52479338715e0bf396b1b34802777b8c452e6781"
+            test -f "$PRINTER_ZIP"
+            echo "$PRINTER_SHA256  $PRINTER_ZIP" | sha256sum -c -
+            unzip -q "$PRINTER_ZIP" -d Release
+            test -f Release/printer_driver_adapter.dll
             echo "=== Release directory ==="
             ls -la Release/
             pip3 install brotli
