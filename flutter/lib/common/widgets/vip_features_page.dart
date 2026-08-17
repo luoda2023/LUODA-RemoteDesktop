@@ -23,6 +23,31 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
   late final WebViewController _controller;
   bool _loading = true;
 
+  /// 注入样式：全屏宽度自适应，只允许上下滚动、禁止左右滚动。
+  void _injectNoHorizontalScroll() {
+    _controller.runJavaScript(r'''
+      (function() {
+        try {
+          var css = 'html,body{overflow-x:hidden !important;width:100% !important;'
+            + 'max-width:100% !important;margin:0 !important;padding:0 !important;}'
+            + 'img,video,iframe,table,pre,canvas,svg{max-width:100% !important;height:auto !important;}'
+            + '*{box-sizing:border-box !important;}';
+          var style = document.getElementById('__luoda_noscroll__');
+          if (!style) {
+            style = document.createElement('style');
+            style.id = '__luoda_noscroll__';
+            document.head.appendChild(style);
+          }
+          style.innerHTML = css;
+          var d = document.documentElement;
+          var b = document.body;
+          if (d) { d.style.overflowX = 'hidden'; d.style.width = '100%'; }
+          if (b) { b.style.overflowX = 'hidden'; b.style.width = '100%'; }
+        } catch (e) {}
+      })();
+    ''');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +55,7 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
         onPageStarted: (String url) {
+          _injectNoHorizontalScroll();
           if (mounted) {
             setState(() {
               _loading = true;
@@ -37,6 +63,7 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
           }
         },
         onPageFinished: (String url) {
+          _injectNoHorizontalScroll();
           if (mounted) {
             setState(() {
               _loading = false;
@@ -106,7 +133,9 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
         ),
       );
     }
+    // 全屏显示网页：WebView 占满整个 tab 区域，无额外边距/装饰。
     return Stack(
+      fit: StackFit.expand,
       children: [
         WebViewWidget(controller: _controller),
         if (_loading)
