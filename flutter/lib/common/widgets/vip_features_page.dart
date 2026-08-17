@@ -66,8 +66,9 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    // 桌面端 webview_flutter 不支持（Windows），回退到外部浏览器打开。
-    if (isDesktop || isWebDesktop) {
+    // webview_flutter 仅支持 Android/iOS；桌面端（Windows/Linux/macOS）
+    // 与 Web 端回退到外部浏览器打开。
+    if (!isAndroid && !isIOS) {
       final textColor = Theme.of(context).textTheme.titleLarge?.color;
       return Center(
         child: Column(
