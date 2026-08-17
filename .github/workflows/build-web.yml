@@ -60,6 +60,13 @@ jobs:
             tar xzf web/web_deps.tar.gz -C web/
           fi
           flutter pub get
+          # Patch qr_code_scanner for Flutter 3.47: platformViewRegistry moved to dart:ui_web
+          QR_WEB=$(find $HOME/.pub-cache/hosted/pub.dev -path '*qr_code_scanner-1.0.1/lib/src/web/flutter_qr_web.dart' 2>/dev/null | head -1)
+          if [ -n "$QR_WEB" ] && ! grep -q 'dart:ui_web' "$QR_WEB"; then
+            echo "=== Patching qr_code_scanner web API ==="
+            sed -i "s/import 'dart:ui' as ui;/import 'dart:ui' as ui;\nimport 'dart:ui_web' as ui_web;/" "$QR_WEB"
+            sed -i 's/ui\.platformViewRegistry/ui_web.platformViewRegistry/g' "$QR_WEB"
+          fi
           echo "=== Building web ==="
           flutter build web --release 2>&1
           echo "=== Verifying build ==="

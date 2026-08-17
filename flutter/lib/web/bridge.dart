@@ -1818,6 +1818,11 @@ class Luoda {
     return mainGetLocalOption(key: key, hint: hint);
   }
 
+  void mainSetBuildinOption(
+      {required String key, required String value, dynamic hint}) {
+    mainSetLocalOption(key: key, value: value, hint: hint);
+  }
+
   String installInstallOptions({dynamic hint}) {
     throw UnimplementedError("installInstallOptions");
   }
