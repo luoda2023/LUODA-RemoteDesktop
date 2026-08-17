@@ -3213,8 +3213,8 @@ class _DefaultConnectPasswordWidgetState
  filled: true,
  fillColor: Theme.of(context)
  .colorScheme
- .background
- .withOpacity(0.5),
+ .surface
+ .withValues(alpha: 0.5),
  ),
  style: TextStyle(fontSize: 14, fontFamily: 'monospace'),
  ),

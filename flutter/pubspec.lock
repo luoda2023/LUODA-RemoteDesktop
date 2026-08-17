@@ -308,9 +308,11 @@ packages:
   dash_chat_2:
     dependency: "direct main"
     description:
-      path: ".pub_deps/Dash-Chat-2-bd6b5b41254e57c5bcece202ebfb234de63e6487"
-      relative: true
-    source: path
+      path: "."
+      ref: HEAD
+      resolved-ref: bd6b5b41254e57c5bcece202ebfb234de63e6487
+      url: "https://github.com/luoda2023/Dash-Chat-2"
+    source: git
     version: "0.0.18"
   dbus:
     dependency: transitive
@@ -339,18 +341,20 @@ packages:
   desktop_multi_window:
     dependency: "direct main"
     description:
-      path: ".pub_deps/luoda_desktop_multi_window-b47e8385e5a75d38319ad706a64b0ead3108b093"
-      relative: true
-    source: path
+      path: "."
+      ref: HEAD
+      resolved-ref: b47e8385e5a75d38319ad706a64b0ead3108b093
+      url: "https://github.com/luoda2023/luoda_desktop_multi_window"
+    source: git
     version: "0.1.0"
   device_info_plus:
     dependency: "direct main"
     description:
       name: device_info_plus
-      sha256: b4fed1b2835da9d670d7bed7db79ae2a94b0f5ad6312268158a9b5479abbacdd
+      sha256: "72d146c6d7098689ff5c5f66bcf593ac11efc530095385356e131070333e64da"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "12.4.0"
+    version: "11.3.0"
   device_info_plus_platform_interface:
     dependency: transitive
     description:
@@ -426,18 +430,18 @@ packages:
     dependency: "direct dev"
     description:
       name: ffigen
-      sha256: "56fc0be88937409839a59c133dfdee4165e80da324c9e39f59013060249ffb44"
+      sha256: d3e76c2ad48a4e7f93a29a162006f00eba46ce7c08194a77bb5c5e97d1b5ff0a
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "21.0.0"
+    version: "8.0.2"
   file:
     dependency: transitive
     description:
       name: file
-      sha256: a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4
+      sha256: "1b92bec4fc2a72f59a8e15af5f52cd441e4a7860b49499d69dfa817af20e925d"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "7.0.1"
+    version: "6.1.4"
   file_picker:
     dependency: "direct main"
     description:
@@ -534,9 +538,11 @@ packages:
   flutter_gpu_texture_renderer:
     dependency: "direct main"
     description:
-      path: ".pub_deps/flutter_gpu_texture_renderer-08a471bb8ceccdd50483c81cdfa8b81b07b14b87"
-      relative: true
-    source: path
+      path: "."
+      ref: "08a471bb8ceccdd50483c81cdfa8b81b07b14b87"
+      resolved-ref: "08a471bb8ceccdd50483c81cdfa8b81b07b14b87"
+      url: "https://github.com/luoda2023/flutter_gpu_texture_renderer"
+    source: git
     version: "0.0.1"
   flutter_keyboard_visibility:
     dependency: "direct main"
@@ -953,14 +959,6 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.0.0"
-  native_toolchain_c:
-    dependency: transitive
-    description:
-      name: native_toolchain_c
-      sha256: a1c26117c48cebe5677b0cf0e33a980a79a7c5577effc86f52e5a0d309cdcb60
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "0.19.3"
   nested:
     dependency: transitive
     description:
@@ -1306,10 +1304,10 @@ packages:
     dependency: "direct main"
     description:
       name: sqflite
-      sha256: "58a799e6ac17dd32fbab93813d39ed835a75ccc0f8f85b8955fe318c6712b082"
+      sha256: "2d7299468485dca85efeeadf5d38986909c5eb0cd71fd3db2c2f000e6c9454bb"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "2.4.3"
+    version: "2.4.1"
   sqflite_android:
     dependency: transitive
     description:
@@ -1401,9 +1399,11 @@ packages:
   texture_rgba_renderer:
     dependency: "direct main"
     description:
-      path: ".pub_deps/flutter_texture_rgba_renderer-42797e0f03141dc2b585f76c64a13974508058b4"
-      relative: true
-    source: path
+      path: "."
+      ref: "42797e0f03141dc2b585f76c64a13974508058b4"
+      resolved-ref: "42797e0f03141dc2b585f76c64a13974508058b4"
+      url: "https://github.com/luoda2023/flutter_texture_rgba_renderer"
+    source: git
     version: "0.0.16"
   timing:
     dependency: transitive
@@ -1440,9 +1440,11 @@ packages:
   uni_links:
     dependency: "direct main"
     description:
-      path: ".pub_deps/uni_links-f416118d843a7e9ed117c7bb7bdc2deda5a9e86f/uni_links"
-      relative: true
-    source: path
+      path: uni_links
+      ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
+      resolved-ref: f416118d843a7e9ed117c7bb7bdc2deda5a9e86f
+      url: "https://github.com/luoda2023/uni_links"
+    source: git
     version: "0.5.1"
   uni_links_desktop:
     dependency: "direct main"
@@ -1676,6 +1678,38 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.4.0"
+  webview_flutter:
+    dependency: "direct main"
+    description:
+      name: webview_flutter
+      sha256: d53e1ccf5516f25017e3c9d44c39034db352d20fa34fe200674270242c2c5111
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "4.14.1"
+  webview_flutter_android:
+    dependency: transitive
+    description:
+      name: webview_flutter_android
+      sha256: b98656fa4461f8cc05c48a778b4d4883e60ec63e1778348f363f9bb9a477745d
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "4.14.0"
+  webview_flutter_platform_interface:
+    dependency: transitive
+    description:
+      name: webview_flutter_platform_interface
+      sha256: "1221c1b12f5278791042f2ec2841743784cf25c5a644e23d6680e5d718824f04"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "2.15.1"
+  webview_flutter_wkwebview:
+    dependency: transitive
+    description:
+      name: webview_flutter_wkwebview
+      sha256: c879dd64b87c452aa84381b244d5469da57ba7e8cca6884c7b1e0d406372c12d
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "3.26.0"
   win32:
     dependency: "direct main"
     description:
@@ -1685,26 +1719,30 @@ packages:
     source: hosted
     version: "5.15.0"
   win32_registry:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
       name: win32_registry
-      sha256: "6f1b564492d0147b330dd794fee8f512cec4977957f310f9951b5f9d83618dae"
+      sha256: "21ec76dfc731550fd3e2ce7a33a9ea90b828fdf19a5c3bcf556fa992cfa99852"
       url: "https://pub.flutter-io.cn"
     source: hosted
-    version: "2.1.0"
+    version: "1.1.5"
   window_manager:
     dependency: "direct main"
     description:
-      path: ".pub_deps/window_manager-85789bfe6e4cfaf4ecc00c52857467fdb7f26879"
-      relative: true
-    source: path
+      path: "."
+      ref: HEAD
+      resolved-ref: "85789bfe6e4cfaf4ecc00c52857467fdb7f26879"
+      url: "https://github.com/luoda2023/window_manager"
+    source: git
     version: "0.3.6"
   window_size:
     dependency: "direct main"
     description:
-      path: ".pub_deps/flutter-desktop-embedding-eb3964990cf19629c89ff8cb4a37640c7b3d5601/plugins/window_size"
-      relative: true
-    source: path
+      path: "plugins/window_size"
+      ref: eb3964990cf19629c89ff8cb4a37640c7b3d5601
+      resolved-ref: eb3964990cf19629c89ff8cb4a37640c7b3d5601
+      url: "https://github.com/google/flutter-desktop-embedding.git"
+    source: git
     version: "0.1.0"
   xdg_directories:
     dependency: transitive
