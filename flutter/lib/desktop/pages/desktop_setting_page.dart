@@ -2290,7 +2290,8 @@ class __PrinterState extends State<_Printer> {
       return Align(
         alignment: Alignment.topLeft,
         child:
-            Text(translate('printer-requires-installed-{$appName}-client-tip')),
+            Text(translate('printer-requires-installed-{}-client-tip')
+                .replaceAll('{}', appName)),
       ).marginOnly(left: _kCardLeftMargin);
     }
 
@@ -2311,7 +2312,8 @@ class __PrinterState extends State<_Printer> {
               ? Offstage()
               : Align(
                   alignment: Alignment.topLeft,
-                  child: Text(translate('printer-{$appName}-not-installed-tip'))
+                  child: Text(translate('printer-{}-not-installed-tip')
+                      .replaceAll('{}', appName))
                       .marginOnly(bottom: 10.0),
                 ),
         ),
@@ -2336,7 +2338,7 @@ class __PrinterState extends State<_Printer> {
     Widget tipReady() {
       return Align(
         alignment: Alignment.topLeft,
-        child: Text(translate('printer-{$appName}-ready-tip')),
+        child: Text(translate('printer-{}-ready-tip').replaceAll('{}', appName)),
       ).marginOnly(left: _kCardLeftMargin);
     }
 

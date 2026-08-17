@@ -108,6 +108,8 @@ dependencies:
   google_fonts: ^6.2.1
   vector_math: ^2.1.4
 
+  meta: any
+  collection: any
 dev_dependencies:
   icons_launcher: ^2.0.4
   flutter_test:

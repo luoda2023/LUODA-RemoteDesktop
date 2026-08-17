@@ -2381,7 +2381,7 @@ class _IconMenuButtonState extends State<_IconMenuButton> {
         horizontal: widget.hMargin ?? _ToolbarTheme.buttonHMargin,
         vertical: widget.vMargin ?? _ToolbarTheme.buttonVMargin);
     button = Tooltip(
-      message: widget.tooltip,
+      message: translate(widget.tooltip),
       child: button,
     );
     if (widget.topLevel) {

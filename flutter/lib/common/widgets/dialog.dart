@@ -2667,7 +2667,7 @@ void changeUnlockPinDialog(String oldPin, Function() callback) {
       content: Column(
         children: [
           DialogTextField(
-            title: 'PIN',
+            title: translate('PIN'),
             controller: pinController,
             obscureText: true,
             errorText: pinErrorText,
@@ -2713,7 +2713,7 @@ void checkUnlockPinDialog(String correctPin, Function() passCallback) {
         children: [
           Expanded(
               child: PasswordWidget(
-            title: 'PIN',
+            title: translate('PIN'),
             controller: controller,
             errorText: errorText,
             hintText: '',

@@ -1103,7 +1103,7 @@ void showAbout(OverlayDialogManager dialogManager) {
     return CustomAlertDialog(
       title: Text(translate('About LUODA')),
       content: Wrap(direction: Axis.vertical, spacing: 12, children: [
-        Text('Version: $version'),
+        Text(translate('Version: ') + version),
         InkWell(
             onTap: () async {
 const url = 'https://dicad.cn/';
@@ -1288,7 +1288,7 @@ class __ManageTrustedDevicesState extends State<_ManageTrustedDevices> {
               return Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
+              return Center(child: Text('${translate('Error: ')}${snapshot.error}'));
             }
             final devices = snapshot.data as List<TrustedDevice>;
             trustedDevices = devices.obs;
