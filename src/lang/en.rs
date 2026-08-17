@@ -314,6 +314,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("xdp-portal-unavailable", "Wayland screen capture failed. The XDG Desktop Portal may have crashed or is unavailable. Try restarting it with `systemctl --user restart xdg-desktop-portal`."),
         ("xorg_not_found_text_tip", "Please install Xorg"),
         ("xorg_not_found_title_tip", "Xorg not found"),
+        ("Failed to open URL", "Failed to open URL"),
+        ("Open in browser", "Open in browser"),
         ("{}-to-update-tip", "{} will close now and install the new version."),
     ].iter().cloned().collect();
 }

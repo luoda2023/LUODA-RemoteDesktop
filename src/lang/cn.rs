@@ -786,6 +786,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("xdp-portal-unavailable", ""),
         ("xorg_not_found_text_tip", "请安装 Xorg"),
         ("xorg_not_found_title_tip", "Xorg 未安装"),
+        ("Failed to open URL", "无法打开网址"),
+        ("Open in browser", "在浏览器中打开"),
         ("{} Update", "{} 更新"),
         ("{} sessions", "{} 个会话"),
         ("{}-to-update-tip", "即将关闭 {} ，并安装新版本。"),
