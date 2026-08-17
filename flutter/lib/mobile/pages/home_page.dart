@@ -200,16 +200,6 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Future<bool> _requestPermissionIfMissing(String type) async {
-    if (await AndroidPermissionManager.check(type)) {
-      return true;
-    }
-    final granted = await AndroidPermissionManager.request(type);
-    RuntimeLogger.instance.info(
-        'ANDROID', 'permission request completed; type=$type granted=$granted');
-    return granted;
-  }
-
   /// Batch-request all standard runtime permissions in a single system dialog.
   /// This replaces the old approach of requesting each permission one-by-one
   /// which caused multiple separate system dialogs to pop up.
@@ -362,16 +352,13 @@ appBarActions: bind.isDisableSettings() ? [] : [_ScanConnectButton()],
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-        onWillPop: () async {
-          if (_selectedIndex != 0) {
-            setState(() {
-              _selectedIndex = 0;
-            });
-          } else {
-            return true;
-          }
-          return false;
+    return PopScope(
+        canPop: _selectedIndex == 0,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          setState(() {
+            _selectedIndex = 0;
+          });
         },
         child: Scaffold(
           // backgroundColor: MyTheme.grayBg,

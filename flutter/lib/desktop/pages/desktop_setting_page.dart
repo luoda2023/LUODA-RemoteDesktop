@@ -309,7 +309,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
         ),
         if (videoConnBlock)
           Container(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withValues(alpha: 0.5),
           )
       ]);
     });
@@ -319,7 +319,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
   Widget build(BuildContext context) {
     super.build(context);
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: _buildBlock(
         children: <Widget>[
           SizedBox(
@@ -419,7 +419,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           child: AnimatedContainer(
             duration: Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              color: selected ? _accentColor.withOpacity(0.08) : null,
+              color: selected ? _accentColor.withValues(alpha: 0.08) : null,
               border: Border(
                 right: BorderSide(
                   width: selected ? 3 : 0,
@@ -431,14 +431,14 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
               SizedBox(width: 12),
               Icon(
                 selected ? tab.selected : tab.unselected,
-                color: selected ? _accentColor : Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.5),
+                color: selected ? _accentColor : Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.5),
                 size: 20,
               ),
               SizedBox(width: 12),
               Text(
                 translate(tab.label),
                 style: TextStyle(
-                    color: selected ? _accentColor : Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.7),
+                    color: selected ? _accentColor : Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.7),
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     fontSize: _kContentFontSize),
               ),
@@ -1198,10 +1198,11 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               .map((value) => GestureDetector(
                     child: Row(
                       children: [
-                        Radio(
-                            value: value,
+                        RadioGroup<String>(
                             groupValue: model.temporaryPasswordLength,
-                            onChanged: onChanged),
+                            onChanged: onChanged ?? (_) {},
+                            child: Radio(
+                                value: value, enabled: onChanged != null)),
                         Text(
                           value,
                           style: TextStyle(
@@ -1664,7 +1665,7 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                             .textTheme
                             .titleLarge
                             ?.color
-                            ?.withOpacity(0.7),
+                            ?.withValues(alpha: 0.7),
                       ),
                     ],
                   ),
@@ -2258,7 +2259,7 @@ class _PluginState extends State<_Plugin> {
 }
 
 class _Printer extends StatefulWidget {
-  const _Printer({super.key});
+  const _Printer();
 
   @override
   State<_Printer> createState() => __PrinterState();
@@ -2427,7 +2428,6 @@ class _AboutState extends State<_About> {
         'fingerprint': fingerprint
       };
     }(), hasData: (data) {
-      final license = data['license'].toString();
       final version = data['version'].toString();
       final buildDate = data['buildDate'].toString();
       final fingerprint = data['fingerprint'].toString();
@@ -2634,7 +2634,10 @@ Widget _Radio<T>(BuildContext context,
   return GestureDetector(
     child: Row(
       children: [
-        Radio<T>(value: value, groupValue: groupValue, onChanged: onChange2),
+        RadioGroup<T>(
+            groupValue: groupValue,
+            onChanged: onChange2 ?? (_) {},
+            child: Radio<T>(value: value, enabled: onChange2 != null)),
         Expanded(
           child: Text(translate(label),
                   overflow: autoNewLine ? null : TextOverflow.ellipsis,
@@ -2757,8 +2760,8 @@ class _WaylandCardState extends State<WaylandCard> {
       showConfirmMsgBox,
       tip: 'clear_Wayland_screen_selection_tip',
       style: ButtonStyle(
-        backgroundColor: MaterialStateProperty.all<Color>(
-            Theme.of(context).colorScheme.error.withOpacity(0.75)),
+        backgroundColor: WidgetStateProperty.all<Color>(
+            Theme.of(context).colorScheme.error.withValues(alpha: 0.75)),
       ),
     );
   }
@@ -2800,8 +2803,8 @@ class _WaylandCardState extends State<WaylandCard> {
         showConfirmMsgBox,
         tip: 'clear-shortcuts-inhibitor-permission-tip',
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all<Color>(
-              Theme.of(context).colorScheme.error.withOpacity(0.75)),
+          backgroundColor: WidgetStateProperty.all<Color>(
+              Theme.of(context).colorScheme.error.withValues(alpha: 0.75)),
         ),
       ),
     ]);
@@ -2911,51 +2914,6 @@ Widget _lock(
           ),
         ],
       ));
-}
-
-_LabeledTextField(
-    BuildContext context,
-    String label,
-    TextEditingController controller,
-    String errorText,
-    bool enabled,
-    bool secure) {
-  return Table(
-    columnWidths: const {
-      0: FixedColumnWidth(150),
-      1: FlexColumnWidth(),
-    },
-    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-    children: [
-      TableRow(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: Text(
-              '${translate(label)}:',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 16,
-                color: disabledTextColor(context, enabled),
-              ),
-            ),
-          ),
-          TextField(
-            controller: controller,
-            enabled: enabled,
-            obscureText: secure,
-            autocorrect: false,
-            decoration: InputDecoration(
-              errorText: errorText.isNotEmpty ? errorText : null,
-            ),
-            style: TextStyle(
-              color: disabledTextColor(context, enabled),
-            ),
-          ).workaroundFreezeLinuxMint(),
-        ],
-      ),
-    ],
-  ).marginOnly(bottom: 8);
 }
 
 class _CountDownButton extends StatefulWidget {
@@ -3112,7 +3070,7 @@ void changeSocks5Proxy() async {
                                     .textTheme
                                     .titleLarge
                                     ?.color
-                                    ?.withOpacity(0.5),
+                                    ?.withValues(alpha: 0.5),
                               ),
                             ),
                           ],
@@ -3253,8 +3211,8 @@ class _DefaultConnectPasswordWidgetState
  filled: true,
  fillColor: Theme.of(context)
  .colorScheme
- .background
- .withOpacity(0.5),
+ .surface
+ .withValues(alpha: 0.5),
  ),
  style: TextStyle(fontSize: 14, fontFamily: 'monospace'),
  ),

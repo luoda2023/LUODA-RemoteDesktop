@@ -84,7 +84,7 @@ class _PeerCardState extends State<_PeerCard>
  final peer = super.widget.peer;
  return Card(
  elevation: 2,
- shadowColor: MyTheme.accent.withOpacity(0.12),
+ shadowColor: MyTheme.accent.withValues(alpha: 0.12),
  margin: EdgeInsets.symmetric(horizontal: 4, vertical: 3),
  shape: RoundedRectangleBorder(
  borderRadius: BorderRadius.circular(14),
@@ -142,7 +142,7 @@ class _PeerCardState extends State<_PeerCard>
  : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
  final greyStyle = TextStyle(
  fontSize: 12,
- color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.5));
+ color: Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.5));
  final showNote = _showNote(peer);
  final platformInfo = _getPlatformInfo(peer.platform);
  final isListMode = peerCardUiType.value == PeerUiType.list;
@@ -160,7 +160,7 @@ class _PeerCardState extends State<_PeerCard>
  children: [
  Container(
  decoration: BoxDecoration(
- color: platformColor.withOpacity(0.15),
+ color: platformColor.withValues(alpha: 0.15),
  borderRadius: BorderRadius.only(
  topLeft: Radius.circular(_tileRadius),
  bottomLeft: Radius.circular(_tileRadius),
@@ -177,7 +177,7 @@ class _PeerCardState extends State<_PeerCard>
  Expanded(
  child: Container(
  decoration: BoxDecoration(
- color: Theme.of(context).colorScheme.background,
+ color: Theme.of(context).colorScheme.surface,
  borderRadius: BorderRadius.only(
  topRight: Radius.circular(_tileRadius),
  bottomRight: Radius.circular(_tileRadius),
@@ -211,7 +211,7 @@ class _PeerCardState extends State<_PeerCard>
  Container(
  padding: EdgeInsets.symmetric(horizontal: 5, vertical: 1),
  decoration: BoxDecoration(
- color: platformColor.withOpacity(0.1),
+ color: platformColor.withValues(alpha: 0.1),
  borderRadius: BorderRadius.circular(3),
  ),
  child: Text(
@@ -293,12 +293,12 @@ class _PeerCardState extends State<_PeerCard>
  end: Alignment.bottomRight,
  colors: [
  platformColor,
- platformColor.withOpacity(0.7),
+ platformColor.withValues(alpha: 0.7),
  ],
  ),
  boxShadow: [
  BoxShadow(
- color: platformColor.withOpacity(0.25),
+ color: platformColor.withValues(alpha: 0.25),
  blurRadius: 6,
  offset: Offset(0, 2),
  ),
@@ -328,7 +328,7 @@ class _PeerCardState extends State<_PeerCard>
  boxShadow: peer.online
  ? [
  BoxShadow(
- color: Color(0xFF2ECC71).withOpacity(0.4),
+ color: Color(0xFF2ECC71).withValues(alpha: 0.4),
  blurRadius: 4,
  spreadRadius: 0.5,
  ),
@@ -380,10 +380,10 @@ class _PeerCardState extends State<_PeerCard>
  Container(
  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
  decoration: BoxDecoration(
- color: platformColor.withOpacity(0.1),
+ color: platformColor.withValues(alpha: 0.1),
  borderRadius: BorderRadius.circular(20),
  border: Border.all(
- color: platformColor.withOpacity(0.15),
+ color: platformColor.withValues(alpha: 0.15),
  width: 0.5,
  ),
  ),
@@ -491,7 +491,7 @@ class _PeerCardState extends State<_PeerCard>
                         end: Alignment.bottomRight,
                         colors: [
                           platformColor,
-                          platformColor.withOpacity(0.7),
+                          platformColor.withValues(alpha: 0.7),
                         ],
                       ),
                     ),
@@ -505,7 +505,7 @@ class _PeerCardState extends State<_PeerCard>
                             padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: peer.online
-                                  ? Color(0xFF2ECC71).withOpacity(0.9)
+                                  ? Color(0xFF2ECC71).withValues(alpha: 0.9)
                                   : Colors.black26,
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -543,7 +543,7 @@ class _PeerCardState extends State<_PeerCard>
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: Colors.white.withOpacity(0.2),
+                                  color: Colors.white.withValues(alpha: 0.2),
                                 ),
                                 child: Icon(systemIcon, size: 32, color: Colors.white),
                               ),
@@ -601,7 +601,7 @@ class _PeerCardState extends State<_PeerCard>
                 ),
                 // 底部信息栏 - ID + 更多按钮
                 Container(
-                  color: Theme.of(context).colorScheme.background,
+                  color: Theme.of(context).colorScheme.surface,
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -609,7 +609,7 @@ class _PeerCardState extends State<_PeerCard>
                       // ID或别名
                       Row(
                         children: [
-                          Icon(Icons.tag, size: 12, color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.4)),
+                          Icon(Icons.tag, size: 12, color: Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.4)),
                           const SizedBox(width: 3),
                           ConstrainedBox(
                             constraints: BoxConstraints(maxWidth: 120),
@@ -719,10 +719,10 @@ class _PeerCardState extends State<_PeerCard>
  padding: const EdgeInsets.all(8),
  decoration: BoxDecoration(
  shape: BoxShape.circle,
- color: Theme.of(context).colorScheme.background,
+ color: Theme.of(context).colorScheme.surface,
  ),
  child: Icon(Icons.more_horiz, size: 20,
- color: Theme.of(context).textTheme.titleLarge?.color?.withOpacity(0.5)),
+ color: Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.5)),
  ),
  onTapDown: (e) {
  final x = e.globalPosition.dx;
@@ -1774,11 +1774,11 @@ Widget build_more(BuildContext context, {bool invert = false}) {
           radius: 14,
           backgroundColor: hover.value
               ? (invert
-                  ? Theme.of(context).colorScheme.background
+                  ? Theme.of(context).colorScheme.surface
                   : Theme.of(context).scaffoldBackgroundColor)
               : (invert
                   ? Theme.of(context).scaffoldBackgroundColor
-                  : Theme.of(context).colorScheme.background),
+                  : Theme.of(context).colorScheme.surface),
           child: Icon(Icons.more_vert,
               size: 18,
               color: hover.value
@@ -1787,7 +1787,7 @@ Widget build_more(BuildContext context, {bool invert = false}) {
                       .textTheme
                       .titleLarge
                       ?.color
-                      ?.withOpacity(0.5)))));
+                      ?.withValues(alpha: 0.5)))));
 }
 
 class TagPainter extends CustomPainter {

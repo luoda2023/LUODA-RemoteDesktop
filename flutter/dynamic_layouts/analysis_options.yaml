@@ -1,0 +1,5 @@
+analyzer:
+  exclude:
+    # `example` is a separate package (name: example); its test files reference
+    # `package:example/...` URIs that cannot resolve from this package's context.
+    - example/**

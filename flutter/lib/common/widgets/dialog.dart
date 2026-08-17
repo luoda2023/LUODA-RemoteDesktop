@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use
 import 'dart:async';
 import 'dart:convert';
 
@@ -1114,11 +1115,13 @@ void showRequestElevationDialog(
     () => Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Radio(
-          visualDensity: VisualDensity(horizontal: -4, vertical: -4),
-          value: '',
+        RadioGroup<String>(
           groupValue: groupValue.value,
           onChanged: onRadioChanged,
+          child: Radio<String>(
+            visualDensity: VisualDensity(horizontal: -4, vertical: -4),
+            value: '',
+          ),
         ).marginOnly(right: 10),
         Expanded(
           child: Column(
@@ -1146,11 +1149,13 @@ void showRequestElevationDialog(
     () => Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Radio(
-          visualDensity: VisualDensity(horizontal: -4, vertical: -4),
-          value: 'logon',
+        RadioGroup<String>(
           groupValue: groupValue.value,
           onChanged: onRadioChanged,
+          child: Radio<String>(
+            visualDensity: VisualDensity(horizontal: -4, vertical: -4),
+            value: 'logon',
+          ),
         ).marginOnly(right: 10),
         Expanded(
           child: InkWell(
@@ -1379,7 +1384,7 @@ showSetOSPassword(
   var autoLogin =
       await bind.sessionGetOption(sessionId: sessionId, arg: 'auto-login') !=
           '';
-  controller.text = osPassword!;
+  controller.text = osPassword;
   dialogManager.show((setState, close, context) {
     closeWithCallback([dynamic]) {
       close();
@@ -2584,7 +2589,7 @@ void setSharedAbPasswordDialog(String abName, Peer peer) {
             icon: Icon(Icons.delete_outline_rounded),
             onPressed: () => change(''),
             buttonStyle: ButtonStyle(
-                backgroundColor: MaterialStatePropertyAll(Colors.red)),
+                backgroundColor: WidgetStatePropertyAll(Colors.red)),
           ),
         Obx(() => dialogButton(
               "OK",

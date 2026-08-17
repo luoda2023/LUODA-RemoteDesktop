@@ -323,14 +323,7 @@ class _DesktopTabState extends State<DesktopTab>
   bool get isMainWindow =>
       tabType == DesktopTabType.main ||
       tabType == DesktopTabType.cm ||
-      tabType == DesktopTabType.install;
-
-  _DesktopTabState() : super();
-
-  static RxString tablabelGetter(String peerId) {
-    final alias = bind.mainGetPeerOptionSync(id: peerId, key: 'alias');
-    return RxString(getDesktopTabLabel(peerId, alias));
-  }
+      tabType == DesktopTabType.install;  _DesktopTabState() : super();
 
   @override
   void initState() {

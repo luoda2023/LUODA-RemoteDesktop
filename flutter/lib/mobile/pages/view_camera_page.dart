@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -156,7 +155,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
       return;
     }
 
-    final newBottom = MediaQueryData.fromView(ui.window).viewInsets.bottom;
+    final newBottom = MediaQueryData.fromView(View.of(context)).viewInsets.bottom;
     _timerDidChangeMetrics?.cancel();
     _timerDidChangeMetrics = Timer(Duration(milliseconds: 100), () async {
       // We need this comparation because poping up the floating action will also trigger `didChangeMetrics()`.
@@ -190,10 +189,10 @@ class _ViewCameraPageState extends State<ViewCameraPage>
         keyboardVisibilityController.isVisible && _showEdit;
     final showActionButton = !_showBar || keyboardIsVisible || _showGestureHelp;
 
-    return WillPopScope(
-      onWillPop: () async {
-        clientClose(sessionId, gFFI);
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) clientClose(sessionId, gFFI);
       },
       child: Scaffold(
           // workaround for https://github.com/luoda/luoda/issues/3131
@@ -592,7 +591,7 @@ void showOptions(
     // - light theme: 0xff2196f3 (Colors.blue)
     // - dark theme: 0xff212121 (the canvas color?)
     final numBgSelected =
-        Theme.of(context).colorScheme.primary.withOpacity(0.6);
+        Theme.of(context).colorScheme.primary.withValues(alpha: 0.6);
     for (var i = 0; i < pi.displays.length; ++i) {
       children.add(InkWell(
           onTap: () {

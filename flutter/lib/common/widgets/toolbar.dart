@@ -2,16 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:luoda_flutter/common.dart';
 import 'package:luoda_flutter/common/shared_state.dart';
 import 'package:luoda_flutter/common/widgets/dialog.dart';
-import 'package:luoda_flutter/common/widgets/login.dart';
 import 'package:luoda_flutter/consts.dart';
 import 'package:luoda_flutter/desktop/widgets/remote_toolbar.dart';
 import 'package:luoda_flutter/models/model.dart';
 import 'package:luoda_flutter/models/platform_model.dart';
-import 'package:luoda_flutter/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
 
 bool isEditOsPassword = false;
@@ -90,9 +87,7 @@ handleOsPasswordAction(
 List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
   final ffiModel = ffi.ffiModel;
   final pi = ffiModel.pi;
-  final perms = ffiModel.permissions;
   final sessionId = ffi.sessionId;
-  final isDefaultConn = ffi.connType == ConnType.defaultConn;
 
   List<TTextMenu> v = [];
   // to-do:
@@ -324,7 +319,7 @@ Future<List<TToggleMenu>> toolbarCursor(
           await bind.sessionToggleOption(sessionId: sessionId, value: option);
           value = bind.sessionGetToggleOptionSync(
               sessionId: sessionId, arg: option);
-          showCursorLockState.value = value ?? false;
+          showCursorLockState.value = value;
           if (!showCursorEnabled) {
             await bind.sessionToggleOption(
                 sessionId: sessionId, value: showCursorOption);

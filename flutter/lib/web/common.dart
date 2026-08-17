@@ -1,5 +1,5 @@
+// ignore_for_file: deprecated_member_use
 import 'dart:js' as js;
-import 'dart:html' as html;
 // cycle imports, maybe we can improve this
 import 'package:luoda_flutter/consts.dart';
 

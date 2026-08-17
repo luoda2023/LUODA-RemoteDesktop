@@ -355,10 +355,10 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         keyboardVisibilityController.isVisible && _showEdit;
     final showActionButton = !_showBar || keyboardIsVisible || _showGestureHelp;
 
-    return WillPopScope(
-      onWillPop: () async {
-        clientClose(sessionId, gFFI);
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) clientClose(sessionId, gFFI);
       },
       child: Scaffold(
           // workaround for https://github.com/luoda/luoda/issues/3131
@@ -1140,7 +1140,7 @@ void showOptions(
     // - light theme: 0xff2196f3 (Colors.blue)
     // - dark theme: 0xff212121 (the canvas color?)
     final numBgSelected =
-        Theme.of(context).colorScheme.primary.withOpacity(0.6);
+        Theme.of(context).colorScheme.primary.withValues(alpha: 0.6);
     for (var i = 0; i < pi.displays.length; ++i) {
       children.add(InkWell(
           onTap: () {

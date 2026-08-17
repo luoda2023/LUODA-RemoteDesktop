@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 import '../../common.dart';
-import '../../consts.dart';
 
 class VipFeaturesPage extends StatefulWidget {
   final EdgeInsets? menuPadding;
@@ -44,7 +42,7 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
             translate("Coming soon..."),
             style: TextStyle(
               fontSize: 14,
-              color: textColor?.withOpacity(0.5),
+              color: textColor?.withValues(alpha: 0.5),
             ),
           ),
         ],

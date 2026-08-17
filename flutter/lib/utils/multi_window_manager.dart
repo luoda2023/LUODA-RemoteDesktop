@@ -1,3 +1,4 @@
+// ignore_for_file: constant_identifier_names
 import 'dart:convert';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -10,7 +11,6 @@ import 'package:luoda_flutter/main.dart';
 import 'package:luoda_flutter/models/input_model.dart';
 
 /// must keep the order
-// ignore: constant_identifier_names
 enum WindowType {
   Main,
   RemoteDesktop,

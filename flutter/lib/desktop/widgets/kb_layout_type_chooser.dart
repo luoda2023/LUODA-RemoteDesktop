@@ -102,11 +102,13 @@ class _KBChooser extends StatelessWidget {
         TextButton(
           child: Row(
             children: [
-              Obx(() => Radio(
-                    splashRadius: 0,
-                    value: kbLayoutType,
+              Obx(() => RadioGroup(
                     groupValue: chosenType.value,
                     onChanged: onChanged,
+                    child: Radio(
+                      splashRadius: 0,
+                      value: kbLayoutType,
+                    ),
                   )),
               Text(kbLayoutType),
             ],

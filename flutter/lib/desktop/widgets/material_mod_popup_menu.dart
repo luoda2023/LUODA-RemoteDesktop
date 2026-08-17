@@ -29,7 +29,6 @@ const double _kMenuVerticalPadding = 8.0;
 const double _kMenuWidthStep = 0.0;
 //const double _kMenuScreenPadding = 8.0;
 const double _kMenuScreenPadding = 0.0;
-const double _kDefaultIconSize = 24.0;
 
 /// Used to configure how the [PopupMenuButton] positions its popup menu.
 enum PopupMenuPosition {
@@ -280,15 +279,15 @@ class PopupMenuItem<T> extends PopupMenuEntry<T> {
   /// widget.
   ///
   /// If [mouseCursor] is a [MaterialStateProperty<MouseCursor>],
-  /// [MaterialStateProperty.resolve] is used for the following [MaterialState]s:
+  /// [WidgetStateProperty.resolve] is used for the following [WidgetState]s:
   ///
-  ///  * [MaterialState.hovered].
-  ///  * [MaterialState.focused].
-  ///  * [MaterialState.disabled].
+  ///  * [WidgetState.hovered].
+  ///  * [WidgetState.focused].
+  ///  * [WidgetState.disabled].
   /// {@endtemplate}
   ///
   /// If null, then the value of [PopupMenuThemeData.mouseCursor] is used. If
-  /// that is also null, then [MaterialStateMouseCursor.clickable] is used.
+  /// that is also null, then [WidgetStateMouseCursor.clickable] is used.
   final MouseCursor? mouseCursor;
 
   /// The widget below this widget in the tree.
@@ -854,8 +853,8 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
       semanticLabel: semanticLabel,
       constraints: constraints,
     );
-    if (this.menuWrapper != null) {
-      menu = this.menuWrapper!(menu);
+    if (menuWrapper != null) {
+      menu = menuWrapper!(menu);
     }
     final MediaQueryData mediaQuery = MediaQuery.of(context);
     return MediaQuery.removePadding(
@@ -1415,18 +1414,18 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
 // resolves the property against MaterialState.disabled, MaterialState.hovered,
 // MaterialState.focused.
 // ignore: unused_element
-class _EffectiveMouseCursor extends MaterialStateMouseCursor {
+class _EffectiveMouseCursor extends WidgetStateMouseCursor {
   const _EffectiveMouseCursor(this.widgetCursor, this.themeCursor);
 
   final MouseCursor? widgetCursor;
-  final MaterialStateProperty<MouseCursor?>? themeCursor;
+  final WidgetStateProperty<MouseCursor?>? themeCursor;
 
   @override
-  MouseCursor resolve(Set<MaterialState> states) {
-    return MaterialStateProperty.resolveAs<MouseCursor?>(
+  MouseCursor resolve(Set<WidgetState> states) {
+    return WidgetStateProperty.resolveAs<MouseCursor?>(
             widgetCursor, states) ??
         themeCursor?.resolve(states) ??
-        MaterialStateMouseCursor.clickable.resolve(states);
+        WidgetStateMouseCursor.clickable.resolve(states);
   }
 
   @override

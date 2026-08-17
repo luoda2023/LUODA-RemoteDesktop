@@ -43,8 +43,10 @@ void setTemporaryPasswordLengthDialog(
                 (value) => Row(
                   children: [
                     Text(value),
-                    Radio(
-                        value: value, groupValue: length, onChanged: setLength),
+                    RadioGroup(
+                        groupValue: length,
+                        onChanged: setLength,
+                        child: Radio(value: value)),
                   ],
                 ),
               )

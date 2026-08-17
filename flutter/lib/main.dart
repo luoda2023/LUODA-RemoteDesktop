@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -470,7 +471,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.window.onPlatformBrightnessChanged = () {
+    WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged = () {
       final userPreference = MyTheme.getThemeModePreference();
       if (userPreference != ThemeMode.system) return;
       WidgetsBinding.instance.handlePlatformBrightnessChanged();

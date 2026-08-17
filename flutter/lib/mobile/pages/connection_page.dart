@@ -158,7 +158,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
  borderRadius: BorderRadius.all(Radius.circular(16)),
  boxShadow: [
  BoxShadow(
- color: MyTheme.accent.withOpacity(0.08),
+ color: MyTheme.accent.withValues(alpha: 0.08),
  blurRadius: 8,
  offset: const Offset(0, 2),
  ),
@@ -289,7 +289,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
                               decoration: BoxDecoration(
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.3),
+                                    color: Colors.black.withValues(alpha: 0.3),
                                     blurRadius: 5,
                                     spreadRadius: 1,
                                   ),

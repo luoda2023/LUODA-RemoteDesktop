@@ -609,10 +609,11 @@ class FfiModel with ChangeNotifier {
           Text(translate('print-incoming-job-confirm-tip')),
           Row(
             children: [
-              Obx(() => Radio<String>(
-                  value: kValuePrinterIncomingJobDefault,
+              Obx(() => RadioGroup<String>(
                   groupValue: defaultOrSelectedGroupValue.value,
-                  onChanged: onRatioChanged)),
+                  onChanged: onRatioChanged,
+                  child: Radio<String>(
+                      value: kValuePrinterIncomingJobDefault))),
               GestureDetector(
                   child: Text(translate('use-the-default-printer-tip')),
                   onTap: () => onRatioChanged(kValuePrinterIncomingJobDefault)),
@@ -621,10 +622,11 @@ class FfiModel with ChangeNotifier {
           Column(
             children: [
               Row(children: [
-                Obx(() => Radio<String>(
-                    value: kValuePrinterIncomingJobSelected,
+                Obx(() => RadioGroup<String>(
                     groupValue: defaultOrSelectedGroupValue.value,
-                    onChanged: onRatioChanged)),
+                    onChanged: onRatioChanged,
+                    child: Radio<String>(
+                        value: kValuePrinterIncomingJobSelected))),
                 GestureDetector(
                     child: Text(translate('use-the-selected-printer-tip')),
                     onTap: () =>
@@ -643,7 +645,7 @@ class FfiModel with ChangeNotifier {
                                     ? (defaultOrSelectedGroupValue.value ==
                                             kValuePrinterIncomingJobSelected
                                         ? MyTheme.button
-                                        : MyTheme.button.withOpacity(0.5))
+                                        : MyTheme.button.withValues(alpha: 0.5))
                                     : Theme.of(context).cardColor,
                                 borderRadius: BorderRadius.all(
                                   Radius.circular(5.0),
@@ -2246,7 +2248,7 @@ class CanvasModel with ChangeNotifier {
       isDesktop ? windowBorderWidth + kDragToResizeAreaPadding.bottom : 0;
 
   Size getSize() {
-    final mediaData = MediaQueryData.fromView(ui.window);
+    final mediaData = MediaQueryData.fromView(WidgetsBinding.instance.platformDispatcher.views.first);
     final size = mediaData.size;
     // If minimized, w or h may be negative here.
     double w = size.width - leftToEdge - rightToEdge;
@@ -2286,7 +2288,7 @@ class CanvasModel with ChangeNotifier {
   double getAdjustY() {
     final bottom =
         parent.target?.cursorModel.keyHelpToolsRectToAdjustCanvas?.bottom ?? 0;
-    return max(bottom - MediaQueryData.fromView(ui.window).padding.top, 0);
+    return max(bottom - MediaQueryData.fromView(WidgetsBinding.instance.platformDispatcher.views.first).padding.top, 0);
   }
 
   updateSize() => _size = getSize();
@@ -2333,7 +2335,8 @@ class CanvasModel with ChangeNotifier {
       }
     }
 
-    _devicePixelRatio = ui.window.devicePixelRatio;
+    _devicePixelRatio =
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     if (kIgnoreDpi) {
       if (style == kRemoteViewStyleOriginal) {
         _scale = 1.0 / _devicePixelRatio;
@@ -2661,7 +2664,8 @@ class CanvasModel with ChangeNotifier {
   // For reset canvas to the last view style
   reset() {
     _scale = _lastViewStyle.scale;
-    _devicePixelRatio = ui.window.devicePixelRatio;
+    _devicePixelRatio =
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     if (kIgnoreDpi && _lastViewStyle.style == kRemoteViewStyleOriginal) {
       _scale = 1.0 / _devicePixelRatio;
     }
@@ -2760,9 +2764,11 @@ class CanvasModel with ChangeNotifier {
   }
 
   /// Release ScrollController resources to prevent leaks.
+  @override
   void dispose() {
     _horizontal.dispose();
     _vertical.dispose();
+    super.dispose();
   }
 }
 
@@ -2940,7 +2946,7 @@ class CursorModel with ChangeNotifier {
   double _displayOriginY = 0;
   DateTime? _firstUpdateMouseTime;
   Rect? _windowRect;
-  List<RemoteWindowCoords> _remoteWindowCoords = [];
+  final List<RemoteWindowCoords> _remoteWindowCoords = [];
   bool gotMouseControl = true;
   DateTime _lastPeerMouse = DateTime.now()
       .subtract(Duration(milliseconds: 3000 * kMouseControlTimeoutMSec));
@@ -3048,7 +3054,7 @@ class CursorModel with ChangeNotifier {
   // For update pan (mobile), onOneFingerPanStart, onOneFingerPanUpdate, onHoldDragUpdate
   Rect getVisibleRect() {
     final size = parent.target?.canvasModel.getSize() ??
-        MediaQueryData.fromView(ui.window).size;
+        MediaQueryData.fromView(WidgetsBinding.instance.platformDispatcher.views.first).size;
     final xoffset = parent.target?.canvasModel.x ?? 0;
     final yoffset = parent.target?.canvasModel.y ?? 0;
     final scale = parent.target?.canvasModel.scale ?? 1;
@@ -3065,7 +3071,7 @@ class CursorModel with ChangeNotifier {
     // _x = _displayOriginX - xoffset / scale + size.width / scale * 0.5;
     // _y = _displayOriginY - yoffset / scale + size.height / scale * 0.5;
     final size = parent.target?.canvasModel.getSize() ??
-        MediaQueryData.fromView(ui.window).size;
+        MediaQueryData.fromView(WidgetsBinding.instance.platformDispatcher.views.first).size;
     final xoffset = (_displayOriginX - _x) * scale + size.width * 0.5;
     final yoffset = (_displayOriginY - _y) * scale + size.height * 0.5;
     return Offset(xoffset, yoffset);
@@ -4039,6 +4045,9 @@ class Display {
       other.width == width &&
       other.height == height &&
       other.cursorEmbedded == cursorEmbedded;
+
+  @override
+  int get hashCode => Object.hash(x, y, width, height, cursorEmbedded);
 
   bool get isOriginalResolutionSet =>
       originalWidth != kInvalidResolutionValue &&

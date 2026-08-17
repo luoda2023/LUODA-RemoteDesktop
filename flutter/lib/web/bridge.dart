@@ -1,19 +1,12 @@
+// ignore_for_file: deprecated_member_use, camel_case_types
 import 'dart:async';
 import 'dart:js' as js;
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:html' as html;
 
 import 'package:luoda_flutter/consts.dart';
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-mixin _$EventToUI {
-  Object get field0 => throw _privateConstructorUsedError;
-}
 
 sealed class EventToUI {
   const factory EventToUI.event(
@@ -29,7 +22,7 @@ sealed class EventToUI {
 }
 
 class EventToUI_Event implements EventToUI {
-  const EventToUI_Event(final String field0) : this.field = field0;
+  const EventToUI_Event(final String field0) : field = field0;
   final String field;
   String get field0 => field;
 }

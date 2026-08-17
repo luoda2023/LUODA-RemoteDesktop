@@ -100,7 +100,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
     final bool compactClient = isCustomClientFresh();
     final tabWidget = Container(
         child: Scaffold(
-            backgroundColor: Theme.of(context).colorScheme.background,
+            backgroundColor: Theme.of(context).colorScheme.surface,
             body: DesktopTab(
               controller: tabController,
               showMinimize: !compactClient,

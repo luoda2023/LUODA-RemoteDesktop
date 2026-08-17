@@ -21,9 +21,6 @@ import '../widgets/remote_toolbar.dart';
 import '../widgets/kb_layout_type_chooser.dart';
 import '../widgets/tabbar_widget.dart';
 
-import 'package:luoda_flutter/native/custom_cursor.dart'
-    if (dart.library.html) 'package:luoda_flutter/web/custom_cursor.dart';
-
 final SimpleWrapper<bool> _firstEnterImage = SimpleWrapper(false);
 
 // Used to skip session close if "move to new window" is clicked.
@@ -315,7 +312,7 @@ class _ViewCameraPageState extends State<ViewCameraPage>
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Obx(() {
         final imageReady = _ffi.ffiModel.pi.isSet.isTrue &&
             _ffi.ffiModel.waitForFirstImage.isFalse;
@@ -348,10 +345,10 @@ class _ViewCameraPageState extends State<ViewCameraPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return WillPopScope(
-        onWillPop: () async {
-          clientClose(sessionId, _ffi);
-          return false;
+    return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) clientClose(sessionId, _ffi);
         },
         child: MultiProvider(providers: [
           ChangeNotifierProvider.value(value: _ffi.ffiModel),
@@ -610,18 +607,6 @@ class _ImagePaintState extends State<ImagePaint> {
       height: size.height,
       child: Stack(children: children),
     );
-  }
-
-  MouseCursor _buildCustomCursor(BuildContext context, double scale) {
-    final cursor = Provider.of<CursorModel>(context);
-    final cache = cursor.cache ?? preDefaultCursor.cache;
-    return buildCursorOfCache(cursor, scale, cache);
-  }
-
-  MouseCursor _buildDisabledCursor(BuildContext context, double scale) {
-    final cursor = Provider.of<CursorModel>(context);
-    final cache = preForbiddenCursor.cache;
-    return buildCursorOfCache(cursor, scale, cache);
   }
 
   Widget _buildCrossScrollbarFromLayout(

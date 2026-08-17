@@ -6,7 +6,6 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:luoda_flutter/common.dart';
-import 'package:luoda_flutter/common/formatter/id_formatter.dart';
 import 'package:luoda_flutter/common/widgets/animated_rotation_widget.dart';
 import 'package:luoda_flutter/common/widgets/custom_password.dart';
 import 'package:luoda_flutter/consts.dart';
@@ -67,16 +66,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   final RxBool _block = false.obs;
 
   final GlobalKey _childKey = GlobalKey();
-
-  // ---- 客户端专用版：ID输入框 ----
-  final TextEditingController _clientIdController = TextEditingController();
-  final FocusNode _clientIdFocusNode = FocusNode();
-
-  void _onClientConnect(String id, BuildContext buildCtx) {
- final trimmed = id.trim();
- if (trimmed.isEmpty) return;
- connect(buildCtx, trimmed);
-}
 
 /// Show a QR code dialog that encodes the PC's ID + one-time password
 /// so a mobile device can scan and connect in one tap.
@@ -194,7 +183,7 @@ child: Text(translate('Close')),
                               border: Border.all(color: MyTheme.accent, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
+                                    color: Colors.black.withValues(alpha: 0.1),
                                     blurRadius: 6,
                                     offset: Offset(0, 2))
                               ],
@@ -279,7 +268,7 @@ child: Text(translate('Close')),
                 border: Border.all(color: MyTheme.accent, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 8,
                     offset: Offset(0, 2),
                   ),
@@ -352,7 +341,7 @@ child: Text(translate('Close')),
       value: gFFI.serverModel,
       child: Container(
         width: isIncomingOnly ? 300.0 : 220.0,
-        color: Theme.of(context).colorScheme.background,
+        color: Theme.of(context).colorScheme.surface,
         child: Stack(
           children: [
             Column(
@@ -390,7 +379,7 @@ Positioned(
                                 Icons.settings_outlined,
                                 color: _settingsHover.value
                                     ? textColor
-                                    : Colors.grey.withOpacity(0.5),
+                                    : Colors.grey.withValues(alpha: 0.5),
                                 size: 18,
                               ),
                               Text(
@@ -399,7 +388,7 @@ Positioned(
                                   fontSize: 10,
                                   color: _settingsHover.value
                                       ? textColor
-                                      : Colors.grey.withOpacity(0.5),
+                                      : Colors.grey.withValues(alpha: 0.5),
                                 ),
                               ),
                             ],
@@ -426,7 +415,7 @@ Positioned(
                               Icons.cloud_outlined,
                               color: _relayHover.value
                                   ? textColor
-                                  : Colors.grey.withOpacity(0.5),
+                                  : Colors.grey.withValues(alpha: 0.5),
                               size: 18,
                             ),
                             Text(
@@ -435,7 +424,7 @@ Positioned(
                                 fontSize: 10,
                                 color: _relayHover.value
                                     ? textColor
-                                    : Colors.grey.withOpacity(0.5),
+                                    : Colors.grey.withValues(alpha: 0.5),
                               ),
                             ),
                           ],
@@ -463,40 +452,6 @@ Positioned(
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: ConnectionPage(),
-    );
-  }
-
-  /// 客户端专用版：远程ID输入框，回车直接连接
-  Widget _buildClientIDField() {
-    return Container(
-      margin: const EdgeInsets.only(left: 14, right: 14, top: 16),
-      child: TextFormField(
-        controller: _clientIdController,
-        focusNode: _clientIdFocusNode,
-        autocorrect: false,
-        enableSuggestions: false,
-        keyboardType: TextInputType.visiblePassword,
-        style: const TextStyle(fontSize: 13),
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: Theme.of(context)
-              .colorScheme
-              .surface
-              .withOpacity(0.5),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(
-              color: Theme.of(context).dividerColor,
-            ),
-          ),
-          hintText: translate('Enter Remote ID'),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        ),
-        onFieldSubmitted: (value) {
-          _onClientConnect(value, context);
-        },
-      ),
     );
   }
 
@@ -536,7 +491,7 @@ color: Theme.of(context)
 .textTheme
 .titleLarge
 ?.color
-?.withOpacity(0.45)),
+?.withValues(alpha: 0.45)),
 ).marginOnly(top: 8),
 IconButton(
 tooltip: translate('QR Connect'),
@@ -548,7 +503,7 @@ color: Theme.of(context)
 .textTheme
 .titleLarge
 ?.color
-?.withOpacity(0.45)),
+?.withValues(alpha: 0.45)),
 onPressed: () => _showConnectQrDialog(context, model),
 ),
 ],
@@ -566,8 +521,8 @@ onPressed: () => _showConnectQrDialog(context, model),
                         filled: true,
                         fillColor: Theme.of(context)
                             .colorScheme
-                            .background
-                            .withOpacity(0.5),
+                            .surface
+                            .withValues(alpha: 0.5),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
                           borderSide: BorderSide.none,
@@ -619,11 +574,11 @@ onPressed: () => _showConnectQrDialog(context, model),
             radius: 15,
             backgroundColor: hover.value
                 ? Theme.of(context).scaffoldBackgroundColor
-                : Theme.of(context).colorScheme.background,
+                : Theme.of(context).colorScheme.surface,
             child: Icon(
               Icons.more_vert_outlined,
               size: 20,
-              color: hover.value ? textColor : textColor?.withOpacity(0.5),
+              color: hover.value ? textColor : textColor?.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -673,7 +628,7 @@ onPressed: () => _showConnectQrDialog(context, model),
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: textColor?.withOpacity(0.45)),
+                        color: textColor?.withValues(alpha: 0.45)),
                     maxLines: 1,
                   ),
                   Row(
@@ -694,8 +649,8 @@ onPressed: () => _showConnectQrDialog(context, model),
                               filled: true,
                               fillColor: Theme.of(context)
                                   .colorScheme
-                                  .background
-                                  .withOpacity(0.5),
+                                  .surface
+                                  .withValues(alpha: 0.5),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(6),
                                 borderSide: BorderSide.none,
@@ -833,7 +788,7 @@ onPressed: () => _showConnectQrDialog(context, model),
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: textColor?.withOpacity(0.45)),
+                color: textColor?.withValues(alpha: 0.45)),
           ),
           SizedBox(height: 6),
           // 公网 IP 卡片 —— 独立蓝色竖线
@@ -906,7 +861,7 @@ onPressed: () => _showConnectQrDialog(context, model),
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: textColor?.withOpacity(0.5),
+              color: textColor?.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -927,8 +882,8 @@ onPressed: () => _showConnectQrDialog(context, model),
                 decoration: BoxDecoration(
                   color: Theme.of(context)
                       .colorScheme
-                      .background
-                      .withOpacity(0.5),
+                      .surface
+                      .withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
@@ -944,7 +899,7 @@ onPressed: () => _showConnectQrDialog(context, model),
                           letterSpacing: 0.3,
                           color: hasAddr
                               ? textColor
-                              : textColor?.withOpacity(0.4),
+                              : textColor?.withValues(alpha: 0.4),
                         ),
                       ),
                     ),
@@ -1020,21 +975,6 @@ onPressed: () => _showConnectQrDialog(context, model),
 
     if (isWindows && !bind.isDisableInstallation()) {
       // Installation prompt removed for LUODA
-      if (false && !bind.mainIsInstalled()) {
-        return buildInstallCard(
-            "", bind.isOutgoingOnly() ? "" : "install_tip", "Install",
-            () async {
-          await luodaWinManager.closeAllSubWindows();
-          bind.mainGotoInstall();
-        });
-      } else if (false && bind.mainIsInstalledLowerVersion()) {
-        return buildInstallCard(
-            "Status", "Your installation is lower version.", "Click to upgrade",
-            () async {
-          await luodaWinManager.closeAllSubWindows();
-          bind.mainUpdateMe();
-        });
-      }
     } else if (isMacOS) {
       final isOutgoingOnly = bind.isOutgoingOnly();
       if (!(isOutgoingOnly || bind.mainIsCanScreenRecording(prompt: false))) {
@@ -1705,7 +1645,7 @@ void setPasswordDialog({VoidCallback? notEmptyCallback}) async {
             close();
           },
           buttonStyle: ButtonStyle(
-              backgroundColor: MaterialStatePropertyAll(Colors.red)),
+              backgroundColor: WidgetStatePropertyAll(Colors.red)),
         );
         final okButton = dialogButton(
           "OK",

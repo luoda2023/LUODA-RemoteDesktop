@@ -439,7 +439,7 @@ class _RemotePageState extends State<RemotePage>
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Obx(() {
         final imageReady = _ffi.ffiModel.pi.isSet.isTrue &&
             _ffi.ffiModel.waitForFirstImage.isFalse;
@@ -472,10 +472,10 @@ class _RemotePageState extends State<RemotePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return WillPopScope(
-        onWillPop: () async {
-          clientClose(sessionId, _ffi);
-          return false;
+    return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) clientClose(sessionId, _ffi);
         },
         child: MultiProvider(providers: [
           ChangeNotifierProvider.value(value: _ffi.ffiModel),

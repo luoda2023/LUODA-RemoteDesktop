@@ -586,7 +586,7 @@ Future<bool?> loginDialog() async {
                       .textTheme
                       .titleLarge
                       ?.color
-                      ?.withOpacity(0.55),
+                      ?.withValues(alpha: 0.55),
             ),
             onTap: onDialogCancel,
             hoverColor: Colors.red,

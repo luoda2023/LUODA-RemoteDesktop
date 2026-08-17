@@ -355,7 +355,7 @@ class FileController {
       required this.getOtherSideDirectoryData});
 
   String get homePath => options.value.home;
-  void set homePath(String path) => options.value.home = path;
+  set homePath(String path) => options.value.home = path;
   OverlayDialogManager? get dialogManager => rootState.target?.dialogManager;
 
   String get shortPath {
@@ -1340,10 +1340,10 @@ class FileFetcher {
       } else {
         await bind.sessionReadRemoteEmptyDirsRecursiveSync(
             sessionId: sessionId, path: path, includeHidden: showHidden);
-        return registerReadEmptyDirsTask(isLocal, path);
+        return await registerReadEmptyDirsTask(isLocal, path);
       }
     } catch (e) {
-      return Future.error(e);
+      rethrow;
     }
   }
 
@@ -1358,10 +1358,10 @@ class FileFetcher {
       } else {
         await bind.sessionReadRemoteDir(
             sessionId: sessionId, path: path, includeHidden: showHidden);
-        return registerReadTask(isLocal, path);
+        return await registerReadTask(isLocal, path);
       }
     } catch (e) {
-      return Future.error(e);
+      rethrow;
     }
   }
 
@@ -1375,9 +1375,9 @@ class FileFetcher {
           path: path,
           isRemote: !isLocal,
           showHidden: showHidden);
-      return registerReadRecursiveTask(actID);
+      return await registerReadRecursiveTask(actID);
     } catch (e) {
-      return Future.error(e);
+      rethrow;
     }
   }
 }
