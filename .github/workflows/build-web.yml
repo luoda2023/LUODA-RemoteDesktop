@@ -61,7 +61,7 @@ jobs:
           fi
           flutter pub get
           echo "=== Building web ==="
-          flutter build web --release --web-renderer html 2>&1
+          flutter build web --release 2>&1
           echo "=== Verifying build ==="
           ls -la build/web/
           echo "---"
