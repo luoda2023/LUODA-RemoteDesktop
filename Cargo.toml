@@ -213,10 +213,6 @@ exclude = ["vdi/host", "examples/custom_plugin"]
 [patch.crates-io]
 libxdo-sys = { path = "libs/libxdo-sys-stub" }
 
-# LOCAL-ONLY (do not commit): offline build of portable-pty from sparse checkout
-[patch."https://github.com/luoda2023/wezterm"]
-portable-pty = { path = "D:/LD/tools/wezterm-sparse/pty" }
-
 [package.metadata.winres]
 LegalCopyright = "Copyright © 2025 LUODA. All rights reserved."
 ProductName = "LUODA"
