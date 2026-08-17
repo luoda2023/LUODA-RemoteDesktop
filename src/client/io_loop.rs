@@ -1160,6 +1160,36 @@ impl<T: InvokeUiSession> Remote<T> {
             .map(|v| *v.1.decode_fps.read().unwrap())
             .min()
             .flatten();
+        // 首帧保护：视频线程创建 3 秒后仍未成功解码任何帧（例如连接时错过首关键帧，
+        // 且桌面静止导致服务端不重发关键帧），主动请求刷新以强制服务端重发关键帧，
+        // 避免远程画面一直黑屏。
+        if min_decode_fps.is_none() {
+            let now = Instant::now();
+            let needs_refresh: Vec<usize> = self
+                .video_threads
+                .iter()
+                .filter(|(_, t)| {
+                    let ctl = &t.fps_control;
+                    now.duration_since(t.created_at) > Duration::from_secs(3)
+                        && ctl.refresh_times < 20
+                        && (ctl.refresh_times == 0
+                            || ctl.last_refresh_instant
+                                .map(|t| t.elapsed().as_secs() > 10)
+                                .unwrap_or(false))
+                })
+                .map(|(d, _)| *d)
+                .collect();
+            for display in needs_refresh {
+                let ctl = &mut self.video_threads.get_mut(&display).unwrap().fps_control;
+                self.handler.refresh_video(display as _);
+                log::info!(
+                    "Request keyframe for display {} (no decodable frame within 3s)",
+                    display
+                );
+                ctl.refresh_times += 1;
+                ctl.last_refresh_instant = Some(Instant::now());
+            }
+        }
         let Some(min_decode_fps) = min_decode_fps else {
             return;
         };
@@ -2325,6 +2355,7 @@ impl<T: InvokeUiSession> Remote<T> {
             frame_count: frame_count.clone(),
             fps_control: Default::default(),
             discard_queue: discard_queue.clone(),
+            created_at: Instant::now(),
         };
         let handler = self.handler.ui_handler.clone();
         crate::client::start_video_thread(
@@ -2429,6 +2460,7 @@ struct VideoThread {
     frame_count: Arc<RwLock<usize>>,
     discard_queue: Arc<RwLock<bool>>,
     fps_control: FpsControl,
+    created_at: Instant,
 }
 
 impl Drop for VideoThread {
