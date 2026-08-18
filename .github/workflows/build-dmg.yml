@@ -171,6 +171,8 @@ jobs:
       - name: Build Flutter macOS
         run: |
           cd flutter
+          # Disable Swift Package Manager (causes module resolution issues on macOS CI)
+          flutter config --no-enable-swift-package-manager
           # Fix: disable nullability warnings-as-errors from system headers
           export OTHER_CFLAGS="-Wno-error=nullability-completeness -Wno-error=nullability"
           export OTHER_CPLUSPLUSFLAGS="-Wno-error=nullability-completeness -Wno-error=nullability"
