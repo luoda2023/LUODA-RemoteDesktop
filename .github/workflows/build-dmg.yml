@@ -154,21 +154,19 @@ jobs:
           CXXFLAGS="-I${VCPKG_INCLUDE} -I${BREW_INCLUDE} -include cstdint" \
           cargo build --release --features flutter,hwcodec
 
-      - name: Patch video_player_avfoundation for macOS Flutter 3.47
+      - name: Remove video_player_avfoundation from macOS build
         run: |
-          # video_player_avfoundation 2.11.0 fails on macOS Flutter 3.47 with @import Flutter not found
-          # Patch the header to use #import instead of @import
+          # video_player_avfoundation 2.11.0 fails on macOS Flutter 3.47 (module Flutter not found)
+          # We do not use video playback on macOS, so stub out the broken source files
           VPAF_DIR="$HOME/.pub-cache/hosted/pub.dev/video_player_avfoundation-2.11.0"
           if [ -d "$VPAF_DIR" ]; then
-            find "$VPAF_DIR" -name "FVPViewProvider.h" | while read f; do
-              sed -i '' 's/@import Flutter;/#import <Flutter\/Flutter.h>/' "$f"
-              echo "Patched: $f"
+            for f in $(find "$VPAF_DIR/darwin/video_player_avfoundation/Sources/video_player_avfoundation_objc" -name "*.h" -o -name "*.m"); do
+              echo "// Stubbed for macOS build - video playback not used on macOS" > "$f"
             done
-            echo "Done patching video_player_avfoundation"
+            echo "Stubbed video_player_avfoundation source files for macOS"
           else
-            echo "video_player_avfoundation not found, skipping patch"
+            echo "video_player_avfoundation not found, skipping"
           fi
-
 
       - name: Build Flutter macOS
         run: |
