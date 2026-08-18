@@ -154,6 +154,22 @@ jobs:
           CXXFLAGS="-I${VCPKG_INCLUDE} -I${BREW_INCLUDE} -include cstdint" \
           cargo build --release --features flutter,hwcodec
 
+      - name: Patch video_player_avfoundation for macOS Flutter 3.47
+        run: |
+          # video_player_avfoundation 2.11.0 fails on macOS Flutter 3.47 with @import Flutter not found
+          # Patch the header to use #import instead of @import
+          VPAF_DIR="$HOME/.pub-cache/hosted/pub.dev/video_player_avfoundation-2.11.0"
+          if [ -d "$VPAF_DIR" ]; then
+            find "$VPAF_DIR" -name "FVPViewProvider.h" | while read f; do
+              sed -i '' 's/@import Flutter;/#import <Flutter\/Flutter.h>/' "$f"
+              echo "Patched: $f"
+            done
+            echo "Done patching video_player_avfoundation"
+          else
+            echo "video_player_avfoundation not found, skipping patch"
+          fi
+
+
       - name: Build Flutter macOS
         run: |
           cd flutter
