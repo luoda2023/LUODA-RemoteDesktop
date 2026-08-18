@@ -601,8 +601,8 @@ class ServerInfo extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'IP直连',
+Text(
+translate('IP Direct'),
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
@@ -610,7 +610,7 @@ class ServerInfo extends StatelessWidget {
             ),
           ),
           SizedBox(height: 4),
-          _mobileIpRow('公网', publicAddr),
+          _mobileIpRow(translate('Public'), publicAddr),
           SizedBox(height: 2),
           if (publicAddr.isNotEmpty && directPort.isNotEmpty)
             Row(
@@ -626,25 +626,25 @@ class ServerInfo extends StatelessWidget {
                 ),
                 Expanded(
                   child: Text(
-                    !directReady
-                        ? '直连服务正在启动'
-                        : upnpOk
-                            ? '已自动开放公网直连端口'
-                            : '直连服务已启动；公网可达性由当前网络决定',
+!directReady
+? translate('Direct service is starting')
+: upnpOk
+? translate('Public direct-connect port auto-opened')
+: translate('Direct service started; public reachability depends on network'),
                     style: TextStyle(fontSize: 10, color: Colors.grey),
                   ),
                 ),
               ],
             ),
           SizedBox(height: 4),
-          _mobileIpRow('内网', lanAddr),
+          _mobileIpRow(translate('LAN'), lanAddr),
         ],
       ),
     );
   }
 
   Widget _mobileIpRow(String label, String addr) {
-    final text = addr.isNotEmpty ? addr : 'Not available';
+    final text = addr.isNotEmpty ? addr : translate('Not available');
     return Row(
       children: [
         SizedBox(

@@ -463,7 +463,7 @@ Future<bool?> loginDialog() async {
           } else if (resp.tfa_type == HttpType.kAuthResTypeTfaCheck) {
             isEmailVerification = false;
           } else {
-            passwordMsg = "Failed, bad tfa type from server";
+            passwordMsg = translate("Failed, bad tfa type from server");
           }
           if (isEmailVerification != null) {
             if (isMobile) {
@@ -486,9 +486,10 @@ Future<bool?> loginDialog() async {
           }
           break;
         default:
-          passwordMsg = "Failed, bad response from server";
-          break;
-      }
+passwordMsg = translate("Failed, bad response from server");
+break;
+}
+
     }
 
     onLogin() async {
@@ -515,7 +516,7 @@ Future<bool?> loginDialog() async {
       } on RequestException catch (err) {
         passwordMsg = translate(err.cause);
       } catch (err) {
-        passwordMsg = "Unknown Error: $err";
+        passwordMsg = "${translate("Unknown Error")}: $err";
       }
       curOP.value = '';
       setState(() => isInProgress = false);
@@ -665,13 +666,13 @@ Future<bool?> verificationCodeDialog(
             }
             break;
           default:
-            errorText = "Failed, bad response from server";
-            break;
-        }
-      } on RequestException catch (err) {
-        errorText = translate(err.cause);
-      } catch (err) {
-        errorText = "Unknown Error: $err";
+errorText = translate("Failed, bad response from server");
+break;
+}
+} on RequestException catch (err) {
+errorText = translate(err.cause);
+} catch (err) {
+        errorText = "${translate("Unknown Error")}: $err";
       }
 
       setState(() => isInProgress = false);

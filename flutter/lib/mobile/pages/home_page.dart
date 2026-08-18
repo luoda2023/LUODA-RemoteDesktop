@@ -190,7 +190,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
+              Text(translate(title),
                   style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
               Text(desc, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
             ],

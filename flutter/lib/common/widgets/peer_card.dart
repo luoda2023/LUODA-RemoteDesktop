@@ -684,7 +684,7 @@ class _PeerCardState extends State<_PeerCard>
       case 'ipados':
         return {'icon': Icons.phone_iphone_rounded, 'label': 'iOS'};
       default:
-        return {'icon': Icons.devices_rounded, 'label': platform.isEmpty ? 'Unknown' : platform};
+        return {'icon': Icons.devices_rounded, 'label': platform.isEmpty ? translate('Unknown') : platform};
     }
   }
 
