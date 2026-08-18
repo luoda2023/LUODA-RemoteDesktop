@@ -713,7 +713,7 @@ class FileController {
             break;
           }
         } catch (e) {
-          print("remove error: $e");
+          debugPrint("remove error: $e");
         }
       }
     });

@@ -31,10 +31,7 @@ abstract class BaseEventLoop<EventType, Data> {
 
   List<BaseEvent<EventType, Data>> get evts => _evts;
 
-  Future<void> onReady() async {
-    // Poll every 100ms.
-    _timer = Timer.periodic(Duration(milliseconds: 100), _handleTimer);
-  }
+  Future<void> onReady() async {}
 
   /// An Event is about to be consumed.
   Future<void> onPreConsume(BaseEvent<EventType, Data> evt) async {}
@@ -45,13 +42,20 @@ abstract class BaseEventLoop<EventType, Data> {
   /// Events start to consume.
   Future<void> onEventsStartConsuming() async {}
 
-  /// Poll every 100ms for pending events.
-  Future<void> _handleTimer(Timer timer) async {
-    if (_evts.isEmpty) {
-      return;
-    }
-    // Pause processing while handling the batch; the timer keeps running
-    // so we don't cancel and recreate a periodic timer on every batch.
+  /// Process pending events on a short delay, then auto-stop when the
+  /// queue drains — no permanent periodic timer.
+  void _scheduleConsume() {
+    if (_timer != null) return;
+    _timer = Timer(Duration(milliseconds: 100), _handleTimer);
+  }
+
+  void _handleTimer() {
+    _timer = null;
+    _consumeEvents();
+  }
+
+  Future<void> _consumeEvents() async {
+    if (_evts.isEmpty) return;
     await onEventsStartConsuming();
     while (_evts.isNotEmpty) {
       final evt = _evts.first;
@@ -65,10 +69,12 @@ abstract class BaseEventLoop<EventType, Data> {
 
   Future<void> close() async {
     _timer?.cancel();
+    _timer = null;
   }
 
   void pushEvent(BaseEvent<EventType, Data> evt) {
     _evts.add(evt);
+    _scheduleConsume();
   }
 
   void clear() {

@@ -1028,7 +1028,7 @@ void androidChannelInit() {
           }
         case "stop_service":
           {
-            print(
+            debugPrint(
                 "stop_service by kotlin, isStart:${gFFI.serverModel.isStart}");
             if (gFFI.serverModel.isStart) {
               gFFI.serverModel.stopService();

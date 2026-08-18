@@ -136,7 +136,7 @@ class PlatformFFI {
         Map<String, dynamic> event = json.decode(message);
         tryHandle(event);
       } catch (e) {
-        print('json.decode fail(): $e');
+        debugPrint('json.decode fail(): $e');
       }
     };
     return completer.future;
@@ -148,7 +148,7 @@ class PlatformFFI {
         Map<String, dynamic> event = json.decode(message);
         fun(event);
       } catch (e) {
-        print('json.decode fail(): $e');
+        debugPrint('json.decode fail(): $e');
       }
     };
   }

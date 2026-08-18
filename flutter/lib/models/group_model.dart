@@ -49,7 +49,7 @@ class GroupModel {
       await _pull();
       _tryHandlePullError();
     } catch (e) {
-      print("pull accessibles error: $e");
+      debugPrint("pull accessibles error: $e");
     }
     groupLoading.value = false;
     initialized = true;

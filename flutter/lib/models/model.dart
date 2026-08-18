@@ -2901,7 +2901,7 @@ class PredefinedCursor {
         _image = await img.decodeImageFromPixels(
             data, defaultImg.width, defaultImg.height, ui.PixelFormat.rgba8888);
         if (_image == null) {
-          print("decodeImageFromPixels failed, pre-defined cursor $id");
+          debugPrint("decodeImageFromPixels failed, pre-defined cursor $id");
           return;
         }
         double scale = 1.0;

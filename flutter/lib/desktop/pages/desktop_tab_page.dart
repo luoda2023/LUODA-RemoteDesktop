@@ -79,7 +79,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   /*
   bool _handleKeyEvent(KeyEvent event) {
     if (!mouseIn && event is KeyDownEvent) {
-      print('key down: ${event.logicalKey}');
+      debugPrint('key down: ${event.logicalKey}');
       shouldBeBlocked(_block, canBeBlocked);
     }
     return false; // allow it to propagate

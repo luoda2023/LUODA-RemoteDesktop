@@ -61,7 +61,7 @@ void showServerSettings(OverlayDialogManager dialogManager,
   try {
     options = jsonDecode(await bind.mainGetOptions());
   } catch (e) {
-    print("Invalid server config: $e");
+    debugPrint("Invalid server config: $e");
   }
   showServerSettingsWithValue(
       ServerConfig.fromOptions(options), dialogManager, setState);

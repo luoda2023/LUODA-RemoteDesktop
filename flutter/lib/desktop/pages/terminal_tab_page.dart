@@ -305,10 +305,8 @@ class _TerminalTabPageState extends State<TerminalTabPage> {
     // Add keyboard shortcut handler
     HardwareKeyboard.instance.addHandler(_handleKeyEvent);
 
-    luodaWinManager.setMethodHandler((call, fromWindowId) async {
-      print(
-          "[Remote Terminal] call ${call.method} with args ${call.arguments} from window $fromWindowId");
-      if (call.method == kWindowEventNewTerminal) {
+luodaWinManager.setMethodHandler((call, fromWindowId) async {
+if (call.method == kWindowEventNewTerminal) {
         final args = jsonDecode(call.arguments);
         final id = args['id'];
         windowOnTop(windowId());

@@ -513,13 +513,19 @@ class _CheckedPopupMenuItemState<T>
   late AnimationController _controller;
   Animation<double> get _opacity => _controller.view;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(duration: _fadeDuration, vsync: this)
-      ..value = widget.checked ? 1.0 : 0.0
-      ..addListener(() => setState(() {/* animation changed */}));
-  }
+@override
+void initState() {
+super.initState();
+_controller = AnimationController(duration: _fadeDuration, vsync: this)
+..value = widget.checked ? 1.0 : 0.0
+..addListener(() => setState(() {/* animation changed */}));
+}
+
+@override
+void dispose() {
+_controller.dispose();
+super.dispose();
+}
 
   @override
   void handleTap() {

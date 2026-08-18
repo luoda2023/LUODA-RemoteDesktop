@@ -2361,7 +2361,7 @@ void showWindowsSessionsDialog(
   try {
     sessionsList = json.decode(sessions);
   } catch (e) {
-    print(e);
+    debugPrint(e.toString());
   }
   List<String> sids = [];
   List<String> names = [];
@@ -2815,7 +2815,7 @@ class TrustedDevice {
         }
       }
     } catch (e) {
-      print(e.toString());
+      debugPrint(e.toString());
     }
     devices.sort((a, b) => b.time.compareTo(a.time));
     return devices;

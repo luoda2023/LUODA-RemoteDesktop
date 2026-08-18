@@ -293,7 +293,7 @@ class Luoda {
 
   Future<void> sessionSetImageQuality(
       {required UuidValue sessionId, required String value, dynamic hint}) {
-    print('set image quality: $value');
+    debugPrint('set image quality: $value');
     return Future(
         () => js.context.callMethod('setByName', ['image_quality', value]));
   }

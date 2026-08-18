@@ -717,7 +717,7 @@ Future<void> windowOnTop(int? id) async {
   if (!isDesktop) {
     return;
   }
-  print("Bring window '$id' on top");
+  debugPrint("Bring window '$id' on top");
   if (id == null) {
     // main window
     if (stateGlobal.isMinimized) {
@@ -2213,7 +2213,7 @@ Future<bool> initUniLinks() async {
   // check cold boot
   try {
     final initialLink = await getInitialLink();
-    print("initialLink: $initialLink");
+    debugPrint("initialLink: $initialLink");
     if (initialLink == null || initialLink.isEmpty) {
       return false;
     }
@@ -2248,10 +2248,10 @@ StreamSubscription? listenUniLinks({handleByFlutter = true}) {
         bind.sendUrlScheme(url: uri.toString());
       }
     } else {
-      print("uni listen error: uri is empty.");
+      debugPrint("uni listen error: uri is empty.");
     }
   }, onError: (err) {
-    print("uni links error: $err");
+    debugPrint("uni links error: $err");
   });
   return sub;
 }
@@ -2826,8 +2826,8 @@ bool isRunningInPortableMode() {
 
 /// Window status callback
 Future<void> onActiveWindowChanged() async {
-  print(
-      "[MultiWindowHandler] active window changed: ${luodaWinManager.getActiveWindows()}");
+debugPrint(
+"[MultiWindowHandler] active window changed: ${luodaWinManager.getActiveWindows()}");
   if (luodaWinManager.getActiveWindows().isEmpty) {
     // close all sub windows
     try {
@@ -3058,9 +3058,8 @@ enum PermissionAuthorizeType {
 }
 
 Future<PermissionAuthorizeType> osxCanRecordAudio() async {
-  int res = await kMacOSPermChannel.invokeMethod("canRecordAudio");
-  print(res);
-  if (res > 0) {
+int res = await kMacOSPermChannel.invokeMethod("canRecordAudio");
+if (res > 0) {
     return PermissionAuthorizeType.authorized;
   } else if (res == 0) {
     return PermissionAuthorizeType.undetermined;

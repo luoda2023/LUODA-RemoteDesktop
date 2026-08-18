@@ -30,7 +30,7 @@ class RdPlatformChannel {
   Future<void> changeSystemWindowTheme(SystemWindowTheme theme) {
     assert(isMacOS);
     if (kDebugMode) {
-      print(
+      debugPrint(
           "[Window ${kWindowId ?? 'Main'}] change system window theme to ${theme.name}");
     }
     return _hostMethodChannel

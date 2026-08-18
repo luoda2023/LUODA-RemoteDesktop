@@ -1,6 +1,7 @@
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:luoda_flutter/common.dart';
 import 'package:get/get.dart';
+import 'package:flutter/foundation.dart';
 
 import '../consts.dart';
 import './platform_model.dart';
@@ -103,7 +104,7 @@ class StateGlobal {
 
   procFullscreenNative(bool procWnd) {
     refreshResizeEdgeSize();
-    print("fullscreen: $fullscreen, resizeEdgeSize: ${_resizeEdgeSize.value}");
+    debugPrint("fullscreen: $fullscreen, resizeEdgeSize: ${_resizeEdgeSize.value}");
     _windowBorderWidth.value = fullscreen.isTrue ? 0 : kWindowBorderWidth;
     if (procWnd) {
       final wc = WindowController.fromWindowId(windowId);

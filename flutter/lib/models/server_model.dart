@@ -753,6 +753,15 @@ String get connectQrData {
     if (isAndroid) androidUpdatekeepScreenOn();
   }
 
+  @override
+  void dispose() {
+    cmHiddenTimer?.cancel();
+    cmHiddenTimer = null;
+    _fetchTimer?.cancel();
+    _fetchTimer = null;
+    super.dispose();
+  }
+
   void jumpTo(int id) {
     final index = _clients.indexWhere((client) => client.id == id);
     tabController.jumpTo(index);
