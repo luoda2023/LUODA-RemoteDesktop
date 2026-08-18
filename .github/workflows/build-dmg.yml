@@ -184,7 +184,8 @@ jobs:
           # Ensure Xcode can find libluoda.dylib
           export LIBRARY_PATH="${LIBRARY_PATH}:../target/release"
           ls -la ../target/release/libluoda.dylib 2>/dev/null || echo "WARNING: libluoda.dylib not found at expected path!"
-          flutter build macos --release --no-pub
+          # Rust lib is arm64-only; exclude x86_64 from the macOS build
+          flutter build macos --release --no-pub --build-args=EXCLUDED_ARCHS=x86_64
 
       - name: Create DMG
         env:
