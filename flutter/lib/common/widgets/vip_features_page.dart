@@ -22,9 +22,27 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
 
   late final WebViewController? _controller;
   bool _loading = true;
+  bool _canGoBack = false;
+  bool _canGoForward = false;
 
-/// 注入样式：全屏宽度自适应，只允许上下滚动、禁止左右滚动。
-void _injectNoHorizontalScroll() {
+  /// 查询 WebView 导航状态，刷新工具栏按钮可用性。
+  Future<void> _refreshNavState() async {
+    final controller = _controller;
+    if (controller == null || !mounted) return;
+    try {
+      final back = await controller.canGoBack();
+      final forward = await controller.canGoForward();
+      if (mounted) {
+        setState(() {
+          _canGoBack = back;
+          _canGoForward = forward;
+        });
+      }
+    } catch (_) {}
+  }
+
+  /// 注入样式：全屏宽度自适应，只允许上下滚动、禁止左右滚动。
+  void _injectNoHorizontalScroll() {
 if (_controller == null) return;
 _controller!.runJavaScript(r'''
 (function() {
@@ -121,6 +139,7 @@ _controller!.runJavaScript(r'''
               _loading = true;
             });
           }
+          _refreshNavState();
         },
         onPageFinished: (String url) {
           _injectNoHorizontalScroll();
@@ -129,6 +148,7 @@ _controller!.runJavaScript(r'''
               _loading = false;
             });
           }
+          _refreshNavState();
         },
         onWebResourceError: (WebResourceError error) {
           if (mounted) {
@@ -136,6 +156,7 @@ _controller!.runJavaScript(r'''
               _loading = false;
             });
           }
+          _refreshNavState();
         },
       ))
       ..loadRequest(Uri.parse(kDownloadUrl));
@@ -231,12 +252,87 @@ _controller!.runJavaScript(r'''
   return Stack(
     fit: StackFit.expand,
     children: [
-      WebViewWidget(controller: controller),
+      // 让出顶部工具栏的空间，WebView 从工具栏下方开始
+      Positioned.fill(
+        top: 44,
+        child: WebViewWidget(controller: controller),
+      ),
+      // 悬浮导航工具栏：返回 / 前进 / 刷新
+      Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        child: _buildNavBar(context, controller),
+      ),
       if (_loading)
-        const Center(
-          child: CircularProgressIndicator(),
+        const Positioned.fill(
+          top: 44,
+          child: Center(
+            child: CircularProgressIndicator(),
+          ),
         ),
     ],
   );
+  }
+
+  Widget _buildNavBar(BuildContext context, WebViewController controller) {
+    final theme = Theme.of(context);
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.92),
+        border: Border(
+          bottom: BorderSide(
+            color: theme.dividerColor.withValues(alpha: 0.3),
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+            tooltip: translate('Back'),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            onPressed: _canGoBack
+                ? () async {
+                    if (await controller.canGoBack()) {
+                      await controller.goBack();
+                    }
+                  }
+                : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward_ios, size: 20),
+            tooltip: translate('Forward'),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            onPressed: _canGoForward
+                ? () async {
+                    if (await controller.canGoForward()) {
+                      await controller.goForward();
+                    }
+                  }
+                : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 20),
+            tooltip: translate('Refresh'),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            onPressed: () => controller.reload(),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.open_in_browser, size: 18),
+            tooltip: translate('Open in browser'),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            onPressed: _openExternal,
+          ),
+        ],
+      ),
+    );
   }
 }
