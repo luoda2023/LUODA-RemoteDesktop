@@ -1,11 +1,17 @@
+import 'dart:async';
 import 'dart:io';
 
 class RuntimeLogger {
   static const int _maxLogBytes = 5 * 1024 * 1024;
+  static const int _flushIntervalMs = 2000;
+  static const int _flushThresholdLines = 50;
   static RuntimeLogger? _instance;
 
   File? _logFile;
   bool _enabled = false;
+  final StringBuffer _buffer = StringBuffer();
+  int _bufferedLines = 0;
+  Timer? _flushTimer;
 
   RuntimeLogger._();
 
@@ -80,13 +86,47 @@ class RuntimeLogger {
     final normalizedMessage = message
         .replaceAll('\r\n', '\n')
         .replaceAll('\r', '\n')
-        .replaceAll('\n', '\n    ');
+        .replaceAll('\n', '\n ');
     final line = '[$timestamp] [$level] [$tag] $normalizedMessage\n';
+
+    // ERROR and WARN are flushed immediately; INFO and DEBUG are buffered
+    // to avoid synchronous file I/O on the UI thread for every log line.
+    if (level == 'ERROR' || level == 'WARN') {
+      _buffer.write(line);
+      _flushBuffer(immediate: true);
+      return;
+    }
+
+    _buffer.write(line);
+    _bufferedLines++;
+    if (_bufferedLines >= _flushThresholdLines) {
+      _flushBuffer();
+    } else {
+      _ensureFlushTimer();
+    }
+  }
+
+  void _ensureFlushTimer() {
+    if (_flushTimer != null) return;
+    _flushTimer = Timer(
+      const Duration(milliseconds: _flushIntervalMs),
+      () => _flushBuffer(),
+    );
+  }
+
+  void _flushBuffer({bool immediate = false}) {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    if (_buffer.isEmpty) return;
+
+    final data = _buffer.toString();
+    _buffer.clear();
+    _bufferedLines = 0;
     try {
       _logFile!.writeAsStringSync(
-        line,
+        data,
         mode: FileMode.append,
-        flush: true,
+        flush: immediate,
       );
     } catch (_) {
       _enabled = false;
@@ -106,6 +146,7 @@ class RuntimeLogger {
     if (!_enabled || file == null || !file.existsSync()) {
       return false;
     }
+    _flushBuffer(immediate: true);
     try {
       return await shareFile(file.path);
     } catch (error) {

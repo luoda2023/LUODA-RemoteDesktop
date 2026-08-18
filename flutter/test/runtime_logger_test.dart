@@ -1,40 +1,42 @@
 import 'dart:io';
 
+import 'package:flutter_test/flutter_test.dart';
 import 'package:luoda_flutter/runtime_logger.dart';
 
-Future<void> main() async {
-  const fileName = 'runtime_logger_test.log';
-  final directory =
-      Directory('${Directory.current.path}${Platform.pathSeparator}test');
-  final file = File('${directory.path}${Platform.pathSeparator}$fileName');
-  if (file.existsSync()) {
+void main() {
+  test('runtime logger persists entries and supports sharing', () async {
+    const fileName = 'runtime_logger_test.log';
+    final directory =
+        Directory('${Directory.current.path}${Platform.pathSeparator}test');
+    final file = File('${directory.path}${Platform.pathSeparator}$fileName');
+    if (file.existsSync()) {
+      file.deleteSync();
+    }
+
+    final logger = RuntimeLogger.forTesting();
+    await logger.init(directory: directory, fileName: fileName);
+    logger.info('TEST', 'runtime logging works');
+    logger.error('TEST', 'line one\nline two');
+
+    String? sharedPath;
+    final shared = await logger.share((path) async {
+      sharedPath = path;
+      return true;
+    });
+
+    final contents = file.readAsStringSync();
+    expect(logger.logPath, file.path);
+    expect(shared, isTrue);
+    expect(sharedPath, file.path);
+    expect(contents.contains('[INFO] [TEST] runtime logging works'), isTrue);
+    expect(contents.contains('[ERROR] [TEST] line one\n line two'), isTrue);
+
     file.deleteSync();
-  }
-
-  final logger = RuntimeLogger.forTesting();
-  await logger.init(directory: directory, fileName: fileName);
-  logger.info('TEST', 'runtime logging works');
-  logger.error('TEST', 'line one\nline two');
-
-  String? sharedPath;
-  final shared = await logger.share((path) async {
-    sharedPath = path;
-    return true;
   });
 
-  final contents = file.readAsStringSync();
-  if (logger.logPath != file.path ||
-      !shared ||
-      sharedPath != file.path ||
-      !contents.contains('[INFO] [TEST] runtime logging works') ||
-      !contents.contains('[ERROR] [TEST] line one\n    line two')) {
-    throw StateError('runtime logger did not persist the expected entries');
-  }
-
-  final uninitializedLogger = RuntimeLogger.forTesting();
-  if (await uninitializedLogger.share((_) async => true)) {
-    throw StateError('uninitialized runtime logger must not export a file');
-  }
-
-  file.deleteSync();
+  test('uninitialized runtime logger does not export a file', () async {
+    final uninitializedLogger = RuntimeLogger.forTesting();
+    final result = await uninitializedLogger.share((_) async => true);
+    expect(result, isFalse);
+  });
 }

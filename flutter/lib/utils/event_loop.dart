@@ -45,24 +45,22 @@ abstract class BaseEventLoop<EventType, Data> {
   /// Events start to consume.
   Future<void> onEventsStartConsuming() async {}
 
+  /// Poll every 100ms for pending events.
   Future<void> _handleTimer(Timer timer) async {
-      if (_evts.isEmpty) {
-        return;
-      }
-      timer.cancel();
-      _timer = null;
-      // Handle the logic.
-      await onEventsStartConsuming();
-      while (_evts.isNotEmpty) {
-        final evt = _evts.first;
-        _evts.remove(evt);
-        await onPreConsume(evt);
-        await evt.consume();
-        await onPostConsume(evt);
-      }
-      await onEventsClear();
-      // Now events are all processed.
-      _timer = Timer.periodic(Duration(milliseconds: 100), _handleTimer);
+    if (_evts.isEmpty) {
+      return;
+    }
+    // Pause processing while handling the batch; the timer keeps running
+    // so we don't cancel and recreate a periodic timer on every batch.
+    await onEventsStartConsuming();
+    while (_evts.isNotEmpty) {
+      final evt = _evts.first;
+      _evts.remove(evt);
+      await onPreConsume(evt);
+      await evt.consume();
+      await onPostConsume(evt);
+    }
+    await onEventsClear();
   }
 
   Future<void> close() async {

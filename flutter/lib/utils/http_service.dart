@@ -85,19 +85,19 @@ class HttpService {
   }
 
   http.Response _parseHttpResponse(String responseJson) {
-    try {
-      var parsedJson = jsonDecode(responseJson);
-      String body = parsedJson['body'];
-      Map<String, String> headers = {};
-      for (var key in parsedJson['headers'].keys) {
-        headers[key] = parsedJson['headers'][key];
-      }
-      int statusCode = parsedJson['status_code'];
-      return http.Response(body, statusCode, headers: headers);
-    } catch (e) {
-      print('Failed to parse response\n$responseJson\nError:\n$e');
-      throw Exception('Failed to parse response.\n$responseJson');
+  try {
+    var parsedJson = jsonDecode(responseJson);
+    String body = parsedJson['body'];
+    Map<String, String> headers = {};
+    for (var key in parsedJson['headers'].keys) {
+      headers[key] = parsedJson['headers'][key];
     }
+    int statusCode = parsedJson['status_code'];
+    return http.Response(body, statusCode, headers: headers);
+  } catch (e) {
+    debugPrint('Failed to parse response\n$responseJson\nError:\n$e');
+    throw Exception('Failed to parse response.\n$responseJson');
+  }
   }
 }
 

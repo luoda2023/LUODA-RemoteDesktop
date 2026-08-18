@@ -1,7 +1,7 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:luoda_flutter/common.dart';
 
@@ -17,17 +17,17 @@ Future<ui.Image?> decodeImageFromPixels(
 }) async {
   if (targetWidth != null) {
     assert(allowUpscaling || targetWidth <= width);
-    if (!(allowUpscaling || targetWidth <= width)) {
-      print("not allow upscaling but targetWidth > width");
-      return null;
-    }
+  if (!(allowUpscaling || targetWidth <= width)) {
+    debugPrint("not allow upscaling but targetWidth > width");
+    return null;
+  }
   }
   if (targetHeight != null) {
     assert(allowUpscaling || targetHeight <= height);
-    if (!(allowUpscaling || targetHeight <= height)) {
-      print("not allow upscaling but targetHeight > height");
-      return null;
-    }
+  if (!(allowUpscaling || targetHeight <= height)) {
+    debugPrint("not allow upscaling but targetHeight > height");
+    return null;
+  }
   }
 
   final ui.ImmutableBuffer buffer;
@@ -55,7 +55,7 @@ Future<ui.Image?> decodeImageFromPixels(
       }
     }
   } catch (e) {
-    print("ImageDescriptor.raw failed: $e");
+    debugPrint("ImageDescriptor.raw failed: $e");
     buffer.dispose();
     return null;
   }
@@ -67,7 +67,7 @@ Future<ui.Image?> decodeImageFromPixels(
       targetHeight: targetHeight,
     );
   } catch (e) {
-    print("instantiateCodec failed: $e");
+    debugPrint("instantiateCodec failed: $e");
     buffer.dispose();
     descriptor.dispose();
     return null;
@@ -77,7 +77,7 @@ Future<ui.Image?> decodeImageFromPixels(
   try {
     frameInfo = await codec.getNextFrame();
   } catch (e) {
-    print("getNextFrame failed: $e");
+    debugPrint("getNextFrame failed: $e");
     codec.dispose();
     buffer.dispose();
     descriptor.dispose();

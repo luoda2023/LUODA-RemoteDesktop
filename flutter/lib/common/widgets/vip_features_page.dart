@@ -20,16 +20,95 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
   @override
   bool get wantKeepAlive => true;
 
-  late final WebViewController _controller;
+  late final WebViewController? _controller;
   bool _loading = true;
+
+/// 注入样式：全屏宽度自适应，只允许上下滚动、禁止左右滚动。
+void _injectNoHorizontalScroll() {
+if (_controller == null) return;
+_controller!.runJavaScript(r'''
+(function() {
+ try {
+ // 确保移动端 viewport 正确，防止页面以桌面宽度渲染导致横向溢出
+ var meta = document.querySelector('meta[name="viewport"]');
+ if (!meta) {
+ meta = document.createElement('meta');
+ meta.name = 'viewport';
+ meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0';
+ document.head.appendChild(meta);
+ }
+
+ var css =
+ // html/body：禁止横向溢出、宽度锁定 100%
+ 'html,body{overflow-x:hidden !important;overflow-y:auto !important;'
+ + 'width:100% !important;max-width:100% !important;'
+ + 'margin:0 !important;padding:0 !important;'
+ // 阻止横向触摸滑动 & 横向过度滚动
+ + 'touch-action:pan-y !important;'
+ + 'overscroll-behavior-x:none !important;'
+ + 'overscroll-behavior-y:auto !important;}'
+ // 媒体元素自适应缩放
+ + 'img,video,iframe,table,pre,canvas,svg{max-width:100% !important;height:auto !important;}'
+ // 全局盒模型统一
+ + '*,*::before,*::after{box-sizing:border-box !important;}'
+ // 长文本/长 URL 自动换行，防止撑宽页面
+ + 'body{overflow-wrap:break-word !important;word-break:break-word !important;}'
+ // 固定/绝对定位元素不超出视口
+ + 'body{position:relative !important;}';
+
+ var style = document.getElementById('__luoda_noscroll__');
+ if (!style) {
+ style = document.createElement('style');
+ style.id = '__luoda_noscroll__';
+ document.head.appendChild(style);
+ }
+ style.innerHTML = css;
+
+ var d = document.documentElement;
+ var b = document.body;
+ if (d) {
+ d.style.overflowX = 'hidden';
+ d.style.width = '100%';
+ d.style.maxWidth = '100%';
+ d.style.overscrollBehaviorX = 'none';
+ d.style.touchAction = 'pan-y';
+ }
+ if (b) {
+ b.style.overflowX = 'hidden';
+ b.style.width = '100%';
+ b.style.maxWidth = '100%';
+ b.style.overscrollBehaviorX = 'none';
+ b.style.touchAction = 'pan-y';
+ b.style.position = 'relative';
+ }
+
+ // 持续校正：如有横向偏移则拉回（防止 JS 动态内容撑宽后残留在偏移位置）
+ if (!window.__luoda_scroll_guard__) {
+ window.__luoda_scroll_guard__ = true;
+ var guardFn = function() {
+ if (window.scrollX > 0) window.scrollTo(0, window.scrollY);
+ };
+ window.__luoda_scroll_handler__ = guardFn;
+ window.addEventListener('scroll', guardFn, { passive: true });
+ window.addEventListener('touchmove', guardFn, { passive: true });
+ }
+ } catch (e) {}
+})();
+''');
+}
 
   @override
   void initState() {
     super.initState();
+    if (!isAndroid && !isIOS) {
+      _controller = null;
+      return;
+    }
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
         onPageStarted: (String url) {
+          _injectNoHorizontalScroll();
           if (mounted) {
             setState(() {
               _loading = true;
@@ -37,6 +116,7 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
           }
         },
         onPageFinished: (String url) {
+          _injectNoHorizontalScroll();
           if (mounted) {
             setState(() {
               _loading = false;
@@ -61,6 +141,36 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
     } else {
       showToast(translate('Failed to open URL'));
     }
+  }
+
+  /// Remove injected scroll-guard listeners and style element so the
+  /// WebView JS context is cleaned up before the controller is disposed.
+  void _cleanupInjectedScripts() {
+    if (_controller == null) return;
+    try {
+      _controller!.runJavaScript(r'''
+(function() {
+  try {
+    if (window.__luoda_scroll_guard__) {
+      window.removeEventListener('scroll', window.__luoda_scroll_handler__);
+      window.removeEventListener('touchmove', window.__luoda_scroll_handler__);
+      delete window.__luoda_scroll_guard__;
+      delete window.__luoda_scroll_handler__;
+    }
+    var style = document.getElementById('__luoda_noscroll__');
+    if (style) style.remove();
+  } catch (e) {}
+})();
+''');
+    } catch (_) {
+      // Controller may already be disposed; safe to ignore.
+    }
+  }
+
+  @override
+  void dispose() {
+    _cleanupInjectedScripts();
+    super.dispose();
   }
 
   @override
@@ -106,14 +216,20 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
         ),
       );
     }
-    return Stack(
-      children: [
-        WebViewWidget(controller: _controller),
-        if (_loading)
-          const Center(
-            child: CircularProgressIndicator(),
-          ),
-      ],
-    );
+  // 全屏显示网页：WebView 占满整个 tab 区域，无额外边距/装饰。
+  final controller = _controller;
+  if (controller == null) {
+    return const SizedBox.shrink();
+  }
+  return Stack(
+    fit: StackFit.expand,
+    children: [
+      WebViewWidget(controller: controller),
+      if (_loading)
+        const Center(
+          child: CircularProgressIndicator(),
+        ),
+    ],
+  );
   }
 }

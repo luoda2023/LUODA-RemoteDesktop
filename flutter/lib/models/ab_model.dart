@@ -66,7 +66,6 @@ class AbModel {
 
   var _syncAllFromRecent = true;
   var _syncFromRecentLock = false;
-  var _timerCounter = 0;
   var _cacheLoadOnceFlag = false;
   var listInitialized = false;
   var _maxPeerOneAb = 0;
@@ -81,16 +80,14 @@ class AbModel {
         name: PeersModelName.addressBook,
         getInitPeers: () => currentAbPeers,
         loadEvent: LoadEvent.addressBook);
-    if (desktopType == DesktopType.main) {
-      _syncTimer = Timer.periodic(Duration(milliseconds: 500), (timer) async {
-        if (_timerCounter++ % 6 == 0) {
-          if (!gFFI.userModel.isLogin) return;
-          if (!listInitialized) return;
-          if (!current.initialized || !current.canWrite()) return;
-          _syncFromRecent();
-        }
-      });
-    }
+  if (desktopType == DesktopType.main) {
+    _syncTimer = Timer.periodic(Duration(milliseconds: 3000), (timer) async {
+      if (!gFFI.userModel.isLogin) return;
+      if (!listInitialized) return;
+      if (!current.initialized || !current.canWrite()) return;
+      _syncFromRecent();
+    });
+  }
   }
 
   /// Stop the periodic sync timer to prevent resource leak.
@@ -99,9 +96,9 @@ class AbModel {
     _syncTimer = null;
   }
 
-  reset() async {
-    print("reset ab model");
-    addressbooks.clear();
+reset() async {
+  debugPrint("reset ab model");
+  addressbooks.clear();
     _currentName.value = '';
     await bind.mainClearAb();
     listInitialized = false;
@@ -551,7 +548,6 @@ class AbModel {
     await bind.mainSetLocalOption(
         key: syncAbOption, value: v ? 'Y' : defaultOptionNo);
     _syncAllFromRecent = true;
-    _timerCounter = 0;
   }
 
 // #endregion
