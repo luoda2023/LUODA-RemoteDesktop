@@ -64,6 +64,10 @@ jobs:
         timeout-minutes: 40
         shell: bash
         run: |
+          echo "=== SODIUM_LIB_DIR contents ==="
+          ls -la "$SODIUM_LIB_DIR" 2>/dev/null || echo "SODIUM_LIB_DIR not found: $SODIUM_LIB_DIR"
+          find /c/vcpkg/installed -name "*sodium*" 2>/dev/null | head -20
+          echo "=== Starting build ==="
           python3 res/inline-sciter.py
           sed -i 's/branch = "dyn"/branch = "dyn_x86"/g' ./Cargo.toml
           cargo fetch
