@@ -713,7 +713,7 @@ class _AddressBookState extends State<AddressBook> {
           for (var t in [kUntagged, translate(kUntagged)]) {
             if (tags.contains(t)) {
               BotToast.showText(
-                  contentColor: Colors.red, text: 'Tag name cannot be "$t"');
+                  contentColor: Colors.red, text: '${translate('Tag name cannot be')} "$t"');
               isInProgress = false;
               return;
             }

@@ -2446,7 +2446,7 @@ void addPeersToAbDialog(
     submit() async {
       if (controller.text != gFFI.abModel.translatedName(currentName.value)) {
         BotToast.showText(
-            text: 'illegal address book name: ${controller.text}',
+            text: '${translate('Illegal address book name')}: ${controller.text}',
             contentColor: Colors.red);
         return;
       }

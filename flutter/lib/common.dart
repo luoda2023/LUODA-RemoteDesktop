@@ -3815,8 +3815,8 @@ Widget buildPresetPasswordWarning() {
       if (snapshot.connectionState == ConnectionState.waiting) {
         return CircularProgressIndicator(); // Show a loading spinner while waiting for the Future to complete
       } else if (snapshot.hasError) {
-        return Text(
-            'Error: ${snapshot.error}'); // Show an error message if the Future completed with an error
+return Text(
+'${translate('Error')}: ${snapshot.error}'); // Show an error message if the Future completed with an error
       } else if (snapshot.hasData && snapshot.data == true) {
         return _buildPresetPasswordWarning();
       } else {

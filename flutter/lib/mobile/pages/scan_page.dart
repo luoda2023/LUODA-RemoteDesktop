@@ -117,7 +117,7 @@ class _ScanPageState extends State<ScanPage> {
  Navigator.of(context).pop();
  connect(context, id, password: password);
  } else {
- showToast('Invalid QR code');
+ showToast(translate('Invalid QR code'));
  }
  }
 

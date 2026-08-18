@@ -194,7 +194,7 @@ class _DesktopSettingsCardState extends State<DesktopSettingsCard> {
       ));
     }
     return ExpansionTile(
-      title: Text('Options'),
+      title: Text(translate('Options')),
       controlAffinity: ListTileControlAffinity.leading,
       children: children,
     );

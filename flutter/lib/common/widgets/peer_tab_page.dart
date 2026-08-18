@@ -173,7 +173,7 @@ class _PeerTabPageState extends State<PeerTabPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(height: 32),
-            Text('No visible tabs',
+            Text(translate('No visible tabs'),
                 style: TextStyle(
                     color: Theme.of(context).disabledColor, fontSize: 14)),
             SizedBox(height: 8),
@@ -183,7 +183,7 @@ class _PeerTabPageState extends State<PeerTabPage>
                   model.setTabVisible(i, true);
                 }
               },
-              child: Text('Reset all tabs to visible'),
+              child: Text(translate('Reset all tabs to visible')),
             ),
           ],
         ),

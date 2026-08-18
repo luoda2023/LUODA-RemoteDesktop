@@ -496,7 +496,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                     Offstage(
                         offstage: !_allowAutoDisconnect,
                         child: Text(
-                          '${_autoDisconnectTimeout.isEmpty ? '10' : _autoDisconnectTimeout} min',
+                          '${_autoDisconnectTimeout.isEmpty ? '10' : _autoDisconnectTimeout} ${translate('min')}',
                           style: Theme.of(context).textTheme.bodySmall,
                         )),
                   ])),
@@ -934,7 +934,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
             !disabledSettings &&
             !outgoingOnly &&
             !hideSecuritySettings)
-          SettingsSection(title: Text('2FA'), tiles: tfaTiles),
+          SettingsSection(title: Text(translate('2FA')), tiles: tfaTiles),
         if (isAndroid &&
             !disabledSettings &&
             !outgoingOnly &&

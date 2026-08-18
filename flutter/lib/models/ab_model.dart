@@ -1205,7 +1205,7 @@ class LegacyAb extends BaseAb {
   Future<bool> renameTag(String oldTag, String newTag) async {
     if (tags.contains(newTag)) {
       BotToast.showText(
-          contentColor: Colors.red, text: 'Tag $newTag already exists');
+          contentColor: Colors.red, text: '${translate('Tag')} $newTag ${translate('already exists')}');
       return false;
     }
     tags.value = tags.map((e) {
@@ -1757,7 +1757,7 @@ class Ab extends BaseAb {
   Future<bool> renameTag(String oldTag, String newTag) async {
     if (tags.contains(newTag)) {
       BotToast.showText(
-          contentColor: Colors.red, text: 'Tag $newTag already exists');
+          contentColor: Colors.red, text: '${translate('Tag')} $newTag ${translate('already exists')}');
       return false;
     }
     try {

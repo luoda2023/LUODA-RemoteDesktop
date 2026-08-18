@@ -663,7 +663,7 @@ class ServerInfo extends StatelessWidget {
             onDoubleTap: () {
               if (addr.isNotEmpty) {
                 Clipboard.setData(ClipboardData(text: addr));
-                showToast('Copied');
+                showToast(translate('Copied'));
               }
             },
             child: Text(
