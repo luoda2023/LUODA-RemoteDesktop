@@ -54,7 +54,14 @@ _controller!.runJavaScript(r'''
  // 长文本/长 URL 自动换行，防止撑宽页面
  + 'body{overflow-wrap:break-word !important;word-break:break-word !important;}'
  // 固定/绝对定位元素不超出视口
- + 'body{position:relative !important;}';
+ + 'body{position:relative !important;}'
+ // 可见竖向滚动条：让用户清楚看到滚动位置
+ + '::-webkit-scrollbar{width:8px !important;height:8px !important;}'
+ + '::-webkit-scrollbar-track{background:transparent !important;}'
+ + '::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.5) !important;border-radius:4px !important;}'
+ + '::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,0.8) !important;}'
+ + '::-webkit-scrollbar-corner{background:transparent !important;}'
+ + 'html{scrollbar-width:thin !important;scrollbar-color:rgba(128,128,128,0.5),transparent !important;}';
 
  var style = document.getElementById('__luoda_noscroll__');
  if (!style) {

@@ -10,8 +10,8 @@ void main() {
       'overflow-x:hidden',
       'touch-action:pan-y',
       'overscroll-behavior-x:none',
-      '__luoda_noscroll__',
-      '__luoda_scroll_guard__',
+      '::-webkit-scrollbar',
+      'scrollbar-width:thin',
     ];
 
     // Reproduce the CSS fragment that the JS injection builds.
@@ -22,9 +22,12 @@ void main() {
       'touch-action:pan-y !important;',
       'overscroll-behavior-x:none !important;',
       'overscroll-behavior-y:auto !important;}',
+      '::-webkit-scrollbar{width:8px !important;height:8px !important;}',
+      '::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.5) !important;border-radius:4px !important;}',
+      'html{scrollbar-width:thin !important;scrollbar-color:rgba(128,128,128,0.5),transparent !important;}',
     ].join();
 
-    for (final s in expectedSubstrings.take(3)) {
+    for (final s in expectedSubstrings) {
       expect(css.contains(s), isTrue, reason: 'CSS missing: $s');
     }
   });
