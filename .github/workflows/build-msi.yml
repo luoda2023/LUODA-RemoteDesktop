@@ -141,7 +141,7 @@ jobs:
           VCPKG_DEFAULT_TRIPLET: x64-windows-static
           VCPKG_INSTALLED_ROOT: C:\\\\vcpkg\\\\installed\\\\x64-windows-static
           SODIUM_LIB_DIR: C:\\\\vcpkg\\\\installed\\\\x64-windows-static\\\\lib
-          CXXFLAGS: -include cstdint
+ CXXFLAGS: -include cstdint
 
 - name: Setup NuGet
   uses: nuget/setup-nuget@v2
@@ -149,16 +149,16 @@ jobs:
     nuget-version: '5.x'
 
 - name: Build Flutter Windows
-timeout-minutes: 15
-run: |
-cd flutter
-flutter clean
-flutter build windows --release
+  timeout-minutes: 15
+  run: |
+    cd flutter
+    flutter clean
+    flutter build windows --release
 
 - name: Install WiX Toolset
-        run: dotnet tool install --global wix --version 4.0.5
+  run: dotnet tool install --global wix --version 4.0.5
 
-      - name: Copy Flutter output for MSI
+- name: Copy Flutter output for MSI
         shell: cmd
         run: |
           if not exist luoda mkdir luoda
@@ -168,15 +168,15 @@ flutter build windows --release
         shell: cmd
         run: |
           cd res\msi
-          python preprocess.py -m LUODA
+ python preprocess.py -m LUODA
 
 - name: Setup MSBuild
-uses: microsoft/setup-msbuild@v2
+  uses: microsoft/setup-msbuild@v2
 
 - name: Restore NuGet packages for CustomActions
-        shell: cmd
-        run: |
-          cd res\msi\CustomActions
+  shell: cmd
+  run: |
+    cd res\msi\CustomActions
           nuget restore packages.config -PackagesDirectory ..\packages
           if %ERRORLEVEL% NEQ 0 (
             echo "NuGet restore failed, trying alternative..."

@@ -134,19 +134,19 @@ jobs:
           VCPKG_ROOT: C:\vcpkg
           VCPKG_DEFAULT_TRIPLET: ${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}
           CXXFLAGS: -include cstdint
-          SODIUM_LIB_DIR: C:\vcpkg\installed\${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}\lib
+ SODIUM_LIB_DIR: C:\vcpkg\installed\${{ matrix.arch == 'x86' && 'x86-windows-static' || 'x64-windows-static' }}\lib
 - name: Setup NuGet
   uses: nuget/setup-nuget@v2
   with:
     nuget-version: '5.x'
 - name: Build Flutter Windows
-if: matrix.arch == 'x64'
-timeout-minutes: 15
-run: |
-cd flutter
-flutter clean
-flutter build windows --release
-      - name: Sign executable with LUODA icon
+  if: matrix.arch == 'x64'
+  timeout-minutes: 15
+  run: |
+    cd flutter
+    flutter clean
+    flutter build windows --release
+- name: Sign executable with LUODA icon
         shell: bash
         run: |
           choco install rcedit -y
