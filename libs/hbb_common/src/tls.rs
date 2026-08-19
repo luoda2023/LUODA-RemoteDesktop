@@ -83,6 +83,15 @@ pub fn get_cached_tls_type(url: &str) -> Option<TlsType> {
 #[inline]
 pub fn get_cached_tls_accept_invalid_cert(url: &str) -> Option<bool> {
     if !allow_insecure_tls_fallback() {
+        // For official dicad.cn servers, allow the TLS fallback retry logic
+        // in websocket.rs / common.rs to kick in (return None instead of
+        // Some(false)) so that an expired server certificate does not block
+        // the connection permanently.
+        let domain_port = get_domain_and_port_from_url(url);
+        let host = domain_port.split(':').next().unwrap_or("");
+        if host.ends_with(".dicad.cn") || host == "dicad.cn" {
+            return None;
+        }
         return Some(false);
     }
 

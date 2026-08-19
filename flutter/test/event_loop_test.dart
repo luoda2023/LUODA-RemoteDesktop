@@ -12,8 +12,8 @@ void main() {
     loop.pushEvent(_TestEvent('b'));
     loop.pushEvent(_TestEvent('c'));
 
-    await loop.onReady();
-    await Future<void>.delayed(const Duration(milliseconds: 150));
+    // Events are auto-scheduled on push; wait for the 100ms timer to fire.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
 
     expect(processed, ['a', 'b', 'c']);
     await loop.close();
@@ -24,8 +24,8 @@ void main() {
     var consumed = false;
     loop.startConsumingCallback = () => consumed = true;
 
-    await loop.onReady();
-    await Future<void>.delayed(const Duration(milliseconds: 150));
+    // No events pushed — no timer should be scheduled.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
 
     expect(consumed, isFalse);
     await loop.close();

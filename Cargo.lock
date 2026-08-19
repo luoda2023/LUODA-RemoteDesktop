@@ -2900,6 +2900,7 @@ dependencies = [
 [[package]]
 name = "filedescriptor"
 version = "0.8.2"
+source = "git+https://github.com/luoda2023/wezterm?branch=luoda/pty_based_0.8.1#80174f8009f41565f0fa8c66dab90d4f9211ae16"
 dependencies = [
  "libc",
  "thiserror 1.0.69",
@@ -4948,7 +4949,7 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "luoda"
-version = "2.0.1"
+version = "2.2.2"
 dependencies = [
  "android-wakelock",
  "android_logger",

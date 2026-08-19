@@ -143,14 +143,19 @@ jobs:
           SODIUM_LIB_DIR: C:\\\\vcpkg\\\\installed\\\\x64-windows-static\\\\lib
           CXXFLAGS: -include cstdint
 
-      - name: Build Flutter Windows
-        timeout-minutes: 15
-        run: |
-          cd flutter
-          flutter clean
-          flutter build windows --release
+- name: Setup NuGet
+  uses: nuget/setup-nuget@v2
+  with:
+    nuget-version: '5.x'
 
-      - name: Install WiX Toolset
+- name: Build Flutter Windows
+timeout-minutes: 15
+run: |
+cd flutter
+flutter clean
+flutter build windows --release
+
+- name: Install WiX Toolset
         run: dotnet tool install --global wix --version 4.0.5
 
       - name: Copy Flutter output for MSI
@@ -165,13 +170,10 @@ jobs:
           cd res\msi
           python preprocess.py -m LUODA
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+- name: Setup MSBuild
+uses: microsoft/setup-msbuild@v2
 
-      - name: Setup NuGet
-        uses: nuget/setup-nuget@v2
-
-      - name: Restore NuGet packages for CustomActions
+- name: Restore NuGet packages for CustomActions
         shell: cmd
         run: |
           cd res\msi\CustomActions
