@@ -7,23 +7,51 @@
 // ⚠ 需要路由器支持 UPnP（大部分家用路由器默认开启）。
 
 use hbb_common::log::{info, warn};
+use std::time::Duration;
+
+/// UPnP SOAP 调用的单次超时上限。
+/// `igd_next` 内部使用 `attohttpc`,默认 read_timeout=30s 且无整体超时。
+/// 路由器响应 SSDP 但不响应 SOAP 时,单次 `add_port` 可阻塞 30s。
+/// 此超时通过子线程 + channel 兜底,确保不会无限阻塞调用方。
+const UPNP_MAPPING_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// 尝试为指定端口添加 UPnP 端口映射（TCP）。
 /// Returns the external port or a diagnostic error for the UI/runtime log.
 pub fn add_port_mapping(port: u16) -> Result<u16, String> {
-    match try_add_mapping(port) {
-        Ok(external_port) => {
-            info!(
-                "UPnP: mapped external TCP:{} to local TCP:{}",
-                external_port, port
-            );
-            Ok(external_port)
-        }
-        Err(e) => {
-            warn!("UPnP: failed to map local TCP:{}: {}", port, e);
-            Err(e.to_string())
-        }
-    }
+ match try_add_mapping_timeout(port) {
+ Ok(external_port) => {
+ info!(
+ "UPnP: mapped external TCP:{} to local TCP:{}",
+ external_port, port
+ );
+ Ok(external_port)
+ }
+ Err(e) => {
+ warn!("UPnP: failed to map local TCP:{}: {}", port, e);
+ Err(e.to_string())
+ }
+ }
+}
+
+/// 带超时保护的 `try_add_mapping` 包装。
+/// 在子线程中执行实际映射,主线程通过 channel 等待 `UPNP_MAPPING_TIMEOUT`。
+/// 超时后返回错误;子线程最终结束后其结果被丢弃(channel drop)。
+fn try_add_mapping_timeout(port: u16) -> Result<u16, Box<dyn std::error::Error>> {
+ let (tx, rx) = std::sync::mpsc::channel::<Result<u16, Box<dyn std::error::Error>>>();
+ let _handle = std::thread::Builder::new()
+ .name("upnp-add-port".to_string())
+ .spawn(move || {
+ let result = try_add_mapping(port);
+ let _ = tx.send(result);
+ })?;
+ match rx.recv_timeout(UPNP_MAPPING_TIMEOUT) {
+ Ok(result) => result,
+ Err(_) => Err(format!(
+ "UPnP mapping timed out after {}s (router SOAP unresponsive)",
+ UPNP_MAPPING_TIMEOUT.as_secs()
+ )
+ .into()),
+ }
 }
 
 /// 尝试删除指定端口的 UPnP 端口映射。

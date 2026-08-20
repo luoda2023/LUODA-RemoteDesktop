@@ -43,18 +43,23 @@ jobs:
           echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
           echo "Version: $LUODA_VERSION"
 
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: cargo-deb-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-deb-${{ runner.os }}-
+- name: Cache Cargo registry
+uses: actions/cache@v4
+with:
+path: |
+ ~/.cargo/registry/index
+ ~/.cargo/registry/cache
+ ~/.cargo/git/db
+key: cargo-deb-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+restore-keys: |
+ cargo-deb-${{ runner.os }}-
 
-      - name: Install system deps
+- name: Cache Cargo build artifacts
+uses: Swatinem/rust-cache@v2
+with:
+key: cargo-target-deb-${{ hashFiles('**/Cargo.lock') }}
+
+- name: Install system deps
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -90,6 +95,7 @@ jobs:
         with:
           flutter-version: '3.47.0'
           channel: 'stable'
+cache: true
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@v1
@@ -148,11 +154,11 @@ jobs:
           # Include systemd service file
           cp res/luoda.service tmpdeb/usr/share/luoda/files/systemd/
           cat > tmpdeb/DEBIAN/control << EOF
-          Package: luoda
-          Version: 1.0.0
-          Architecture: amd64
-          Maintainer: LUODA
-          Description: LUODA Remote Desktop
+Package: luoda
+Version: $LUODA_VERSION
+Architecture: amd64
+Maintainer: LUODA
+Description: LUODA Remote Desktop
           EOF
           # Include postinst/prerm scripts to auto-start service
           cp res/DEBIAN/postinst tmpdeb/DEBIAN/
@@ -167,17 +173,19 @@ jobs:
           ls -la *.rpm
           mv *.rpm luoda.rpm
 
-      - name: Upload DEB
-        uses: actions/upload-artifact@v4
-        with:
-          name: LUODA-DEB
-          path: luoda.deb
+- name: Upload DEB
+uses: actions/upload-artifact@v4
+with:
+name: LUODA-DEB
+path: luoda.deb
+if-no-files-found: error
 
-      - name: Upload RPM
-        uses: actions/upload-artifact@v4
-        with:
-          name: LUODA-RPM
-          path: luoda.rpm
+- name: Upload RPM
+uses: actions/upload-artifact@v4
+with:
+name: LUODA-RPM
+path: luoda.rpm
+if-no-files-found: error
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1

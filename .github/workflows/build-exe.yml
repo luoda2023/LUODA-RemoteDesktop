@@ -2,7 +2,7 @@ name: Build LUODA Windows EXE
 on:
   workflow_dispatch:
   push:
-    branches: [master, v2.0.0, v2.0.1, 2.1.1]
+    branches: [master, v2.0.0, v2.0.1, v2.1.1]
     paths:
       - 'build.rs'
       - 'src/**'
@@ -40,23 +40,28 @@ jobs:
           echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
           echo "Version: $LUODA_VERSION"
 
-      - name: Cache Cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: cargo-exe-${{ matrix.arch }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            cargo-exe-${{ matrix.arch }}-${{ runner.os }}-
-      - name: Setup Flutter
+- name: Cache Cargo registry
+uses: actions/cache@v4
+with:
+path: |
+ ~/.cargo/registry/index
+ ~/.cargo/registry/cache
+ ~/.cargo/git/db
+key: cargo-exe-${{ matrix.arch }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+restore-keys: |
+ cargo-exe-${{ matrix.arch }}-${{ runner.os }}-
+- name: Cache Cargo build artifacts
+uses: Swatinem/rust-cache@v2
+with:
+key: cargo-target-exe-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
+- name: Setup Flutter
         if: matrix.arch == 'x64'
         timeout-minutes: 10
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.0'
           channel: 'stable'
+cache: true
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -142,10 +147,9 @@ jobs:
       - name: Build Flutter Windows
         if: matrix.arch == 'x64'
         timeout-minutes: 15
-        run: |
-          cd flutter
-          flutter clean
-          flutter build windows --release
+run: |
+cd flutter
+flutter build windows --release
       - name: Sign executable with LUODA icon
         shell: bash
         run: |
@@ -187,7 +191,7 @@ jobs:
                 sleep 3
               done
             fi
-            ls -la Release/sciter.dll 2>/dev/null || echo "WARN: sciter.dll not found!"
+            test -s Release/sciter.dll || { echo "FATAL: sciter.dll download failed after retries"; exit 1; }
             echo "=== Adding signed headless display driver ==="
             DRIVER_ZIP="usbmmidd_v2.zip"
             DRIVER_SHA256="629b51e9944762bae73948171c65d09a79595cf4c771a82ebc003fbba5b24f51"
@@ -221,11 +225,12 @@ jobs:
             echo "=== Final Windows EXEs ==="
             ls -la SignOutput/LUODA-portable-x64.exe SignOutput/LUODA-install.exe SignOutput/LUODA-service-x64.zip
           fi
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: LUODA-Portable-${{ matrix.arch }}
-          path: SignOutput/
+- name: Upload artifact
+uses: actions/upload-artifact@v4
+with:
+name: LUODA-Portable-${{ matrix.arch }}
+path: SignOutput/
+if-no-files-found: error
       - name: Upload runtime logs (always)
         if: always()
         uses: actions/upload-artifact@v4

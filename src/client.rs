@@ -4280,11 +4280,16 @@ async fn test_udp_uat(
     mut stop_udp_rx: oneshot::Receiver<()>,
 ) -> ResultType<()> {
     let (tx, mut rx) = oneshot::channel::<_>();
-    tokio::spawn(async {
-        if let Ok(v) = crate::test_nat_ipv4().await {
-            tx.send(v).ok();
-        }
-    });
+tokio::spawn(async {
+ match crate::test_nat_ipv4().await {
+ Ok(v) => {
+ tx.send(v).ok();
+ }
+ Err(e) => {
+ log::warn!("test_nat_ipv4 in punch_hole failed: {}", e);
+ }
+ }
+});
 
     let start = Instant::now();
     let mut msg_out = RendezvousMessage::new();

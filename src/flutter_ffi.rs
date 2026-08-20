@@ -1070,10 +1070,15 @@ pub fn main_get_options_sync() -> SyncReturn<String> {
 }
 
 pub fn main_set_options(json: String) {
-    let map: HashMap<String, String> = serde_json::from_str(&json).unwrap_or(HashMap::new());
-    if !map.is_empty() {
-        set_options(map)
-    }
+ match serde_json::from_str::<HashMap<String, String>>(&json) {
+ Ok(map) if !map.is_empty() => {
+ set_options(map);
+ }
+ Ok(_) => {}
+ Err(e) => {
+ log::warn!("main_set_options: failed to parse JSON options: {}", e);
+ }
+ }
 }
 
 pub fn main_test_if_valid_server(server: String, test_with_proxy: bool) -> String {
@@ -1143,8 +1148,10 @@ pub fn main_get_connect_status() -> String {
                         "connect status recovered through direct IPC query",
                     );
                 }
-                Ok(_) => {}
-                Err(_) => {}
+ Ok(_) => {}
+ Err(e) => {
+ log::warn!("main_get_connect_status: IPC get_online_status failed: {}", e)
+ }
             }
         }
         serde_json::to_string(&status).unwrap_or("".to_string())
@@ -1270,18 +1277,27 @@ pub fn main_check_connect_status() {
                 }
             }
         }
-        // Fallback to STUN if HTTP failed (STUN may report different mapped addresses per device)
-        if public_ip.is_empty() {
-            log::info!("HTTP public IP lookup failed, falling back to STUN");
-            use hbb_common::tokio;
-            if let Ok(rt) = tokio::runtime::Runtime::new() {
-                if let Ok((addr, _)) = rt.block_on(crate::common::test_nat_ipv4()) {
-                    let ip = addr.ip().to_string();
-                    crate::ui_interface::set_option("public-ip".to_owned(), ip);
-                }
-            }
-        }
-    });
+// Fallback to STUN if HTTP failed (STUN may report different mapped addresses per device)
+ if public_ip.is_empty() {
+ log::info!("HTTP public IP lookup failed, falling back to STUN");
+ use hbb_common::tokio;
+ match tokio::runtime::Runtime::new() {
+ Ok(rt) => match rt.block_on(crate::common::test_nat_ipv4()) {
+ Ok((addr, _)) => {
+ let ip = addr.ip().to_string();
+ log::info!("Got public IP from STUN: {}", ip);
+ crate::ui_interface::set_option("public-ip".to_owned(), ip);
+ }
+ Err(e) => {
+ log::warn!("STUN public IP lookup also failed: {}", e);
+ }
+ },
+ Err(e) => {
+ log::warn!("Failed to create tokio runtime for STUN lookup: {}", e);
+ }
+ }
+ }
+ });
 }
 
 pub fn main_is_using_public_server() -> bool {
@@ -1618,8 +1634,18 @@ pub fn main_load_recent_peers() {
 }
 
 pub fn main_load_recent_peers_for_ab(filter: String) -> String {
-    let id_filters = serde_json::from_str::<Vec<String>>(&filter).unwrap_or_default();
-    let id_filters = if id_filters.is_empty() {
+ let id_filters = match serde_json::from_str::<Vec<String>>(&filter) {
+ Ok(v) => v,
+ Err(e) => {
+ log::warn!(
+ "main_load_recent_peers_for_ab: failed to parse filter '{}': {}",
+ filter,
+ e
+ );
+ Vec::new()
+ }
+ };
+ let id_filters = if id_filters.is_empty() {
         None
     } else {
         Some(id_filters)
@@ -2046,7 +2072,13 @@ pub fn session_send_pointer(session_id: SessionID, msg: String) {
 /// If these assumptions are violated (e.g., `relative_mouse_mode` is added to normal events),
 /// legitimate mouse events may be silently dropped by the early-return logic below.
 pub fn session_send_mouse(session_id: SessionID, msg: String) {
-    if let Ok(m) = serde_json::from_str::<HashMap<String, String>>(&msg) {
+ let m = match serde_json::from_str::<HashMap<String, String>>(&msg) {
+ Ok(m) => m,
+ Err(e) => {
+ log::warn!("session_send_mouse: invalid JSON event dropped: {}", e);
+ return;
+ }
+ };
         // Relative mouse mode marker validation (Flutter-only).
         // This only validates and filters markers; the server tracks per-connection
         // relative-movement processing state but not mode activation/deactivation.
@@ -2110,18 +2142,32 @@ pub fn session_send_mouse(session_id: SessionID, msg: String) {
             crate::keyboard::set_relative_mouse_mode_state(true);
         }
 
-        let alt = m.get("alt").is_some();
-        let ctrl = m.get("ctrl").is_some();
-        let shift = m.get("shift").is_some();
-        let command = m.get("command").is_some();
-        let x = m
-            .get("x")
-            .map(|x| x.parse::<i32>().unwrap_or(0))
-            .unwrap_or(0);
-        let y = m
-            .get("y")
-            .map(|x| x.parse::<i32>().unwrap_or(0))
-            .unwrap_or(0);
+ let alt = m.get("alt").is_some();
+ let ctrl = m.get("ctrl").is_some();
+ let shift = m.get("shift").is_some();
+ let command = m.get("command").is_some();
+ // Parse x/y: absent field defaults to 0; malformed value drops the event
+ // to prevent accidental cursor jumps to (0,0).
+ let x = match m.get("x") {
+ Some(v) => match v.parse::<i32>() {
+ Ok(n) => n,
+ Err(_) => {
+ log::warn!("session_send_mouse: invalid x value {:?}, dropping event", v);
+ return;
+ }
+ },
+ None => 0,
+ };
+ let y = match m.get("y") {
+ Some(v) => match v.parse::<i32>() {
+ Ok(n) => n,
+ Err(_) => {
+ log::warn!("session_send_mouse: invalid y value {:?}, dropping event", v);
+ return;
+ }
+ },
+ None => 0,
+ };
         let mut mask = 0;
         if let Some(_type) = m.get("type") {
             mask = match _type.as_str() {
@@ -2143,10 +2189,9 @@ pub fn session_send_mouse(session_id: SessionID, msg: String) {
                 _ => 0,
             } << 3;
         }
-        if let Some(session) = sessions::get_session_by_session_id(&session_id) {
-            session.send_mouse(mask, x, y, alt, ctrl, shift, command);
-        }
-    }
+ if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+ session.send_mouse(mask, x, y, alt, ctrl, shift, command);
+ }
 }
 
 pub fn session_restart_remote_device(session_id: SessionID) {

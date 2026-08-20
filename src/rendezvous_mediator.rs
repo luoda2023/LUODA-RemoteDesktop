@@ -1004,21 +1004,28 @@ async fn direct_server(server: ServerPtr) {
                         Config::set_option("upnp-status".to_owned(), "pending".to_owned());
                         Config::set_option("upnp-error".to_owned(), "".to_owned());
                         Config::set_option("direct-access-public-port".to_owned(), "".to_owned());
-                        std::thread::spawn(move || {
-                            let mut mapped_port = None;
-                            let mut last_error = String::new();
-                            for attempt in 1..=3 {
-                                match crate::upnp::add_port_mapping(upnp_port) {
-                                    Ok(port) => {
-                                        mapped_port = Some(port);
-                                        break;
-                                    }
-                                    Err(error) => last_error = error,
-                                }
-                                if attempt < 3 {
-                                    std::thread::sleep(Duration::from_secs(2 * attempt));
-                                }
-                            }
+std::thread::spawn(move || {
+ let mut mapped_port = None;
+ let mut last_error = String::new();
+ for attempt in 1..=3 {
+ // Early-exit if the direct listener changed ports or stopped,
+ // so we don't waste time on stale UPnP mappings.
+ if Config::get_option("direct-access-port") != upnp_port.to_string()
+ || Config::get_option(DIRECT_ACCESS_STATUS_OPTION) != "listening"
+ {
+ return;
+ }
+ match crate::upnp::add_port_mapping(upnp_port) {
+ Ok(port) => {
+ mapped_port = Some(port);
+ break;
+ }
+ Err(error) => last_error = error,
+ }
+ if attempt < 3 {
+ std::thread::sleep(Duration::from_secs(2 * attempt));
+ }
+ }
 
                             // Ignore a late result if the direct listener changed ports.
                             if Config::get_option("direct-access-port") != upnp_port.to_string()

@@ -57,6 +57,7 @@ jobs:
         with:
           flutter-version: '3.47.0'
           channel: 'stable'
+cache: true
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -133,10 +134,9 @@ jobs:
       - name: Build Flutter Windows
         if: matrix.arch == 'x64'
         timeout-minutes: 15
-        run: |
-          cd flutter
-          flutter clean
-          flutter build windows --release --dart-define=CLIENT_ONLY=true
+run: |
+cd flutter
+flutter build windows --release --dart-define=CLIENT_ONLY=true
       - name: Sign executable with LUODA icon
         shell: bash
         run: |
@@ -160,7 +160,7 @@ jobs:
               sleep 3
             done
           fi
-          ls -la Release/sciter.dll 2>/dev/null || echo "WARN: sciter.dll not found!"
+          test -s Release/sciter.dll || { echo "FATAL: sciter.dll download failed after retries"; exit 1; }
           echo "=== Adding signed headless display driver ==="
           DRIVER_ZIP="usbmmidd_v2.zip"
           DRIVER_SHA256="629b51e9944762bae73948171c65d09a79595cf4c771a82ebc003fbba5b24f51"
@@ -184,11 +184,12 @@ jobs:
           cp target/release/luoda-portable-packer.exe SignOutput/LUODA-Client-x64.exe
           echo "=== Final Client EXE ==="
           ls -la SignOutput/LUODA-Client-x64.exe
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: LUODA-Client-${{ matrix.arch }}
-          path: SignOutput/
+- name: Upload artifact
+uses: actions/upload-artifact@v4
+with:
+name: LUODA-Client-${{ matrix.arch }}
+path: SignOutput/
+if-no-files-found: error
       - name: Upload runtime logs (always)
         if: always()
         uses: actions/upload-artifact@v4

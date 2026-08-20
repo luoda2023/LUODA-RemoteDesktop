@@ -461,7 +461,7 @@ class FfiModel with ChangeNotifier {
         if (isWeb) {
           parent.target?.fileModel.onSelectedFiles(evt);
         }
-      } else if (name == "send_emptry_dirs") {
+      } else if (name == "send_empty_dirs") {
         if (isWeb) {
           parent.target?.fileModel.sendEmptyDirs(evt);
         }
@@ -2806,7 +2806,7 @@ class CursorData {
     if (scale != 1.0) {
       // Update data if scale changed.
       final tgtWidth = (width * scale).toInt();
-      final tgtHeight = (width * scale).toInt();
+      final tgtHeight = (height * scale).toInt();
       if (tgtWidth < kMinCursorSize || tgtHeight < kMinCursorSize) {
         double sw = kMinCursorSize.toDouble() / width;
         double sh = kMinCursorSize.toDouble() / height;
@@ -3271,7 +3271,7 @@ class CursorModel with ChangeNotifier {
 
   bool _isInCurrentWindow(double x, double y) {
     final w = _windowRect!.width / devicePixelRatio;
-    final h = _windowRect!.width / devicePixelRatio;
+    final h = _windowRect!.height / devicePixelRatio;
     return x >= 0 && y >= 0 && x <= w && y <= h;
   }
 
@@ -3471,7 +3471,7 @@ class CursorModel with ChangeNotifier {
 
   clear() {
     _x = -10000;
-    _x = -10000;
+    _y = -10000;
     _image = null;
     _firstUpdateMouseTime = null;
     gotMouseControl = true;

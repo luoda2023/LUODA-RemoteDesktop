@@ -58,6 +58,7 @@ jobs:
         with:
           flutter-version: '3.47.0'
           channel: 'stable'
+cache: true
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@v1
@@ -149,10 +150,9 @@ jobs:
           nuget-version: '5.x'
       - name: Build Flutter Windows
         timeout-minutes: 15
-        run: |
-          cd flutter
-          flutter clean
-          flutter build windows --release
+run: |
+cd flutter
+flutter build windows --release
 
       - name: Install WiX Toolset
         run: dotnet tool install --global wix --version 4.0.5
@@ -169,13 +169,10 @@ jobs:
           cd res\msi
           python preprocess.py -m LUODA
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+- name: Setup MSBuild
+uses: microsoft/setup-msbuild@v2
 
-      - name: Setup NuGet
-        uses: nuget/setup-nuget@v2
-
-      - name: Restore NuGet packages for CustomActions
+- name: Restore NuGet packages for CustomActions
         shell: cmd
         run: |
           cd res\msi\CustomActions
@@ -218,11 +215,12 @@ jobs:
           }
           Get-ChildItem $dist -Filter "*.msi" | Format-Table Name,Length
 
-      - name: Upload MSI
-        uses: actions/upload-artifact@v4
-        with:
-          name: LUODA-MSI
-          path: res/msi/dist/*.msi
+- name: Upload MSI
+uses: actions/upload-artifact@v4
+with:
+name: LUODA-MSI
+path: res/msi/dist/*.msi
+if-no-files-found: error
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1

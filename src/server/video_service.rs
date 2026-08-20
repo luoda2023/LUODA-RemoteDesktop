@@ -1009,10 +1009,9 @@ fn run(vs: VideoService) -> ResultType<()> {
             }
         }
 
- // 修复画面不更新问题：移除阻塞等待，直接继续下一帧
- // 原逻辑等待客户端ACK会导致3秒超时，严重降低帧率
- fetched_conn_ids.clear();
- frame_controller.try_wait_next(&mut fetched_conn_ids, 10);
+ // Frame ACK wait removed: the wait caused 3s timeouts and severe frame rate drops.
+ // try_wait_next was a no-op (fetched_conn_ids was cleared before the call) that still
+ // acquired a global lock every frame — removed to eliminate per-frame lock contention.
  DISPLAY_CONN_IDS.lock().unwrap().remove(&display_idx);
 
         #[cfg(windows)]
@@ -1069,6 +1068,7 @@ impl Drop for Raii {
         Encoder::update(scrap::codec::EncodingUpdate::Check);
         VIDEO_QOS.lock().unwrap().remove_display(&self.name);
         DISPLAY_CONN_IDS.lock().unwrap().remove(&self.display_idx);
+        FRAME_FETCHED_NOTIFIERS.lock().unwrap().remove(&self.display_idx);
     }
 }
 

@@ -503,16 +503,17 @@ impl<T: InvokeUiSession> Remote<T> {
                             }
                             _ => {}
                         },
-                        Err(err) => {
-                            if err == TryRecvError::Empty {
-                                // ignore
-                            } else {
-                                log::debug!("Failed to record local audio channel: {}", err);
-                            }
-                        }
-                    }
-                }
-            });
+        Err(err) => {
+            if err == TryRecvError::Empty {
+                // Avoid busy-loop: yield CPU when no audio data is available
+                std::thread::sleep(std::time::Duration::from_millis(3));
+            } else {
+                log::debug!("Failed to record local audio channel: {}", err);
+            }
+        }
+        }
+    }
+});
             return Some(tx);
         }
         #[cfg(target_os = "ios")]
