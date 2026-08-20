@@ -28,7 +28,7 @@ pub fn add_port_mapping(port: u16) -> Result<u16, String> {
  }
  Err(e) => {
  warn!("UPnP: failed to map local TCP:{}: {}", port, e);
- Err(e.to_string())
+ Err(e)
  }
  }
 }
@@ -36,12 +36,12 @@ pub fn add_port_mapping(port: u16) -> Result<u16, String> {
 /// 带超时保护的 `try_add_mapping` 包装。
 /// 在子线程中执行实际映射,主线程通过 channel 等待 `UPNP_MAPPING_TIMEOUT`。
 /// 超时后返回错误;子线程最终结束后其结果被丢弃(channel drop)。
-fn try_add_mapping_timeout(port: u16) -> Result<u16, Box<dyn std::error::Error>> {
- let (tx, rx) = std::sync::mpsc::channel::<Result<u16, Box<dyn std::error::Error>>>();
+fn try_add_mapping_timeout(port: u16) -> Result<u16, String> {
+ let (tx, rx) = std::sync::mpsc::channel::<Result<u16, String>>();
  let _handle = std::thread::Builder::new()
  .name("upnp-add-port".to_string())
  .spawn(move || {
- let result = try_add_mapping(port);
+ let result = try_add_mapping(port).map_err(|e| e.to_string());
  let _ = tx.send(result);
  })?;
  match rx.recv_timeout(UPNP_MAPPING_TIMEOUT) {
@@ -49,8 +49,7 @@ fn try_add_mapping_timeout(port: u16) -> Result<u16, Box<dyn std::error::Error>>
  Err(_) => Err(format!(
  "UPnP mapping timed out after {}s (router SOAP unresponsive)",
  UPNP_MAPPING_TIMEOUT.as_secs()
- )
- .into()),
+ )),
  }
 }
 

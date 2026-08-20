@@ -682,7 +682,7 @@ fn run(vs: VideoService) -> ResultType<()> {
  let capture_width = c.width;
  let capture_height = c.height;
  let (mut second_instant, mut send_counter) = (Instant::now(), 0);
- let mut fetched_conn_ids = HashSet::new();
+ let mut fetched_conn_ids: HashSet<i32> = HashSet::new();
 
     while sp.ok() {
         #[cfg(windows)]
