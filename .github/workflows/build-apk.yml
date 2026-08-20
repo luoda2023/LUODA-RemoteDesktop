@@ -43,23 +43,18 @@ jobs:
           echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
           echo "Version: $LUODA_VERSION"
 
-- name: Cache Cargo registry
-uses: actions/cache@v4
-with:
-path: |
- ~/.cargo/registry/index
- ~/.cargo/registry/cache
- ~/.cargo/git/db
-key: cargo-apk-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-restore-keys: |
- cargo-apk-${{ runner.os }}-
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-apk-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-apk-${{ runner.os }}-
 
-- name: Cache Cargo build artifacts
-uses: Swatinem/rust-cache@v2
-with:
-key: cargo-target-apk-${{ hashFiles('**/Cargo.lock') }}
-
-- name: Install System Dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -100,7 +95,6 @@ key: cargo-target-apk-${{ hashFiles('**/Cargo.lock') }}
         with:
           flutter-version: '3.47.0'
           channel: 'stable'
-cache: true
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
