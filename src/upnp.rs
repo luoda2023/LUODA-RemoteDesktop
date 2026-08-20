@@ -43,7 +43,8 @@ fn try_add_mapping_timeout(port: u16) -> Result<u16, String> {
  .spawn(move || {
  let result = try_add_mapping(port).map_err(|e| e.to_string());
  let _ = tx.send(result);
- })?;
+ })
+ .map_err(|e| e.to_string())?;
  match rx.recv_timeout(UPNP_MAPPING_TIMEOUT) {
  Ok(result) => result,
  Err(_) => Err(format!(
