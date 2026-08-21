@@ -160,9 +160,8 @@ impl WsFramedStream {
  }
  }
 }
-    }
 
-    pub async fn new<T: AsRef<str>>(
+pub async fn new<T: AsRef<str>>(
         url: T,
         _local_addr: Option<SocketAddr>,
         _proxy_conf: Option<&Socks5Server>,

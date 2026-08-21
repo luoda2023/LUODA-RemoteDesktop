@@ -213,23 +213,6 @@ fn create_http_client_with_url_(
  Some(true),
  );
  }
- _ if original_danger_accept_invalid_cert.is_none() => {
- log::warn!(
- "Failed to connect to server {} with {:?}: {:?}, final fallback: accept invalid cert",
- tls_url,
- tls_type,
- e
- );
- client = create_http_client_async_with_url_(
- url,
- tls_url,
- tls_type,
- is_tls_type_cached,
- Some(true),
- Some(true),
- )
- .await;
- }
  _ => {
  log::error!(
  "Failed to connect to server {} with {:?}, err: {:?}.",
@@ -343,18 +326,35 @@ async fn create_http_client_async_with_url_(
                     original_danger_accept_invalid_cert,
                 )
                 .await;
-            }
-            _ => {
-                log::error!(
-                    "Failed to connect to server {} with {:?}, err: {:?}.",
-                    tls_url,
-                    tls_type,
-                    e
-                );
-            }
-        }
-    } else {
-        log::info!(
+ }
+ _ if original_danger_accept_invalid_cert.is_none() => {
+ log::warn!(
+ "Failed to connect to server {} with {:?}: {:?}, final fallback: accept invalid cert",
+ tls_url,
+ tls_type,
+ e
+ );
+ client = create_http_client_async_with_url_(
+ url,
+ tls_url,
+ tls_type,
+ is_tls_type_cached,
+ Some(true),
+ Some(true),
+ )
+ .await;
+ }
+ _ => {
+ log::error!(
+ "Failed to connect to server {} with {:?}, err: {:?}.",
+ tls_url,
+ tls_type,
+ e
+ );
+ }
+ }
+ } else {
+ log::info!(
             "Successfully connected to server {} with {:?}",
             tls_url,
             tls_type
