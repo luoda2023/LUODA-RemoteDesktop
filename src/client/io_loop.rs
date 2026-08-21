@@ -490,15 +490,15 @@ impl<T: InvokeUiSession> Remote<T> {
                         _ => {}
                     }
 		match rx_audio_data.try_recv() {
-			Ok((_instant, msg)) => match msg.union {
+			Ok((_instant, msg)) => match &msg.union {
 				Some(message::Union::AudioFrame(frame)) => {
 					let mut out = Message::new();
-					out.set_audio_frame(frame);
+					out.set_audio_frame((*frame).clone());
 					tx_audio.send(Data::Message(out)).ok();
 				}
 				Some(message::Union::Misc(misc)) => {
 					let mut out = Message::new();
-					out.set_misc(misc);
+					out.set_misc((*misc).clone());
 					tx_audio.send(Data::Message(out)).ok();
 				}
 				_ => {}

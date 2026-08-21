@@ -1473,12 +1473,11 @@ pub fn send_clipboard_msg(msg: Message, _is_file: bool) {
 // Server Side
 #[cfg(not(any(target_os = "ios")))]
 pub mod connection_manager {
-    use std::collections::HashMap;
+use std::collections::HashMap;
 
-    #[cfg(any(target_os = "android"))]
-    use hbb_common::log;
-    #[cfg(any(target_os = "android"))]
-    use scrap::android::call_main_service_set_by_name;
+use hbb_common::log;
+#[cfg(any(target_os = "android"))]
+use scrap::android::call_main_service_set_by_name;
     use serde_json::json;
 
     use crate::ui_cm_interface::InvokeUiCM;
