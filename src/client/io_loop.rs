@@ -489,20 +489,20 @@ impl<T: InvokeUiSession> Remote<T> {
                         }
                         _ => {}
                     }
-                    match rx_audio_data.try_recv() {
-                        Ok((_instant, msg)) => match &msg.union {
-                            Some(message::Union::AudioFrame(frame)) => {
-                                let mut msg = Message::new();
-                                msg.set_audio_frame(frame.clone());
-                                tx_audio.send(Data::Message(msg)).ok();
-                            }
-                            Some(message::Union::Misc(misc)) => {
-                                let mut msg = Message::new();
-                                msg.set_misc(misc.clone());
-                                tx_audio.send(Data::Message(msg)).ok();
-                            }
-                            _ => {}
-                        },
+		match rx_audio_data.try_recv() {
+			Ok((_instant, msg)) => match msg.union {
+				Some(message::Union::AudioFrame(frame)) => {
+					let mut out = Message::new();
+					out.set_audio_frame(frame);
+					tx_audio.send(Data::Message(out)).ok();
+				}
+				Some(message::Union::Misc(misc)) => {
+					let mut out = Message::new();
+					out.set_misc(misc);
+					tx_audio.send(Data::Message(out)).ok();
+				}
+				_ => {}
+			},
         Err(err) => {
             if err == TryRecvError::Empty {
                 // Avoid busy-loop: yield CPU when no audio data is available
@@ -1631,9 +1631,9 @@ impl<T: InvokeUiSession> Remote<T> {
                                                         allow_err!(peer.send(&msg).await);
                                                     }
                                                 },
-                                                Err(err) => {
-                                                    println!("error receiving digest: {}", err);
-                                                }
+			Err(err) => {
+				log::error!("error receiving digest: {}", err);
+			}
                                             }
                                         }
                                     }

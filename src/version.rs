@@ -1,3 +1,3 @@
-pub const VERSION: &str = "2.0.1";
+pub const VERSION: &str = "2.2.2";
 #[allow(dead_code)]
-pub const BUILD_DATE: &str = "2026-05-25 15:10";
+pub const BUILD_DATE: &str = "2026-08-20 20:00";

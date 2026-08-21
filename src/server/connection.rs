@@ -4305,7 +4305,7 @@ impl Connection {
         let mut block = FileTransferBlock::new();
         block.id = id;
         block.file_num = file_num;
-        block.data = data.to_vec().into();
+        block.data = data;
         block.compressed = compressed;
 
         let mut msg = Message::new();

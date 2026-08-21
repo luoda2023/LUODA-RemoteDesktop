@@ -1557,14 +1557,14 @@ pub mod connection_manager {
             h.insert("name", json!(name));
 
             if let Some(s) = GLOBAL_EVENT_STREAM.read().unwrap().get(super::APP_TYPE_CM) {
-                s.add(serde_json::ser::to_string(&h).unwrap_or("".to_owned()));
-            } else {
-                println!(
-                    "Push event {} failed. No {} event stream found.",
-                    name,
-                    super::APP_TYPE_CM
-                );
-            };
+			s.add(serde_json::ser::to_string(&h).unwrap_or("".to_owned()));
+		} else {
+			log::warn!(
+				"Push event {} failed. No {} event stream found.",
+				name,
+				super::APP_TYPE_CM
+			);
+		};
         }
     }
 
