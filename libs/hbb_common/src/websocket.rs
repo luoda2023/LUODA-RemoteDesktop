@@ -96,44 +96,70 @@ impl WsFramedStream {
             .map_err(|e| Error::new(ErrorKind::Other, e))?;
         let connector =
             Self::get_connector(&tls_type, danger_accept_invalid_cert.unwrap_or(false))?;
-        match timeout(
-            Duration::from_millis(ms_timeout),
-            connect_async_tls_with_config(request, ws_config, disable_nagle, connector),
-        )
-        .await?
-        {
-            Ok((ws_stream, _)) => {
-                upsert_tls_cache(url, tls_type, danger_accept_invalid_cert.unwrap_or(false));
-                Ok(ws_stream)
-            }
-            Err(e) => match (tls_type, danger_accept_invalid_cert) {
-                (TlsType::Rustls, None) | (TlsType::NativeTls, None) => {
-                    log::warn!(
-                            "WebSocket connection with rustls-tls failed, try accept invalid certs: {}, {:?}",
-                            url,
-                            e
-                        );
-                    Self::try_connect(
-                        url,
-                        ms_timeout,
-                        tls_type,
-                        is_tls_type_cached,
-                        Some(true),
-                        original_danger_accept_invalid_certs,
-                    )
-                    .await
-                }
-                _ => {
-                    log::error!(
-                        "WebSocket connection failed with tls_type {:?}: {}, {:?}",
-                        tls_type,
-                        url,
-                        e
-                    );
-                    bail!(e)
-                }
-            },
-        }
+ match timeout(
+ Duration::from_millis(ms_timeout),
+ connect_async_tls_with_config(request, ws_config, disable_nagle, connector),
+ )
+ .await
+ {
+ Ok(Ok((ws_stream, _))) => {
+ upsert_tls_cache(url, tls_type, danger_accept_invalid_cert.unwrap_or(false));
+ Ok(ws_stream)
+ }
+ Ok(Err(e)) => {
+ let should_retry_with_danger = danger_accept_invalid_cert.is_none()
+ || (danger_accept_invalid_cert == Some(false)
+ && original_danger_accept_invalid_certs.is_none());
+ if should_retry_with_danger {
+ log::warn!(
+ "WebSocket connection with {:?}-tls failed, retry accepting invalid certs: {}, {:?}",
+ tls_type,
+ url,
+ e
+ );
+ Self::try_connect(
+ url,
+ ms_timeout,
+ tls_type,
+ is_tls_type_cached,
+ Some(true),
+ original_danger_accept_invalid_certs,
+ )
+ .await
+ } else {
+ log::error!(
+ "WebSocket connection failed with tls_type {:?}: {}, {:?}",
+ tls_type,
+ url,
+ e
+ );
+ bail!(e)
+ }
+ }
+ Err(elapsed) => {
+ let should_retry_with_danger = danger_accept_invalid_cert.is_none()
+ || (danger_accept_invalid_cert == Some(false)
+ && original_danger_accept_invalid_certs.is_none());
+ if should_retry_with_danger {
+ log::warn!(
+ "WebSocket connection timed out, retry accepting invalid certs: {}",
+ url
+ );
+ Self::try_connect(
+ url,
+ ms_timeout,
+ tls_type,
+ is_tls_type_cached,
+ Some(true),
+ original_danger_accept_invalid_certs,
+ )
+ .await
+ } else {
+ bail!("WebSocket connection timed out: {}, {:?}", url, elapsed)
+ }
+ }
+ }
+}
     }
 
     pub async fn new<T: AsRef<str>>(

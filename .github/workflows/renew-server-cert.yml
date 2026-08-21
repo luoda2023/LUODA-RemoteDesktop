@@ -1,0 +1,71 @@
+name: Renew Server Certificate
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual cert renewal"
+        required: false
+        default: "certificate expired"
+
+jobs:
+  renew-cert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 47.114.75.115 >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Renew certificate on VPS
+        run: |
+          ssh -o ConnectTimeout=15 root@47.114.75.115 'bash -s' << 'SCRIPT'
+          set -e
+          echo "==> [1/5] Check certbot"
+          if ! command -v certbot >/dev/null 2>&1; then
+            apt-get update -y
+            apt-get install -y certbot python3-certbot-nginx
+          fi
+
+          echo "==> [2/5] Renew certificates (rev.dicad.cn + dicad.cn)"
+          # Try to renew existing certs first
+          certbot renew --nginx --non-interactive || true
+
+          # Ensure both domains are covered; re-issue if SAN is incomplete
+          certbot certonly --nginx \
+            -d rev.dicad.cn -d dicad.cn \
+            --non-interactive --agree-tos \
+            --email admin@dicad.cn \
+            --force-renewal || \
+          certbot certonly --nginx \
+            -d rev.dicad.cn \
+            --non-interactive --agree-tos \
+            --email admin@dicad.cn \
+            --force-renewal
+
+          echo "==> [3/5] Verify new certificate"
+          openssl s_client -connect rev.dicad.cn:443 -servername rev.dicad.cn </dev/null 2>/dev/null \
+            | openssl x509 -noout -dates -subject -ext subjectAltName
+
+          echo "==> [4/5] Reload nginx/openresty"
+          systemctl reload nginx 2>/dev/null || \
+          /usr/local/openresty/nginx/sbin/nginx -s reload 2>/dev/null || true
+
+          echo "==> [5/5] Ensure auto-renewal crontab"
+          (crontab -l 2>/dev/null | grep -v "certbot renew"; \
+           echo "0 3 * * * certbot renew --quiet --deploy-hook 'systemctl reload nginx || /usr/local/openresty/nginx/sbin/nginx -s reload' >> /var/log/certbot-renew.log 2>&1") | crontab -
+
+          echo ""
+          echo "✅ Certificate renewal completed."
+          SCRIPT
+
+      - name: Verify from runner
+        run: |
+          echo "Verifying certificate from GitHub Actions runner..."
+          echo | openssl s_client -connect rev.dicad.cn:443 -servername rev.dicad.cn 2>/dev/null \
+            | openssl x509 -noout -dates -subject -ext subjectAltName
