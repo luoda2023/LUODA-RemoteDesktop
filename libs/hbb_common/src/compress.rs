@@ -10,7 +10,7 @@ thread_local! {
 }
 
 pub fn compress(data: &[u8]) -> Vec<u8> {
-    let mut out = Vec::new();
+    let mut out = Vec::with_capacity(data.len());
     COMPRESSOR.with(|c| {
         if let Ok(mut c) = c.try_borrow_mut() {
             match &mut *c {

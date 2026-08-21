@@ -48,6 +48,8 @@ settings_update.json
 # Runtime databases and local configs
 .freebuff/
 Release/
+Releases/
+Release-new/
 libs/portable/app_metadata.toml
 *.db
 *.db-shm

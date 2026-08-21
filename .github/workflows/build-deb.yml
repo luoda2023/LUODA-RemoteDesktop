@@ -158,26 +158,29 @@ jobs:
           cp res/DEBIAN/postinst tmpdeb/DEBIAN/
           cp res/DEBIAN/prerm tmpdeb/DEBIAN/
           chmod 755 tmpdeb/DEBIAN/postinst tmpdeb/DEBIAN/prerm
-          dpkg-deb --build tmpdeb luoda.deb
+          mkdir -p Releases
+          dpkg-deb --build tmpdeb Releases/luoda.deb
 
       - name: Package RPM
         run: |
           sudo apt-get install -y alien rpm
+          cd Releases
           sudo alien --to-rpm luoda.deb --scripts
           ls -la *.rpm
           mv *.rpm luoda.rpm
+          cd ..
 
       - name: Upload DEB
         uses: actions/upload-artifact@v4
         with:
           name: LUODA-DEB
-          path: luoda.deb
+          path: Releases/luoda.deb
 
       - name: Upload RPM
         uses: actions/upload-artifact@v4
         with:
           name: LUODA-RPM
-          path: luoda.rpm
+          path: Releases/luoda.rpm
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
@@ -185,8 +188,8 @@ jobs:
           prerelease: false
           tag_name: v${{ env.LUODA_VERSION }}
           files: |
-            luoda.deb
-            luoda.rpm
+            Releases/luoda.deb
+            Releases/luoda.rpm
       - name: Upload runtime logs (always)
         if: always()
         uses: actions/upload-artifact@v4
