@@ -7,6 +7,10 @@ on:
         description: "Reason for manual cert renewal"
         required: false
         default: "certificate expired"
+  push:
+    branches: [v2.0.1]
+    paths:
+      - '.github/workflows/renew-server-cert.yml'
 
 jobs:
   renew-cert:
