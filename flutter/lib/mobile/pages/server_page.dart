@@ -312,151 +312,151 @@ class ScamWarningDialogState extends State<ScamWarningDialog> {
   Widget build(BuildContext context) {
     final isButtonLocked = _countdown > 0;
 
-    return AlertDialog(
-      content: ClipRRect(
-        borderRadius: BorderRadius.circular(20.0),
-        child: SingleChildScrollView(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topRight,
-                end: Alignment.bottomLeft,
-                colors: [
-                  Color(0xffe242bc),
-                  Color(0xfff4727c),
-                ],
-              ),
-            ),
-            padding: EdgeInsets.all(25.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.warning_amber_sharp,
-                      color: Colors.white,
-                    ),
-                    SizedBox(width: 10),
-                    Text(
-                      translate("Warning"),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20.0,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 20),
-                Center(
-                  child: Image.asset(
-                    'assets/scam.png',
-                    width: 180,
-                  ),
-                ),
-                SizedBox(height: 18),
-                Text(
-                  translate("scam_title"),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22.0,
-                  ),
-                ),
-                SizedBox(height: 18),
-                Text(
-                  "${translate("scam_text1")}\n\n${translate("scam_text2")}\n",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16.0,
-                  ),
-                ),
-                Row(
-                  children: <Widget>[
-                    Checkbox(
-                      value: show_warning,
-                      onChanged: (value) {
-                        setState(() {
-                          show_warning = value!;
-                        });
-                      },
-                    ),
-                    Text(
-                      translate("Don't show again"),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15.0,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      constraints: BoxConstraints(maxWidth: 150),
-                      child: ElevatedButton(
-                        onPressed: isButtonLocked
-                            ? null
-                            : () {
-                                Navigator.of(context).pop();
-                                _serverModel.toggleService();
-                                if (show_warning) {
-                                  bind.mainSetLocalOption(
-                                      key: "show-scam-warning", value: "N");
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                        ),
-                        child: Text(
-                          isButtonLocked
-                              ? "${translate("I Agree")} (${_countdown}s)"
-                              : translate("I Agree"),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13.0,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 15),
-                    Container(
-                      constraints: BoxConstraints(maxWidth: 150),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                        ),
-                        child: Text(
-                          translate("Decline"),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13.0,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      contentPadding: EdgeInsets.all(0.0),
-    );
+ final warningColor = Color(0xFFE04F5F);
+ final lightBg = Color(0xFFF6F7FA);
+
+ return AlertDialog(
+  content: ClipRRect(
+  borderRadius: BorderRadius.circular(12.0),
+  child: SingleChildScrollView(
+    child: Container(
+  decoration: BoxDecoration(
+    color: lightBg,
+    border: Border.all(color: warningColor, width: 1.5),
+  ),
+  padding: EdgeInsets.symmetric(horizontal: 22.0, vertical: 24.0),
+  child: Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Row(
+    children: [
+    Icon(
+    Icons.warning_amber_rounded,
+    color: warningColor,
+    size: 28,
+    ),
+    SizedBox(width: 8),
+    Text(
+    translate("Warning"),
+    style: TextStyle(
+    color: warningColor,
+    fontWeight: FontWeight.bold,
+    fontSize: 20.0,
+    ),
+    ),
+    ],
+    ),
+    SizedBox(height: 20),
+    Center(
+    child: Text(
+    translate("scam_title"),
+    textAlign: TextAlign.center,
+    style: TextStyle(
+    color: MyTheme.dark,
+    fontWeight: FontWeight.bold,
+    fontSize: 22.0,
+    ),
+    ),
+    ),
+    SizedBox(height: 18),
+    Text(
+    "${translate("scam_text1")}\n\n${translate("scam_text2")}\n",
+    style: TextStyle(
+    color: MyTheme.dark,
+    fontSize: 15.0,
+    height: 1.5,
+    ),
+    ),
+    Row(
+    children: <Widget>[
+    Checkbox(
+    value: show_warning,
+    onChanged: (value) {
+    setState(() {
+    show_warning = value!;
+    });
+    },
+    ),
+    Text(
+    translate("Don't show again"),
+    style: TextStyle(
+    color: MyTheme.dark,
+    fontSize: 14.0,
+    ),
+    ),
+    ],
+    ),
+    SizedBox(height: 8),
+    Row(
+    mainAxisAlignment: MainAxisAlignment.end,
+    children: [
+    Container(
+    constraints: BoxConstraints(maxWidth: 150),
+    child: ElevatedButton(
+    onPressed: isButtonLocked
+    ? null
+    : () {
+    Navigator.of(context).pop();
+    _serverModel.toggleService();
+    if (show_warning) {
+    bind.mainSetLocalOption(
+    key: "show-scam-warning", value: "N");
+    }
+    },
+    style: ElevatedButton.styleFrom(
+    backgroundColor: MyTheme.accent,
+    shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(8.0),
+    ),
+    ),
+    child: Text(
+    isButtonLocked
+    ? "${translate("I Agree")} (${_countdown}s)"
+    : translate("I Agree"),
+    style: TextStyle(
+    fontWeight: FontWeight.bold,
+    fontSize: 13.0,
+    ),
+    maxLines: 2,
+    overflow: TextOverflow.ellipsis,
+    ),
+    ),
+    ),
+    SizedBox(width: 12),
+    Container(
+    constraints: BoxConstraints(maxWidth: 150),
+    child: OutlinedButton(
+    onPressed: () {
+    Navigator.of(context).pop();
+    },
+    style: OutlinedButton.styleFrom(
+    side: BorderSide(color: MyTheme.border),
+    shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(8.0),
+    ),
+    ),
+    child: Text(
+    translate("Decline"),
+    style: TextStyle(
+    color: MyTheme.dark,
+    fontWeight: FontWeight.bold,
+    fontSize: 13.0,
+    ),
+    maxLines: 2,
+    overflow: TextOverflow.ellipsis,
+    ),
+    ),
+    ),
+    ],
+    ),
+    ],
+  ),
+    ),
+  ),
+  ),
+  contentPadding: EdgeInsets.all(0.0),
+ );
   }
 }
 
