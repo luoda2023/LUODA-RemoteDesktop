@@ -115,14 +115,31 @@ impl ServerCertVerifier for FallbackPlatformVerifier {
                     now,
                 ) {
                     Ok(verified) => Ok(verified),
-                    Err(fallback_err) => {
-                        log::error!(
-                            "Both primary and fallback verifiers failed to verify server certificate, primary error: {:?}, fallback error: {:?}",
-                            primary_err,
-                            fallback_err
-                        );
-                        Err(primary_err)
-                    }
+ Err(fallback_err) => {
+ let is_expired = matches!(
+ &primary_err,
+ TLSError::InvalidCertificate(ref e)
+ if e.to_string().contains("Expired")
+ ) || matches!(
+ &fallback_err,
+ TLSError::InvalidCertificate(ref e)
+ if e.to_string().contains("Expired")
+ );
+ if is_expired {
+ log::warn!(
+ "Accepting expired server certificate as fallback (primary: {:?}, fallback: {:?})",
+ primary_err,
+ fallback_err
+ );
+ return Ok(ServerCertVerified::assertion());
+ }
+ log::error!(
+ "Both primary and fallback verifiers failed to verify server certificate, primary error: {:?}, fallback error: {:?}",
+ primary_err,
+ fallback_err
+ );
+ Err(primary_err)
+ }
                 }
             }
         }

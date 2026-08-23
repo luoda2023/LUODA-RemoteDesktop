@@ -2878,13 +2878,12 @@ pub fn use_ws() -> bool {
  let option = keys::OPTION_ALLOW_WEBSOCKET;
  let val = Config::get_option(option);
  if val.is_empty() {
- // On mobile (Android/iOS), carrier networks frequently block
- // non-standard ports (21116-21119).  Default to WebSocket-over-443
- // (wss://) which goes through nginx on port 443 and is virtually
- // always reachable.  Desktop users can still toggle it in settings.
- #[cfg(any(target_os = "android", target_os = "ios"))]
- return true;
- #[cfg(not(any(target_os = "android", target_os = "ios")))]
+ // All platforms default to UDP for rendezvous registration.
+ // The hbbs TCP/WebSocket listener does not support RegisterPeer;
+ // only UDP registration keeps the peer in hbbs's online table.
+ // If UDP is blocked by the carrier network, the transport layer
+ // automatically falls back to TCP/WebSocket after repeated timeouts.
+ // Users can still explicitly enable WebSocket via the setting.
  return false;
  } else {
  option2bool(option, &val)
