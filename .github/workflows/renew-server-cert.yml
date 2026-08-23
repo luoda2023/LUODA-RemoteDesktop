@@ -26,86 +26,82 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H 47.114.75.115 >> ~/.ssh/known_hosts 2>/dev/null
 
- - name: Renew certificate and fix services on VPS
- run: |
- ssh -o ConnectTimeout=15 root@47.114.75.115 'bash -s' << 'SCRIPT'
- set -e
- echo "==> [1/8] Check certbot"
- if ! command -v certbot >/dev/null 2>&1; then
- apt-get update -y
- apt-get install -y certbot python3-certbot-nginx
- fi
+      - name: Renew certificate and fix services on VPS
+        run: |
+          ssh -o ConnectTimeout=15 root@47.114.75.115 'bash -s' << 'SCRIPT'
+          set -e
+          echo "==> [1/8] Check certbot"
+          if ! command -v certbot >/dev/null 2>&1; then
+            apt-get update -y
+            apt-get install -y certbot python3-certbot-nginx
+          fi
 
- echo "==> [2/8] Renew certificates (rev.dicad.cn + dicad.cn)"
- certbot renew --nginx --non-interactive || true
- certbot certonly --nginx \
- -d rev.dicad.cn -d dicad.cn \
- --non-interactive --agree-tos \
- --email admin@dicad.cn \
- --force-renewal || \
- certbot certonly --nginx \
- -d rev.dicad.cn \
- --non-interactive --agree-tos \
- --email admin@dicad.cn \
- --force-renewal
+          echo "==> [2/8] Renew certificates (rev.dicad.cn + dicad.cn)"
+          certbot renew --nginx --non-interactive || true
+          certbot certonly --nginx \
+            -d rev.dicad.cn -d dicad.cn \
+            --non-interactive --agree-tos \
+            --email admin@dicad.cn \
+            --force-renewal || \
+          certbot certonly --nginx \
+            -d rev.dicad.cn \
+            --non-interactive --agree-tos \
+            --email admin@dicad.cn \
+            --force-renewal
 
- echo "==> [3/8] Verify new certificate"
- openssl s_client -connect rev.dicad.cn:443 -servername rev.dicad.cn </dev/null 2>/dev/null \
- | openssl x509 -noout -dates -subject -ext subjectAltName
+          echo "==> [3/8] Verify new certificate"
+          openssl s_client -connect rev.dicad.cn:443 -servername rev.dicad.cn </dev/null 2>/dev/null \
+            | openssl x509 -noout -dates -subject -ext subjectAltName
 
- echo "==> [4/8] Ensure hbbs and hbbr services are running"
- # Find and restart hbbs/hbbr (systemd or bare process)
- if systemctl list-units --type=service | grep -q hbbs; then
- systemctl restart hbbs 2>/dev/null || true
- systemctl restart hbbr 2>/dev/null || true
- else
- # Bare-process: kill and restart from /opt or /root
- pkill -f 'hbbs ' 2>/dev/null || true
- pkill -f 'hbbr ' 2>/dev/null || true
- sleep 1
- HBBB_DIR=$(dirname $(find / -name hbbs -type f 2>/dev/null | head -1))
- if [ -n "$HBBB_DIR" ]; then
- cd "$HBBB_DIR"
- nohup ./hbbs -r rev.dicad.cn:21117 > /var/log/hbbs.log 2>&1 &
- nohup ./hbbr > /var/log/hbbr.log 2>&1 &
- sleep 2
- fi
- fi
+          echo "==> [4/8] Ensure hbbs and hbbr services are running"
+          if systemctl list-units --type=service 2>/dev/null | grep -q hbbs; then
+            systemctl restart hbbs 2>/dev/null || true
+            systemctl restart hbbr 2>/dev/null || true
+          else
+            pkill -f 'hbbs ' 2>/dev/null || true
+            pkill -f 'hbbr ' 2>/dev/null || true
+            sleep 1
+            HBBB_DIR=$(dirname $(find / -name hbbs -type f 2>/dev/null | head -1))
+            if [ -n "$HBBB_DIR" ]; then
+              cd "$HBBB_DIR"
+              nohup ./hbbs -r rev.dicad.cn:21117 > /var/log/hbbs.log 2>&1 &
+              nohup ./hbbr > /var/log/hbbr.log 2>&1 &
+              sleep 2
+            fi
+          fi
 
- echo "==> [5/8] Verify hbbs/hbbr are listening on 21116-21119"
- for port in 21116 21117 21118 21119; do
- if ss -tlnp | grep -q ":$port "; then
- echo "  port $port: LISTENING"
- else
- echo "  port $port: NOT LISTENING (WARNING)"
- fi
- done
+          echo "==> [5/8] Verify hbbs/hbbr are listening on 21116-21119"
+          for port in 21116 21117 21118 21119; do
+            if ss -tlnp | grep -q ":$port "; then
+              echo "  port $port: LISTENING"
+            else
+              echo "  port $port: NOT LISTENING (WARNING)"
+            fi
+          done
 
- echo "==> [6/8] Verify nginx /ws/id and /ws/relay upstreams"
- # Test the wss endpoints locally (bypass cert check)
- curl -sk -o /dev/null -w "  /ws/id: HTTP %{http_code}\n" https://127.0.0.1/ws/id -H "Host: rev.dicad.cn" || true
- curl -sk -o /dev/null -w "  /ws/relay: HTTP %{http_code}\n" https://127.0.0.1/ws/relay -H "Host: rev.dicad.cn" || true
- # If 502, show nginx error log for diagnosis
- if ! curl -sk -o /dev/null -f https://127.0.0.1/ws/id -H "Host: rev.dicad.cn" 2>/dev/null; then
- echo "  /ws/id returned error, checking nginx config..."
- nginx -T 2>/dev/null | grep -A5 "ws/id\|ws/relay\|21118\|21119" || \
- /usr/local/openresty/nginx/sbin/nginx -T 2>/dev/null | grep -A5 "ws/id\|ws/relay\|21118\|21119" || true
- echo "  Last 20 lines of nginx error log:"
- tail -20 /var/log/nginx/error.log 2>/dev/null || \
- tail -20 /usr/local/openresty/nginx/logs/error.log 2>/dev/null || true
- fi
+          echo "==> [6/8] Verify nginx /ws/id and /ws/relay upstreams"
+          curl -sk -o /dev/null -w "  /ws/id: HTTP %{http_code}\n" https://127.0.0.1/ws/id -H "Host: rev.dicad.cn" || true
+          curl -sk -o /dev/null -w "  /ws/relay: HTTP %{http_code}\n" https://127.0.0.1/ws/relay -H "Host: rev.dicad.cn" || true
+          if ! curl -sk -o /dev/null -f https://127.0.0.1/ws/id -H "Host: rev.dicad.cn" 2>/dev/null; then
+            echo "  /ws/id returned error, checking nginx config..."
+            nginx -T 2>/dev/null | grep -A5 "ws/id\|ws/relay\|21118\|21119" || \
+              /usr/local/openresty/nginx/sbin/nginx -T 2>/dev/null | grep -A5 "ws/id\|ws/relay\|21118\|21119" || true
+            echo "  Last 20 lines of nginx error log:"
+            tail -20 /var/log/nginx/error.log 2>/dev/null || \
+              tail -20 /usr/local/openresty/nginx/logs/error.log 2>/dev/null || true
+          fi
 
- echo "==> [7/8] Reload nginx/openresty"
- systemctl reload nginx 2>/dev/null || \
- /usr/local/openresty/nginx/sbin/nginx -s reload 2>/dev/null || true
+          echo "==> [7/8] Reload nginx/openresty"
+          systemctl reload nginx 2>/dev/null || \
+            /usr/local/openresty/nginx/sbin/nginx -s reload 2>/dev/null || true
 
- echo "==> [8/8] Ensure auto-renewal crontab"
- (crontab -l 2>/dev/null | grep -v "certbot renew"; \
- echo "0 3 * * * certbot renew --quiet --deploy-hook 'systemctl reload nginx || /usr/local/openresty/nginx/sbin/nginx -s reload' >> /var/log/certbot-renew.log 2>&1") | crontab -
+          echo "==> [8/8] Ensure auto-renewal crontab"
+          (crontab -l 2>/dev/null | grep -v "certbot renew"; \
+           echo "0 3 * * * certbot renew --quiet --deploy-hook 'systemctl reload nginx || /usr/local/openresty/nginx/sbin/nginx -s reload' >> /var/log/certbot-renew.log 2>&1") | crontab -
 
- echo ""
- echo "✅ Certificate renewal + service check completed."
- SCRIPT
+          echo ""
+          echo "✅ Certificate renewal + service check completed."
+          SCRIPT
 
       - name: Verify from runner
         run: |
