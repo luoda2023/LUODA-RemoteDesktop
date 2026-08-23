@@ -59,26 +59,41 @@ impl WsFramedStream {
         }
     }
 
-    async fn connect(
-        url: &str,
-        ms_timeout: u64,
-    ) -> ResultType<WebSocketStream<MaybeTlsStream<TcpStream>>> {
-        // to-do: websocket proxy.
+async fn connect(
+ url: &str,
+ ms_timeout: u64,
+) -> ResultType<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+ // to-do: websocket proxy.
 
-        let tls_type = get_cached_tls_type(url);
-        let is_tls_type_cached = tls_type.is_some();
-        let tls_type = tls_type.unwrap_or(TlsType::Rustls);
-        let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(&url);
-        Self::try_connect(
-            url,
-            ms_timeout,
-            tls_type,
-            is_tls_type_cached,
-            danger_accept_invalid_cert,
-            danger_accept_invalid_cert,
-        )
-        .await
-    }
+ // Plain ws:// URLs do not use TLS — skip the TLS type cache and
+ // connector entirely so we don't attempt a TLS handshake on a
+ // non-TLS port (e.g. hbbs WebSocket on 21118).
+ if url.starts_with("ws://") {
+ return Self::try_connect(
+ url,
+ ms_timeout,
+ TlsType::Plain,
+ true,
+ Some(false),
+ Some(false),
+ )
+ .await;
+ }
+
+ let tls_type = get_cached_tls_type(url);
+ let is_tls_type_cached = tls_type.is_some();
+ let tls_type = tls_type.unwrap_or(TlsType::Rustls);
+ let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(&url);
+ Self::try_connect(
+ url,
+ ms_timeout,
+ tls_type,
+ is_tls_type_cached,
+ danger_accept_invalid_cert,
+ danger_accept_invalid_cert,
+ )
+ .await
+}
 
     #[async_recursion]
     async fn try_connect(
