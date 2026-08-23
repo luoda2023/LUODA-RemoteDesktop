@@ -600,26 +600,37 @@ pub fn test_nat_type() {
             return;
         }
 
-        let mut i = 0;
-        loop {
-            match test_nat_type_() {
-                Ok(true) => break,
-                Err(err) => {
-                    log::error!("test nat: {}", err);
-                }
-                _ => {}
-            }
-            if Config::get_nat_type() != 0 {
-                break;
-            }
-            i = i * 2 + 1;
-            if i > 300 {
-                i = 300;
-            }
-            std::thread::sleep(std::time::Duration::from_secs(i));
-        }
+ let mut i = 0;
+ let mut nat_failures = 0;
+ const MAX_NAT_FAILURES: u32 = 3;
+ loop {
+ match test_nat_type_() {
+ Ok(true) => break,
+ Err(err) => {
+ log::error!("test nat: {}", err);
+ }
+ _ => {}
+ }
+ if Config::get_nat_type() != 0 {
+ break;
+ }
+ nat_failures += 1;
+ if nat_failures >= MAX_NAT_FAILURES {
+ log::warn!(
+ "NAT test failed {} times, assuming SYMMETRIC and continuing",
+ nat_failures
+ );
+ Config::set_nat_type(NatType::SYMMETRIC as _);
+ break;
+ }
+ i = i * 2 + 1;
+ if i > 30 {
+ i = 30;
+ }
+ std::thread::sleep(std::time::Duration::from_secs(i));
+ }
 
-        IS_RUNNING.store(false, Ordering::SeqCst);
+ IS_RUNNING.store(false, Ordering::SeqCst);
     });
 }
 
