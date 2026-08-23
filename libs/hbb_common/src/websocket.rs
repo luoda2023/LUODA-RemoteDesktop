@@ -367,14 +367,17 @@ pub fn check_ws(endpoint: &str) -> String {
  endpoint_host.eq_ignore_ascii_case(server_host.trim_end_matches('.'))
  });
 
- // For public servers, use wss:// (port 443) via nginx reverse proxy
- // so mobile clients on 4G/5G can bypass carrier port blocking (21116-21119).
- // nginx must proxy /ws/id -> hbbs:21118 and /ws/relay -> hbbr:21119.
+ // For public servers, connect directly to the native WebSocket port
+ // (21118 for rendezvous, 21119 for relay) using plain ws://.
+ // The hbbs/hbbr WebSocket servers on these ports do not use TLS —
+ // they rely on the application-layer key exchange (secure_tcp) for
+ // encryption.  This avoids dependency on the nginx reverse-proxy on
+ // port 443, which can fail with 502 Bad Gateway if the nginx upstream
+ // config is broken or the TLS certificate has expired.
  if is_public_server {
- let domain_path = if relay { "/ws/relay" } else { "/ws/id" };
- let websocket_url = format!("wss://{}{}", endpoint_host, domain_path);
+ let websocket_url = format!("ws://{}:{}", endpoint_host, dst_port);
  log::debug!(
- "WebSocket endpoint selected (public server, wss 443): {} -> {}",
+ "WebSocket endpoint selected (public server, ws native port): {} -> {}",
  endpoint,
  websocket_url
  );
@@ -439,28 +442,29 @@ mod tests {
         }
     }
 
-    #[test]
-    fn public_server_uses_direct_websocket_ports() {
-        let _lock = CONFIG_TEST_LOCK
-            .lock()
-            .unwrap_or_else(|err| err.into_inner());
-        let _snapshot = OptionSnapshot::capture();
+ #[test]
+ fn public_server_uses_direct_websocket_ports() {
+ let _lock = CONFIG_TEST_LOCK
+ .lock()
+ .unwrap_or_else(|err| err.into_inner());
+ let _snapshot = OptionSnapshot::capture();
 
- Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), "Y".to_owned());
- Config::set_option("custom-rendezvous-server".to_owned(), "".to_owned());
- Config::set_option("relay-server".to_owned(), "".to_owned());
- Config::set_option("api-server".to_owned(), "http://rev.dicad.cn".to_owned());
+	Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), "Y".to_owned());
+	Config::set_option("custom-rendezvous-server".to_owned(), "".to_owned());
+	Config::set_option("relay-server".to_owned(), "".to_owned());
+	Config::set_option("api-server".to_owned(), "http://rev.dicad.cn".to_owned());
 
- // Public servers now use wss:// (port 443 via nginx reverse proxy)
- assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
- assert_eq!(
- check_ws("rev.dicad.cn:21117"),
- "wss://rev.dicad.cn/ws/relay"
- );
+	// Public servers connect directly to native WS ports (21118/21119)
+	// using plain ws://, bypassing the nginx 443 reverse proxy.
+	assert_eq!(check_ws("rev.dicad.cn:21116"), "ws://rev.dicad.cn:21118");
+	assert_eq!(
+	check_ws("rev.dicad.cn:21117"),
+	"ws://rev.dicad.cn:21119"
+	);
 
- Config::set_option("api-server".to_owned(), "".to_owned());
- assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
-    }
+	Config::set_option("api-server".to_owned(), "".to_owned());
+	assert_eq!(check_ws("rev.dicad.cn:21116"), "ws://rev.dicad.cn:21118");
+ }
 
     #[test]
     fn test_check_ws() {
