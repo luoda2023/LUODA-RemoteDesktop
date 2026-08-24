@@ -469,13 +469,17 @@ mod tests {
         Config::set_option("relay-server".to_owned(), "".to_owned());
         Config::set_option("api-server".to_owned(), "http://rev.dicad.cn".to_owned());
 
-        // Public servers connect directly to native WS ports (21118/21119)
-        // using plain ws://, bypassing the nginx 443 reverse proxy.
-        assert_eq!(check_ws("rev.dicad.cn:21116"), "ws://rev.dicad.cn:21118");
-        assert_eq!(check_ws("rev.dicad.cn:21117"), "ws://rev.dicad.cn:21119");
+        // Public servers connect through nginx on port 443 (wss://) so that
+        // mobile clients on carrier networks (4G/5G) can reach hbbs/hbbr even
+        // when ports 21116-21119 are blocked.
+        assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
+        assert_eq!(
+            check_ws("rev.dicad.cn:21117"),
+            "wss://rev.dicad.cn/ws/relay"
+        );
 
         Config::set_option("api-server".to_owned(), "".to_owned());
-        assert_eq!(check_ws("rev.dicad.cn:21116"), "ws://rev.dicad.cn:21118");
+        assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
     }
 
     #[test]
