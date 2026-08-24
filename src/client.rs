@@ -1,3 +1,5 @@
+#[cfg(any(target_os = "android", target_os = "ios"))]
+use crate::android_opus_stub::{Channels::*, Decoder as AudioDecoder};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::clipboard::clipboard_listener;
 use async_trait::async_trait;
@@ -12,8 +14,6 @@ use cpal::{
 use crossbeam_queue::ArrayQueue;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use magnum_opus::{Channels::*, Decoder as AudioDecoder};
-#[cfg(any(target_os = "android", target_os = "ios"))]
-use crate::android_opus_stub::{Channels::*, Decoder as AudioDecoder};
 #[cfg(not(target_os = "linux"))]
 use ringbuf::{ring_buffer::RbBase, Rb};
 use serde::{Deserialize, Serialize};
@@ -51,7 +51,8 @@ use hbb_common::{
     bail,
     config::{
         self, keys, use_ws, Config, LocalConfig, PeerConfig, PeerInfoSerde, Resolution,
-        CONNECT_TIMEOUT, DEFAULT_DIRECT_PORT, READ_TIMEOUT, RELAY_PORT, RENDEZVOUS_PORT, RENDEZVOUS_SERVERS,
+        CONNECT_TIMEOUT, DEFAULT_DIRECT_PORT, READ_TIMEOUT, RELAY_PORT, RENDEZVOUS_PORT,
+        RENDEZVOUS_SERVERS,
     },
     fs::JobType,
     futures::future::{select_ok, FutureExt},
@@ -124,11 +125,9 @@ pub const LOGIN_SCREEN_WAYLAND: &str = "Wayland login screen is not supported";
 #[cfg(target_os = "linux")]
 pub const SCRAP_UBUNTU_HIGHER_REQUIRED: &str = "ubuntu-21-04-required";
 #[cfg(target_os = "linux")]
-pub const SCRAP_OTHER_VERSION_OR_X11_REQUIRED: &str =
-    "wayland-requires-higher-linux-version";
+pub const SCRAP_OTHER_VERSION_OR_X11_REQUIRED: &str = "wayland-requires-higher-linux-version";
 #[cfg(target_os = "linux")]
-pub const SCRAP_XDP_PORTAL_UNAVAILABLE: &str =
-    "xdp-portal-unavailable";
+pub const SCRAP_XDP_PORTAL_UNAVAILABLE: &str = "xdp-portal-unavailable";
 pub const SCRAP_X11_REQUIRED: &str = "x11 expected";
 pub const SCRAP_X11_REF_URL: &str = "https://dicad.cn/docs/en/manual/linux/#x11-required";
 
@@ -276,19 +275,13 @@ impl Client {
                 .iter()
                 .map(|h| {
                     let h = h.clone();
-                    async move {
-                        connect_tcp_local(h.as_str(), None, CONNECT_TIMEOUT).await
-                    }
-                    .boxed()
+                    async move { connect_tcp_local(h.as_str(), None, CONNECT_TIMEOUT).await }
+                        .boxed()
                 })
                 .collect();
             match select_ok(futures).await {
                 Ok((conn, _)) => {
-                    return Ok((
-                        (conn, true, None, None, "TCP"),
-                        (0, "".to_owned()),
-                        false,
-                    ));
+                    return Ok(((conn, true, None, None, "TCP"), (0, "".to_owned()), false));
                 }
                 Err(e) => bail!(
                     "Failed to connect directly to {} using {}: {}",
@@ -993,17 +986,15 @@ impl Client {
         conn_type: ConnType,
         ipv4: bool,
     ) -> ResultType<Stream> {
-        // Relay connections must use raw TCP (connect_tcp_local) to bypass
-        // WebSocket routing.  hbbr's relay pairing protocol only works on
-        // the native TCP port 21117 — the WebSocket listener on 21119 does
-        // not complete the relay key handshake.
-        let target = ipv4_to_ipv6(check_port(relay_server, RELAY_PORT), ipv4);
-        let mut conn = connect_tcp_local(target.clone(), None, CONNECT_TIMEOUT)
-            .await
-            .with_context(|| "Failed to connect to relay server")?;
+        let mut conn = connect_tcp(
+            ipv4_to_ipv6(check_port(relay_server, RELAY_PORT), ipv4),
+            CONNECT_TIMEOUT,
+        )
+        .await
+        .with_context(|| "Failed to connect to relay server")?;
         log::info!(
-            "Relay connection established (raw-TCP, WebSocket bypassed) to {}, local {}",
-            target,
+            "Relay connection established to {}, local {}",
+            conn.local_addr(),
             conn.local_addr()
         );
         let mut msg_out = RendezvousMessage::new();
@@ -2728,16 +2719,15 @@ impl LoginConfigHandler {
         };
         let mut avatar = get_builtin_option(keys::OPTION_AVATAR);
         if avatar.is_empty() {
-            avatar = serde_json::from_str::<serde_json::Value>(&LocalConfig::get_option(
-                "user_info",
-            ))
-            .ok()
-            .and_then(|x| {
-                x.get("avatar")
-                    .and_then(|x| x.as_str())
-                    .map(|x| x.trim().to_owned())
-            })
-            .unwrap_or_default();
+            avatar =
+                serde_json::from_str::<serde_json::Value>(&LocalConfig::get_option("user_info"))
+                    .ok()
+                    .and_then(|x| {
+                        x.get("avatar")
+                            .and_then(|x| x.as_str())
+                            .map(|x| x.trim().to_owned())
+                    })
+                    .unwrap_or_default();
         }
         avatar = resolve_avatar_url(avatar);
         let mut display_name = get_builtin_option(keys::OPTION_DISPLAY_NAME);
@@ -3956,18 +3946,18 @@ lazy_static::lazy_static! {
 pub fn check_if_retry(msgtype: &str, title: &str, text: &str, retry_for_relay: bool) -> bool {
     let lower = text.to_lowercase();
     msgtype == "error"
-    && title == "Connection Error"
-    && ((text.contains("10054") || text.contains("104")) && retry_for_relay
-    || (!lower.contains("offline")
-    && !lower.contains("not exist")
-    && (!lower.contains("handshake")
+        && title == "Connection Error"
+        && ((text.contains("10054") || text.contains("104")) && retry_for_relay
+            || (!lower.contains("offline")
+                && !lower.contains("not exist")
+                && (!lower.contains("handshake")
     // https://github.com/snapview/tungstenite-rs/blob/e7e060a89a72cb08e31c25a6c7284dc1bd982e23/src/error.rs#L248
     || lower.contains("connection reset without closing handshake") && use_ws())
-    && !lower.contains("failed")
-    && !lower.contains("resolve")
-    && !lower.contains("mismatch")
-    && !lower.contains("manually")
-    && !lower.contains("not allowed")))
+                && !lower.contains("failed")
+                && !lower.contains("resolve")
+                && !lower.contains("mismatch")
+                && !lower.contains("manually")
+                && !lower.contains("not allowed")))
 }
 
 pub async fn hc_connection(
@@ -4069,8 +4059,7 @@ pub mod peer_online {
     }
 
     async fn probe_direct_host(host: String) -> ResultType<()> {
-        let mut stream =
-            connect_tcp_local(host.as_str(), None, DIRECT_PROBE_TIMEOUT).await?;
+        let mut stream = connect_tcp_local(host.as_str(), None, DIRECT_PROBE_TIMEOUT).await?;
         let bytes = stream
             .next_timeout(DIRECT_PROBE_TIMEOUT)
             .await
@@ -4089,25 +4078,17 @@ pub mod peer_online {
             let offlines = onlines.drain((onlines.len() / 2)..).collect();
             f(onlines, offlines)
         } else {
-            let (direct_ids, rendezvous_ids): (Vec<_>, Vec<_>) = ids
-                .into_iter()
-                .partition(|id| {
-                    !crate::direct_access::direct_peer_hosts(
-                        id,
-                        DEFAULT_DIRECT_PORT as u16,
-                    )
-                    .is_empty()
-                });
+            let (direct_ids, rendezvous_ids): (Vec<_>, Vec<_>) = ids.into_iter().partition(|id| {
+                !crate::direct_access::direct_peer_hosts(id, DEFAULT_DIRECT_PORT as u16).is_empty()
+            });
             let direct_states: Vec<(String, bool)> = stream::iter(direct_ids)
                 .map(|id| async move {
-                    let hosts = crate::direct_access::direct_peer_hosts(
-                        &id,
-                        DEFAULT_DIRECT_PORT as u16,
-                    );
-                    let attempts: Vec<_> = hosts.into_iter().map(|host| {
-                        async move { probe_direct_host(host).await }
-                            .boxed()
-                    }).collect();
+                    let hosts =
+                        crate::direct_access::direct_peer_hosts(&id, DEFAULT_DIRECT_PORT as u16);
+                    let attempts: Vec<_> = hosts
+                        .into_iter()
+                        .map(|host| async move { probe_direct_host(host).await }.boxed())
+                        .collect();
                     let online = hbb_common::futures::future::select_ok(attempts)
                         .await
                         .is_ok();
@@ -4270,9 +4251,9 @@ pub mod peer_online {
                     "155323351".to_owned(),
                     "460952777".to_owned(),
                 ],
-		|onlines: Vec<String>, offlines: Vec<String>| {
-			log::debug!("onlines: {:?}, offlines: {:?}", &onlines, &offlines);
-		},
+                |onlines: Vec<String>, offlines: Vec<String>| {
+                    log::debug!("onlines: {:?}, offlines: {:?}", &onlines, &offlines);
+                },
             )
             .await;
         }
@@ -4286,16 +4267,16 @@ async fn test_udp_uat(
     mut stop_udp_rx: oneshot::Receiver<()>,
 ) -> ResultType<()> {
     let (tx, mut rx) = oneshot::channel::<_>();
-tokio::spawn(async {
- match crate::test_nat_ipv4().await {
- Ok(v) => {
- tx.send(v).ok();
- }
- Err(e) => {
- log::warn!("test_nat_ipv4 in punch_hole failed: {}", e);
- }
- }
-});
+    tokio::spawn(async {
+        match crate::test_nat_ipv4().await {
+            Ok(v) => {
+                tx.send(v).ok();
+            }
+            Err(e) => {
+                log::warn!("test_nat_ipv4 in punch_hole failed: {}", e);
+            }
+        }
+    });
 
     let start = Instant::now();
     let mut msg_out = RendezvousMessage::new();
