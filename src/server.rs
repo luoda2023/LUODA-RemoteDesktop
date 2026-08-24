@@ -347,12 +347,18 @@ async fn create_relay_connection_(
  // WebSocket routing.  hbbr's relay pairing protocol only works on
  // the native TCP port 21117 — the WebSocket listener on 21119 does
  // not complete the relay key handshake.
- let mut stream = socket_client::connect_tcp_local(
-            socket_client::ipv4_to_ipv6(crate::check_port(relay_server, RELAY_PORT), ipv4),
-            None,
-            CONNECT_TIMEOUT,
-        )
-        .await?;
+ let target = socket_client::ipv4_to_ipv6(crate::check_port(relay_server, RELAY_PORT), ipv4);
+    let mut stream = socket_client::connect_tcp_local(
+        target.clone(),
+        None,
+        CONNECT_TIMEOUT,
+    )
+    .await?;
+    log::info!(
+        "Relay pairing connection established (raw-TCP, WebSocket bypassed) to {}, local {}",
+        target,
+        stream.local_addr()
+    );
     let mut msg_out = RendezvousMessage::new();
     let licence_key = crate::get_key(true).await;
     msg_out.set_request_relay(RequestRelay {
