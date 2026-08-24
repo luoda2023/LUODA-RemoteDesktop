@@ -343,17 +343,13 @@ async fn create_relay_connection_(
     ipv4: bool,
     control_permissions: Option<ControlPermissions>,
 ) -> ResultType<()> {
- // Relay connections must use raw TCP (connect_tcp_local) to bypass
- // WebSocket routing.  hbbr's relay pairing protocol only works on
- // the native TCP port 21117 — the WebSocket listener on 21119 does
- // not complete the relay key handshake.
- let target = socket_client::ipv4_to_ipv6(crate::check_port(relay_server, RELAY_PORT), ipv4);
-    let mut stream = socket_client::connect_tcp_local(
-        target.clone(),
-        None,
-        CONNECT_TIMEOUT,
-    )
-    .await?;
+    // Relay connections must use raw TCP (connect_tcp_local) to bypass
+    // WebSocket routing.  hbbr's relay pairing protocol only works on
+    // the native TCP port 21117 — the WebSocket listener on 21119 does
+    // not complete the relay key handshake.
+    let target = socket_client::ipv4_to_ipv6(crate::check_port(relay_server, RELAY_PORT), ipv4);
+    let mut stream =
+        socket_client::connect_tcp_local(target.clone(), None, CONNECT_TIMEOUT).await?;
     log::info!(
         "Relay pairing connection established (raw-TCP, WebSocket bypassed) to {}, local {}",
         target,
