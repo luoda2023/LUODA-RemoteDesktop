@@ -2031,30 +2031,33 @@ pub fn is_client_only() -> bool {
 /// Remove network values left by old test builds, then keep the customer
 /// client on native rendezvous for P2P with automatic relay fallback.
 pub fn prepare_network_config() {
- let custom_server = Config::get_option(keys::OPTION_CUSTOM_RENDEZVOUS_SERVER);
- let relay_server = Config::get_option(keys::OPTION_RELAY_SERVER);
- let invalid_custom = is_loopback_or_test_server(&custom_server);
- let invalid_relay = is_loopback_or_test_server(&relay_server);
- if invalid_custom || invalid_relay {
- log::warn!(
- "Clearing stale network test options: rendezvous='{}', relay='{}'",
- custom_server,
- relay_server
- );
- if invalid_custom {
- Config::set_option(keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(), String::new());
- }
- if invalid_relay {
- Config::set_option(keys::OPTION_RELAY_SERVER.to_owned(), String::new());
- }
- }
- // Force-disable WebSocket on all devices.  hbbs and hbbr do not support
- // RegisterPeer or relay pairing over WebSocket, and expired TLS
- // certificates on the nginx reverse-proxy (port 443) break wss://.
- // The native UDP/TCP transport on ports 21116-21119 is the only reliable
- // path.  Clearing the stored option ensures use_ws() defaults to false
- // even if an old build or user config left allow-websocket=Y behind.
- Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), String::new());
+    let custom_server = Config::get_option(keys::OPTION_CUSTOM_RENDEZVOUS_SERVER);
+    let relay_server = Config::get_option(keys::OPTION_RELAY_SERVER);
+    let invalid_custom = is_loopback_or_test_server(&custom_server);
+    let invalid_relay = is_loopback_or_test_server(&relay_server);
+    if invalid_custom || invalid_relay {
+        log::warn!(
+            "Clearing stale network test options: rendezvous='{}', relay='{}'",
+            custom_server,
+            relay_server
+        );
+        if invalid_custom {
+            Config::set_option(
+                keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(),
+                String::new(),
+            );
+        }
+        if invalid_relay {
+            Config::set_option(keys::OPTION_RELAY_SERVER.to_owned(), String::new());
+        }
+    }
+    // Force-disable WebSocket on all devices.  hbbs and hbbr do not support
+    // RegisterPeer or relay pairing over WebSocket, and expired TLS
+    // certificates on the nginx reverse-proxy (port 443) break wss://.
+    // The native UDP/TCP transport on ports 21116-21119 is the only reliable
+    // path.  Clearing the stored option ensures use_ws() defaults to false
+    // even if an old build or user config left allow-websocket=Y behind.
+    Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), String::new());
 
     if !is_client_only() {
         return;

@@ -998,13 +998,9 @@ Option<KcpStream>,
         // the native TCP port 21117 — the WebSocket listener on 21119 does
         // not complete the relay key handshake.
         let target = ipv4_to_ipv6(check_port(relay_server, RELAY_PORT), ipv4);
-        let mut conn = connect_tcp_local(
-            target.clone(),
-            None,
-            CONNECT_TIMEOUT,
-        )
-        .await
-        .with_context(|| "Failed to connect to relay server")?;
+        let mut conn = connect_tcp_local(target.clone(), None, CONNECT_TIMEOUT)
+            .await
+            .with_context(|| "Failed to connect to relay server")?;
         log::info!(
             "Relay connection established (raw-TCP, WebSocket bypassed) to {}, local {}",
             target,
