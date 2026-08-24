@@ -2062,13 +2062,12 @@ pub fn prepare_network_config() {
             Config::set_option(keys::OPTION_RELAY_SERVER.to_owned(), String::new());
         }
     }
-    // Force-disable WebSocket on all devices.  hbbs and hbbr do not support
-    // RegisterPeer or relay pairing over WebSocket, and expired TLS
-    // certificates on the nginx reverse-proxy (port 443) break wss://.
-    // The native UDP/TCP transport on ports 21116-21119 is the only reliable
-    // path.  Clearing the stored option ensures use_ws() defaults to false
-    // even if an old build or user config left allow-websocket=Y behind.
-    Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), String::new());
+    // Do NOT clear allow-websocket here.  Mobile devices (4G/5G) need
+    // WebSocket (wss://443) to register with the rendezvous server because
+    // carriers block UDP port 21116.  The relay connection paths have been
+    // fixed to use connect_tcp_local() directly, bypassing WebSocket
+    // regardless of the use_ws() setting, so enabling WebSocket for
+    // registration no longer breaks relay pairing.
 
     if !is_client_only() {
         return;
@@ -2081,7 +2080,6 @@ pub fn prepare_network_config() {
         RENDEZVOUS.to_owned(),
     );
     settings.insert(keys::OPTION_RELAY_SERVER.to_owned(), String::new());
-    settings.insert(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), String::new());
     log::info!(
         "Client-only network policy: native rendezvous {}:{}, P2P first with automatic relay fallback",
         RENDEZVOUS,

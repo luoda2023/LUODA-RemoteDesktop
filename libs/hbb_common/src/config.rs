@@ -2875,20 +2875,25 @@ pub fn option2bool(option: &str, value: &str) -> bool {
 }
 
 pub fn use_ws() -> bool {
- let option = keys::OPTION_ALLOW_WEBSOCKET;
- let val = Config::get_option(option);
- if val.is_empty() {
- // All platforms default to UDP rendezvous.  The hbbs WebSocket
- // listener (21118) does not respond to RegisterPeer, and the hbbr
- // WebSocket listener (21119) does not complete the relay key
- // handshake, so forcing WebSocket on mobile breaks peer registration
- // and incoming relay connections.  The transport layer falls back to
- // TCP automatically after repeated UDP registration failures.
- false
- } else {
- option2bool(option, &val)
- }
- }
+    let option = keys::OPTION_ALLOW_WEBSOCKET;
+    let val = Config::get_option(option);
+    if val.is_empty() {
+        // On mobile (Android/iOS), carrier networks frequently block
+        // non-standard ports (21116-21119).  Default to WebSocket-over-443
+        // (wss://) which goes through nginx on port 443 and is virtually
+        // always reachable.  Desktop users can still toggle it in settings.
+        // NOTE: The relay connection paths (client.rs::create_relay,
+        // server.rs::create_relay_connection_) now use connect_tcp_local()
+        // to bypass WebSocket, so enabling use_ws() for registration no
+        // longer breaks relay pairing.
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        return true;
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        return false;
+    } else {
+        option2bool(option, &val)
+    }
+}
 
 pub fn allow_insecure_tls_fallback() -> bool {
     let option = keys::OPTION_ALLOW_INSECURE_TLS_FALLBACK;
