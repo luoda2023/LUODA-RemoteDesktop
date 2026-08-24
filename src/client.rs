@@ -993,8 +993,13 @@ impl Client {
         conn_type: ConnType,
         ipv4: bool,
     ) -> ResultType<Stream> {
-        let mut conn = connect_tcp(
+        // Relay connections must use raw TCP (connect_tcp_local) to bypass
+        // WebSocket routing.  hbbr's relay pairing protocol only works on
+        // the native TCP port 21117 — the WebSocket listener on 21119 does
+        // not complete the relay key handshake.
+        let mut conn = connect_tcp_local(
             ipv4_to_ipv6(check_port(relay_server, RELAY_PORT), ipv4),
+            None,
             CONNECT_TIMEOUT,
         )
         .await
