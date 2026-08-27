@@ -155,13 +155,16 @@ def gen_pre_vars(args, dist_dir):
         upgrade_code = uuid.uuid5(uuid.NAMESPACE_OID, app_name + ".exe")
 
         indent = g_indent_unit * 1
+        internal_name = "LUODA" if app_name in ("LUODA", "LDesk") else app_name
         to_insert_lines = [
             f'{indent}<?define Version="{g_version}" ?>\n',
             f'{indent}<?define Manufacturer="{args.manufacturer}" ?>\n',
             f'{indent}<?define Product="{args.app_name}" ?>\n',
             f'{indent}<?define Description="{args.app_name} Installer" ?>\n',
+            f'{indent}<?define ProductInternal="{internal_name}" ?>\n',
+            f'{indent}<?define ProductInternalLower="{internal_name.lower()}" ?>\n',
             f'{indent}<?define ProductLower="{args.app_name.lower()}" ?>\n',
-            f'{indent}<?define RegKeyRoot=".$(var.ProductLower)" ?>\n',
+            f'{indent}<?define RegKeyRoot=".$(var.ProductInternalLower)" ?>\n',
             f'{indent}<?define RegKeyInstall="$(var.RegKeyRoot)\\Install" ?>\n',
             f'{indent}<?define BuildDir="{dist_dir}" ?>\n',
             f'{indent}<?define BuildDate="{g_build_date}" ?>\n',
@@ -197,6 +200,8 @@ def replace_app_name_in_custom_actions(app_name):
         for i, line in enumerate(lines):
             line = re.sub(r"\bLUODA\b", app_name, line)
             line = line.replace(f"{app_name} v4 Printer Driver", "LUODA v4 Printer Driver")
+            line = line.replace(f"{app_name} Printer", "LUODA Printer")
+            line = line.replace(f"{app_name}PrinterDriver", "LUODAPrinterDriver")
             lines[i] = line
         with open(file_path, "w", encoding="utf-8") as f:
             f.writelines(lines)

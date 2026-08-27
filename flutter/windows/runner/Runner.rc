@@ -94,7 +94,7 @@ BEGIN
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "luoda" "\0"
             VALUE "LegalCopyright", "Copyright © 2025 LDesk. All rights reserved." "\0"
-            VALUE "OriginalFilename", "luoda.exe" "\0"
+            VALUE "OriginalFilename", "LDesk.exe" "\0"
             VALUE "ProductName", "LDesk" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END

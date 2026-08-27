@@ -222,7 +222,8 @@ mod win {
             .processes()
             .iter()
             .filter(|(_, process)| {
-                process.name().eq_ignore_ascii_case("luoda.exe")
+                (process.name().eq_ignore_ascii_case("LDesk.exe")
+                    || process.name().eq_ignore_ascii_case("luoda.exe"))
                     && crate::runtime_layout::is_stale_runtime_executable(
                         process.exe(),
                         current_exe,

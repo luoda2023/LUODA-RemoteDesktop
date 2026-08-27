@@ -141,7 +141,7 @@ jobs:
         shell: bash
         run: |
           choco install rcedit -y
-          rcedit "flutter/build/windows/x64/runner/Release/luoda.exe" --set-icon "res/icon.ico"
+          rcedit "flutter/build/windows/x64/runner/Release/LDesk.exe" --set-icon "res/icon.ico"
       - name: Build portable packer
         timeout-minutes: 15
         shell: bash
@@ -175,19 +175,19 @@ jobs:
           ls -la Release/
           pip3 install brotli
           cd libs/portable
-          python3 generate.py -f ../../Release/ -o . -e ../../Release/luoda.exe
+          python3 generate.py -f ../../Release/ -o . -e ../../Release/LDesk.exe
           cd ../..
           cd libs/portable
           cargo build --release
           cd ../..
           mkdir -p SignOutput
-          cp target/release/luoda-portable-packer.exe SignOutput/LUODA-Client-x64.exe
+          cp target/release/luoda-portable-packer.exe SignOutput/LDesk-Client-x64.exe
           echo "=== Final Client EXE ==="
-          ls -la SignOutput/LUODA-Client-x64.exe
+          ls -la SignOutput/LDesk-Client-x64.exe
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LUODA-Client-${{ matrix.arch }}
+          name: LDesk-Client-${{ matrix.arch }}
           path: SignOutput/
       - name: Upload runtime logs (always)
         if: always()
@@ -202,4 +202,4 @@ jobs:
         with:
           prerelease: false
           tag_name: v${{ env.LUODA_VERSION }}
-          files: SignOutput/LUODA-Client-x64.exe
+          files: SignOutput/LDesk-Client-x64.exe

@@ -1,4 +1,4 @@
-﻿use crate::client::translate;
+use crate::client::translate;
 #[cfg(windows)]
 use crate::ipc::Data;
 #[cfg(windows)]
@@ -215,13 +215,13 @@ fn make_tray() -> hbb_common::ResultType<()> {
         if count == 0 {
             format!(
                 "{} {}",
-                crate::get_app_name(),
+                crate::get_display_app_name(),
                 translate("Service is running".to_owned()),
             )
         } else {
             format!(
                 "{} - {}\n{}",
-                crate::get_app_name(),
+                crate::get_display_app_name(),
                 translate("Ready".to_owned()),
                 translate("{".to_string() + &format!("{count}") + "} sessions"),
             )
@@ -246,7 +246,9 @@ fn make_tray() -> hbb_common::ResultType<()> {
             // Do not use "start uni link" way, it may not work on some Windows, and pop out error
             // dialog, I found on one user's desktop, but no idea why, Windows is shit.
             // Use `run_me` instead.
-            // `allow_multiple_instances` in `flutter/windows/runner/main.cpp` allows only one instance without args.
+            // `flutter/windows/runner/main.cpp` enforces a single main-window
+            // instance (named mutex) before the Rust core runs, so this second
+            // launch just activates the running window and exits.
             crate::run_me::<&str>(vec![]).ok();
         }
         #[cfg(target_os = "linux")]
