@@ -9,14 +9,20 @@ import sys
 import os
 from PIL import Image
 
-# Resize targets: density -> (size, dir_name)
+# Adaptive-icon foreground canvas (108dp full-bleed per density).
+# Content must stay inside the central safe circle (66% of canvas) or the
+# launcher mask will crop it -> previously the logo appeared zoomed/clipped.
 MIPMAP_SIZES = {
-    "mdpi": 48,
-    "hdpi": 72,
-    "xhdpi": 96,
-    "xxhdpi": 144,
-    "xxxhdpi": 192,
+    "mdpi": 108,
+    "hdpi": 162,
+    "xhdpi": 216,
+    "xxhdpi": 324,
+    "xxxhdpi": 432,
 }
+
+# Content diameter relative to the canvas. 0.47 keeps the logo fully inside
+# the adaptive-icon safe circle (66% diameter) with comfortable margin.
+SAFE_SCALE = 0.47
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -50,8 +56,12 @@ def main():
 
         try:
             # High-quality Lanczos resize
-            resized = src.resize((size, size), Image.Resampling.LANCZOS)
-            resized.save(dst_path, "PNG")
+            content_size = max(1, int(round(size * SAFE_SCALE)))
+            resized = src.resize((content_size, content_size), Image.Resampling.LANCZOS)
+            canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+            offset = (size - content_size) // 2
+            canvas.paste(resized, (offset, offset), resized)
+            canvas.save(dst_path, "PNG")
             print(f"  Generated {density} ({size}x{size}): {dst_path}")
             success += 1
         except Exception as e:
