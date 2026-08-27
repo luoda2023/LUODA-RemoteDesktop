@@ -191,8 +191,6 @@ const String kOptionHideHelpCards = "hide-help-cards";
 const String kOptionToggleViewOnly = "view-only";
 const String kOptionToggleShowMyCursor = "show-my-cursor";
 
-const String kOptionDisableFloatingWindow = "disable-floating-window";
-
 const String kOptionKeepScreenOn = "keep-screen-on";
 
 const String kOptionKeepAwakeDuringIncomingSessions = "keep-awake-during-incoming-sessions";
@@ -426,7 +424,6 @@ const kRecordAudio = "android.permission.RECORD_AUDIO";
 const kManageExternalStorage = "android.permission.MANAGE_EXTERNAL_STORAGE";
 const kRequestIgnoreBatteryOptimizations =
     "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS";
-const kSystemAlertWindow = "android.permission.SYSTEM_ALERT_WINDOW";
 const kAndroid13Notification = "android.permission.POST_NOTIFICATIONS";
 
 /// Android channel invoke type key

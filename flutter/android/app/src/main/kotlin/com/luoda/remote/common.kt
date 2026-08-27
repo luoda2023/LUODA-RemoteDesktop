@@ -3,6 +3,7 @@ package com.luoda.remote
 import android.Manifest.permission.*
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.media.AudioRecord
 import android.media.AudioRecord.READ_BLOCKING
@@ -106,13 +107,23 @@ fun requestPermissionsBatch(context: Context, types: List<String>) {
 
 fun startAction(context: Context, action: String): Boolean {
     try {
-        context.startActivity(Intent(action).apply {
+        val intent = Intent(action).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            // don't pass package name when launch ACTION_ACCESSIBILITY_SETTINGS
-            if (ACTION_ACCESSIBILITY_SETTINGS != action) {
-                data = Uri.parse("package:" + context.packageName)
+        }
+        when (action) {
+            // don't pass package name when launching the accessibility list
+            ACTION_ACCESSIBILITY_SETTINGS -> { /* no extras */ }
+            "android.settings.ACCESSIBILITY_DETAILS_SETTINGS" -> {
+                // Land on the LUODA Input toggle directly where the ROM
+                // supports component-targeted accessibility settings.
+                intent.putExtra(
+                    Intent.EXTRA_COMPONENT_NAME,
+                    ComponentName(context, InputService::class.java)
+                )
             }
-        })
+            else -> intent.data = Uri.parse("package:" + context.packageName)
+        }
+        context.startActivity(intent)
         return true
     } catch (e: Exception) {
         Log.e("common", "Unable to open Android settings action $action", e)

@@ -73,8 +73,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
   var _enableStartOnBoot = false;
   var _checkUpdateOnStartup = false;
   var _showTerminalExtraKeys = false;
-  var _floatingWindowDisabled = false;
-  var _keepScreenOn = KeepScreenOn.duringControlled; // relay on floating window
+  var _keepScreenOn = KeepScreenOn.duringControlled;
   var _enableAbr = false;
   var _denyLANDiscovery = false;
   var _onlyWhiteList = false;
@@ -166,7 +165,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         update = true;
       }
 
-      // start on boot depends on ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS and SYSTEM_ALERT_WINDOW
+      // start on boot depends on ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
       var enableStartOnBoot =
           await gFFI.invokeMethod(AndroidChannel.kGetStartOnBootOpt);
       if (enableStartOnBoot) {
@@ -188,18 +187,8 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         _checkUpdateOnStartup = checkUpdateOnStartup;
       }
 
-      var floatingWindowDisabled =
-          bind.mainGetLocalOption(key: kOptionDisableFloatingWindow) == "Y" ||
-              !await AndroidPermissionManager.check(kSystemAlertWindow);
-      if (floatingWindowDisabled != _floatingWindowDisabled) {
-        update = true;
-        _floatingWindowDisabled = floatingWindowDisabled;
-      }
-
-      final keepScreenOn = _floatingWindowDisabled
-          ? KeepScreenOn.never
-          : optionToKeepScreenOn(
-              bind.mainGetLocalOption(key: kOptionKeepScreenOn));
+      final keepScreenOn = optionToKeepScreenOn(
+          bind.mainGetLocalOption(key: kOptionKeepScreenOn));
       if (keepScreenOn != _keepScreenOn) {
         update = true;
         _keepScreenOn = keepScreenOn;
@@ -588,13 +577,6 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               }
             }
 
-            // 2. request kSystemAlertWindow
-            if (!await AndroidPermissionManager.check(kSystemAlertWindow)) {
-              if (!await AndroidPermissionManager.request(kSystemAlertWindow)) {
-                return;
-              }
-            }
-
             // (Optional) 3. request input permission
           }
           setState(() => _enableStartOnBoot = toValue);
@@ -635,33 +617,6 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
       ),
     );
 
-    onFloatingWindowChanged(bool toValue) async {
-      if (toValue) {
-        if (!await AndroidPermissionManager.check(kSystemAlertWindow)) {
-          if (!await AndroidPermissionManager.request(kSystemAlertWindow)) {
-            return;
-          }
-        }
-      }
-      final disable = !toValue;
-      bind.mainSetLocalOption(
-          key: kOptionDisableFloatingWindow,
-          value: disable ? 'Y' : defaultOptionNo);
-      setState(() => _floatingWindowDisabled = disable);
-      gFFI.serverModel.androidUpdatekeepScreenOn();
-    }
-
-    enhancementsTiles.add(SettingsTile.switchTile(
-        initialValue: !_floatingWindowDisabled,
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(translate('Floating window')),
-          Text('* ${translate('floating_window_tip')}',
-              style: Theme.of(context).textTheme.bodySmall),
-        ]),
-        onToggle: bind.mainIsOptionFixed(key: kOptionDisableFloatingWindow)
-            ? null
-            : onFloatingWindowChanged));
-
     enhancementsTiles.add(_getPopupDialogRadioEntry(
       title: 'Keep screen on',
       list: [
@@ -671,11 +626,10 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         _RadioEntry('During service is on',
             _keepScreenOnToOption(KeepScreenOn.serviceOn)),
       ],
-      getter: () => _keepScreenOnToOption(_floatingWindowDisabled
-          ? KeepScreenOn.never
-          : optionToKeepScreenOn(
+      getter: () => _keepScreenOnToOption(
+          optionToKeepScreenOn(
               bind.mainGetLocalOption(key: kOptionKeepScreenOn))),
-      asyncSetter: isOptionFixed(kOptionKeepScreenOn) || _floatingWindowDisabled
+      asyncSetter: isOptionFixed(kOptionKeepScreenOn)
           ? null
           : (value) async {
               await bind.mainSetLocalOption(
@@ -1004,11 +958,8 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
   }
 
   Future<bool> canStartOnBoot() async {
-    // start on boot depends on ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS and SYSTEM_ALERT_WINDOW
+    // start on boot depends on ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
     if (_hasIgnoreBattery && !_ignoreBatteryOpt) {
-      return false;
-    }
-    if (!await AndroidPermissionManager.check(kSystemAlertWindow)) {
       return false;
     }
     return true;

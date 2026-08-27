@@ -380,11 +380,17 @@ String get connectQrData {
     if (_inputOk) {
       parent.target?.invokeMethod("stop_input");
       bind.mainSetOption(key: kOptionEnableKeyboard, value: 'N');
-    } else {
-      if (parent.target != null) {
-        /// the result of toggle-on depends on user actions in the settings page.
-        /// handle result, see [ServerModel.changeStatue]
-        showInputWarnAlert(parent.target!);
+    } else if (parent.target != null) {
+      // One-tap enable: jump straight to the LUODA Input accessibility toggle.
+      // Android forbids third-party apps from enabling the accessibility
+      // service programmatically, so flipping this toggle is the only manual
+      // step left. Once enabled, InputService broadcasts on_state_changed
+      // ("input", true) and remote input turns on automatically.
+      final granted = await AndroidPermissionManager.checkAccessibility();
+      if (!granted) {
+        showToast(translate('android_input_permission_tip1'));
+        await AndroidPermissionManager.startAction(
+            kActionAccessibilityDetailsSettings);
       }
     }
   }
@@ -400,20 +406,6 @@ String get connectQrData {
     }
     var res = await AndroidPermissionManager.request(kAndroid13Notification);
     debugPrint("notification permission request result: $res");
-    return res;
-  }
-
-  Future<bool> checkFloatingWindowPermission() async {
-    debugPrint("androidVersion $androidVersion");
-    if (androidVersion < 23) {
-      return false;
-    }
-    if (await AndroidPermissionManager.check(kSystemAlertWindow)) {
-      debugPrint("alert window permission already granted");
-      return true;
-    }
-    var res = await AndroidPermissionManager.request(kSystemAlertWindow);
-    debugPrint("alert window permission request result: $res");
     return res;
   }
 
@@ -445,10 +437,6 @@ String get connectQrData {
     } else {
       // First-run authorization usually handles all permissions.
       // But if the user skipped it, do a quick check on critical permissions.
-      if (androidVersion >= 23 &&
-          !await AndroidPermissionManager.check(kSystemAlertWindow)) {
-        await AndroidPermissionManager.request(kSystemAlertWindow);
-      }
       if (!await AndroidPermissionManager.check(kManageExternalStorage)) {
         await AndroidPermissionManager.request(kManageExternalStorage);
       }
@@ -800,13 +788,8 @@ String get connectQrData {
 
   void androidUpdatekeepScreenOn() async {
     if (!isAndroid) return;
-    var floatingWindowDisabled =
-        bind.mainGetLocalOption(key: kOptionDisableFloatingWindow) == "Y" ||
-            !await AndroidPermissionManager.check(kSystemAlertWindow);
-    final keepScreenOn = floatingWindowDisabled
-        ? KeepScreenOn.never
-        : optionToKeepScreenOn(
-            bind.mainGetLocalOption(key: kOptionKeepScreenOn));
+    final keepScreenOn = optionToKeepScreenOn(
+        bind.mainGetLocalOption(key: kOptionKeepScreenOn));
     final on = ((keepScreenOn == KeepScreenOn.serviceOn) && _isStart) ||
         (keepScreenOn == KeepScreenOn.duringControlled &&
             _clients.map((e) => !e.disconnected).isNotEmpty);
@@ -921,33 +904,6 @@ String getLoginDialogTag(int id) {
   return kLoginDialogTag + id.toString();
 }
 
-showInputWarnAlert(FFI ffi) {
-  ffi.dialogManager.show((setState, close, context) {
-    submit() {
-      AndroidPermissionManager.startAction(kActionAccessibilitySettings);
-      close();
-    }
-
-    return CustomAlertDialog(
-      title: Text(translate("How to get Android input permission?")),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(translate("android_input_permission_tip1")),
-          const SizedBox(height: 10),
-          Text(translate("android_input_permission_tip2")),
-        ],
-      ),
-      actions: [
-        dialogButton("Cancel", onPressed: close, isOutline: true),
-        dialogButton("Open System Setting", onPressed: submit),
-      ],
-      onSubmit: submit,
-      onCancel: close,
-    );
-  });
-}
-
 Future<void> showClientsMayNotBeChangedAlert(FFI? ffi) async {
   await ffi?.dialogManager.show((setState, close, context) {
     return CustomAlertDialog(
@@ -966,4 +922,3 @@ Future<void> showClientsMayNotBeChangedAlert(FFI? ffi) async {
     );
   });
 }
-

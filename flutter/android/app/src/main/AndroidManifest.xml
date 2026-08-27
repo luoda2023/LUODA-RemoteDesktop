@@ -12,8 +12,6 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
     <queries>
         <intent>
             <!-- https://developer.android.com/training/package-visibility/use-cases#open-urls-custom-tabs -->
@@ -85,10 +83,6 @@
             android:name=".MainService"
             android:enabled="true"
             android:foregroundServiceType="mediaProjection" />
-
-        <service
-            android:name=".FloatingWindowService"
-            android:enabled="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

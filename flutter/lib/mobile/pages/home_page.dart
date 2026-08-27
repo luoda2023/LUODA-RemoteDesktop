@@ -155,8 +155,6 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 translate('Voice call during remote control')),
             _buildPermissionItem(Icons.battery_full, 'Battery',
                 translate('Keep service alive in background')),
-            _buildPermissionItem(Icons.picture_in_picture, 'Floating Window',
-                translate('Show floating window when minimized')),
             _buildPermissionItem(Icons.folder, 'Storage',
                 translate('File transfer support')),
             _buildPermissionItem(Icons.accessibility, 'Accessibility',
@@ -220,11 +218,6 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Battery optimization
     if (!await AndroidPermissionManager.check(kRequestIgnoreBatteryOptimizations)) {
       typesToRequest.add(kRequestIgnoreBatteryOptimizations);
-    }
-    // Floating window / overlay
-    if (androidVersion >= 23 &&
-        !await AndroidPermissionManager.check(kSystemAlertWindow)) {
-      typesToRequest.add(kSystemAlertWindow);
     }
     // External storage
     if (!await AndroidPermissionManager.check(kManageExternalStorage)) {
@@ -308,7 +301,14 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _leftForAccessibilitySettings = false;
     }
 
-    final granted = await AndroidPermissionManager.checkAccessibility();
+    // Some ROMs connect the accessibility service a moment after the toggle
+    // is flipped; poll briefly so the flow reports the real state instead of
+    // an immediate false negative.
+    var granted = await AndroidPermissionManager.checkAccessibility();
+    for (var i = 0; i < 20 && !granted; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      granted = await AndroidPermissionManager.checkAccessibility();
+    }
     await gFFI.invokeMethod('check_service');
     RuntimeLogger.instance
         .info('ANDROID', 'accessibility request completed; granted=$granted');
