@@ -390,6 +390,7 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
 
     toolbarItems
         .add(_ControlMenu(id: widget.id, ffi: widget.ffi, state: widget.state));
+    toolbarItems.add(_PowerMenu(id: widget.id, ffi: widget.ffi));
     toolbarItems.add(_DisplayMenu(
       id: widget.id,
       ffi: widget.ffi,
@@ -847,6 +848,44 @@ class _ControlMenu extends StatelessWidget {
                     trailingIcon: e.trailingIcon);
               }
             }).toList());
+  }
+}
+
+class _PowerMenu extends StatelessWidget {
+  const _PowerMenu({Key? key, required this.id, required this.ffi})
+      : super(key: key);
+
+  final String id;
+  final FFI ffi;
+
+  @override
+  Widget build(BuildContext context) {
+    final pi = ffi.ffiModel.pi;
+    final isDesktopPeer = pi.platform == kPeerPlatformWindows ||
+        pi.platform == kPeerPlatformLinux ||
+        pi.platform == kPeerPlatformMacOS;
+    if (!isDesktopPeer || ffi.ffiModel.permissions['restart'] == false) {
+      return Offstage();
+    }
+    return _IconSubmenuButton(
+        tooltip: 'Power',
+        icon: Icon(Icons.power_settings_new_rounded,
+            color: _ToolbarTheme.redColor),
+        color: _ToolbarTheme.redColor,
+        hoverColor: _ToolbarTheme.hoverRedColor,
+        ffi: ffi,
+        menuChildrenGetter: (_) => [
+              MenuButton(
+                  child: Text(translate('Restart remote device')),
+                  onPressed: () => showRestartRemoteDevice(
+                      pi, id, ffi.sessionId, ffi.dialogManager),
+                  ffi: ffi),
+              MenuButton(
+                  child: Text(translate('Shutdown remote device')),
+                  onPressed: () => showShutdownRemoteDevice(
+                      pi, id, ffi.sessionId, ffi.dialogManager),
+                  ffi: ffi),
+            ]);
   }
 }
 

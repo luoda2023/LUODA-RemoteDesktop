@@ -2841,6 +2841,14 @@ impl LoginConfigHandler {
         msg_out
     }
 
+    pub fn shutdown_remote_device(&self) -> Message {
+        let mut misc = Misc::new();
+        misc.set_shutdown_remote_device(true);
+        let mut msg_out = Message::new();
+        msg_out.set_misc(misc);
+        msg_out
+    }
+
     pub fn get_conn_token(&self) -> Option<String> {
         if self.password.is_empty() {
             return None;
@@ -3878,6 +3886,7 @@ lazy_static::lazy_static! {
         ("VK_ENTER", Key::ControlKey(ControlKey::Return)),
         ("VK_CANCEL", Key::ControlKey(ControlKey::Cancel)),
         ("VK_BACK", Key::ControlKey(ControlKey::Backspace)),
+        ("VK_LDESK_BACK", Key::ControlKey(ControlKey::Back)),
         ("VK_TAB", Key::ControlKey(ControlKey::Tab)),
         ("VK_CLEAR", Key::ControlKey(ControlKey::Clear)),
         ("VK_RETURN", Key::ControlKey(ControlKey::Return)),

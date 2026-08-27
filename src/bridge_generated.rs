@@ -3471,6 +3471,22 @@ fn wire_session_restart_remote_device_impl(
         },
     )
 }
+fn wire_session_shutdown_remote_device_impl(
+    port_: MessagePort,
+    session_id: impl Wire2Api<uuid::Uuid> + UnwindSafe,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap::<_, _, _, ()>(
+        WrapInfo {
+            debug_name: "session_shutdown_remote_device",
+            port: Some(port_),
+            mode: FfiCallMode::Normal,
+        },
+        move || {
+            let api_session_id = session_id.wire2api();
+            move |task_callback| Ok(session_shutdown_remote_device(api_session_id))
+        },
+    )
+}
 fn wire_session_get_audit_server_sync_impl(
     session_id: impl Wire2Api<uuid::Uuid> + UnwindSafe,
     typ: impl Wire2Api<String> + UnwindSafe,

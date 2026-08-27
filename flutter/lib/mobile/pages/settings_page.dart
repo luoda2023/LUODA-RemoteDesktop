@@ -1141,9 +1141,9 @@ class __DisplayPageState extends State<_DisplayPage> {
             _getPopupDialogRadioEntry(
               title: 'Default Image Quality',
               list: [
-                _RadioEntry('Good image quality', kRemoteImageQualityBest),
-                _RadioEntry('Balanced', kRemoteImageQualityBalanced),
-                _RadioEntry('Optimize reaction time', kRemoteImageQualityLow),
+                _RadioEntry('Ultra HD', kRemoteImageQualityBest),
+                _RadioEntry('HD', kRemoteImageQualityBalanced),
+                _RadioEntry('Fast', kRemoteImageQualityLow),
                 _RadioEntry('Custom', kRemoteImageQualityCustom),
               ],
               getter: () {

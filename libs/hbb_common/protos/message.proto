@@ -291,6 +291,7 @@ enum ControlKey {
   Power = 79; // mainly used on mobile devices as controlled side
   CtrlAltDel = 100;
   LockScreen = 101;
+  Back = 102; // Android system back
 }
 
 message KeyEvent {
@@ -859,6 +860,7 @@ message Misc {
     DisplayResolution change_display_resolution = 36;
     MessageQuery message_query = 37;
     int32 follow_current_display = 38;
+    bool shutdown_remote_device = 39;
   }
 }
 

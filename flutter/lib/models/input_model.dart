@@ -1899,12 +1899,14 @@ class InputModel {
     final minBackButtonVersion = "1.3.8";
     final peerVersion =
         parent.target?.ffiModel.pi.version ?? minBackButtonVersion;
-    var btn = MouseButtons.back;
-    // For compatibility with old versions
-    if (versionCmp(peerVersion, minBackButtonVersion) < 0) {
-      btn = MouseButtons.right;
+    if (versionCmp(peerVersion, minBackButtonVersion) >= 0) {
+      // Use the dedicated Android back key so the controlled phone performs
+      // its system back command on all Android versions.
+      inputKey('VK_LDESK_BACK', press: true);
+    } else {
+      // Old versions: fall back to right click as back.
+      tap(MouseButtons.right);
     }
-    tap(btn);
   }
 
   void onMobileHome() => tap(MouseButtons.wheel);

@@ -1545,6 +1545,14 @@ pub extern "C" fn wire_session_restart_remote_device(
 }
 
 #[no_mangle]
+pub extern "C" fn wire_session_shutdown_remote_device(
+    port_: i64,
+    session_id: *mut wire_uint_8_list,
+) {
+    wire_session_shutdown_remote_device_impl(port_, session_id)
+}
+
+#[no_mangle]
 pub extern "C" fn wire_session_get_audit_server_sync(
     session_id: *mut wire_uint_8_list,
     typ: *mut wire_uint_8_list,
