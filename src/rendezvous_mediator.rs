@@ -592,7 +592,7 @@ impl RendezvousMediator {
         }
         let peer_addr_v6 = hbb_common::AddrMangle::decode(&fla.socket_addr_v6);
         let relay_server = self.get_relay_server(fla.relay_server.clone());
-        let relay = use_ws() || Config::is_proxy();
+        let relay = Config::is_proxy();
         let mut socket_addr_v6 = Default::default();
         if peer_addr_v6.port() > 0 && !relay {
             socket_addr_v6 = start_ipv6(
@@ -691,7 +691,7 @@ impl RendezvousMediator {
             return Ok(());
         }
         let peer_addr_v6 = hbb_common::AddrMangle::decode(&ph.socket_addr_v6);
-        let relay = use_ws() || Config::is_proxy() || ph.force_relay;
+        let relay = Config::is_proxy() || ph.force_relay;
         let mut socket_addr_v6 = Default::default();
         let control_permissions = ph.control_permissions.into_option();
         if peer_addr_v6.port() > 0 && !relay {

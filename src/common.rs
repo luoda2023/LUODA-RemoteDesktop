@@ -567,14 +567,14 @@ pub struct CheckTestNatType {
 impl CheckTestNatType {
     pub fn new() -> Self {
         Self {
-            is_direct: Config::get_socks().is_none() && !config::use_ws(),
+            is_direct: Config::get_socks().is_none(),
         }
     }
 }
 
 impl Drop for CheckTestNatType {
     fn drop(&mut self) {
-        let is_direct = Config::get_socks().is_none() && !config::use_ws();
+        let is_direct = Config::get_socks().is_none();
         if self.is_direct != is_direct {
             test_nat_type();
         }
@@ -593,7 +593,7 @@ pub fn test_nat_type() {
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         crate::ipc::get_socks_ws();
-        let is_direct = Config::get_socks().is_none() && !config::use_ws();
+        let is_direct = Config::get_socks().is_none();
         if !is_direct {
             Config::set_nat_type(NatType::SYMMETRIC as _);
             IS_RUNNING.store(false, Ordering::SeqCst);

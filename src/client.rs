@@ -1939,7 +1939,6 @@ impl LoginConfigHandler {
         self.force_relay =
             config::option2bool("force-always-relay", &self.get_option("force-always-relay"))
                 || force_relay
-                || use_ws()
                 || Config::is_proxy();
         if let Some((real_id, server, key)) = &self.other_server {
             let other_server_key = self.get_option("other-server-key");
