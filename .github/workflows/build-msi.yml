@@ -167,7 +167,7 @@ jobs:
         shell: cmd
         run: |
           cd res\msi
-          python preprocess.py -m LUODA
+          python preprocess.py -m LDesk
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -221,7 +221,7 @@ jobs:
       - name: Upload MSI
         uses: actions/upload-artifact@v4
         with:
-          name: LUODA-MSI
+          name: LDesk-MSI
           path: res/msi/dist/*.msi
 
       - name: Upload to Release
@@ -237,7 +237,6 @@ jobs:
           name: runtime-logs-msi
           path: .auto_build_logs/
           if-no-files-found: ignore
-
 
 
 
