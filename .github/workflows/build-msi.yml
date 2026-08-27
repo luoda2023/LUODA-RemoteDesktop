@@ -167,7 +167,7 @@ jobs:
         shell: cmd
         run: |
           cd res\msi
-          python preprocess.py -m LDesk
+          python preprocess.py -m LDesk --app-name LDesk
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -237,7 +237,6 @@ jobs:
           name: runtime-logs-msi
           path: .auto_build_logs/
           if-no-files-found: ignore
-
 
 
 
