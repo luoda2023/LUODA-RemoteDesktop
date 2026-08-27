@@ -4,7 +4,7 @@ version = "2.2.3"
 authors = ["LUODA <https://dicad.cn>"]
 edition = "2021"
 build= "build.rs"
-description = "LUODA Remote Desktop"
+description = "LDesk Remote Desktop"
 default-run = "luoda"
 rust-version = "1.75"
 

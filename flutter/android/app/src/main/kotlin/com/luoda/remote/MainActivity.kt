@@ -108,7 +108,7 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         if (!FFI.isLoaded) {
             AlertDialog.Builder(this)
-                .setTitle("LUODA startup failed")
+                .setTitle("LDesk startup failed")
                 .setMessage(
                     "The native library for this phone could not be loaded. " +
                         "Please install the universal APK.\n\n${FFI.loadError}"

@@ -22,7 +22,7 @@
     <application
         android:name=".MainApplication"
         android:icon="@mipmap/ic_launcher"
-  android:label="LUODA"
+  android:label="LDesk"
   android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true">
 
@@ -40,7 +40,7 @@
             android:name=".InputService"
             android:enabled="true"
             android:exported="false"
-            android:label="LUODA Input"
+            android:label="LDesk Input"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

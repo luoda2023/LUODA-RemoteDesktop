@@ -805,7 +805,9 @@ class Luoda {
   }
 
   String mainGetAppNameSync({dynamic hint}) {
-    return js.context.callMethod('getByName', ['app-name']);
+    final name = js.context.callMethod('getByName', ['app-name']) as String;
+    // 软件显示名改为 LDesk（默认品牌）；OEM 定制名保留
+    return name == 'LUODA' ? 'LDesk' : name;
   }
 
   String mainUriPrefixSync({dynamic hint}) {

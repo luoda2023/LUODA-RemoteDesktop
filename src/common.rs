@@ -1016,6 +1016,18 @@ pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
 
+/// 软件显示名：默认品牌显示 "LDesk"；OEM 定制客户端（APP_NAME 被覆盖）保留定制名。
+/// 内部标识（配置路径/IPC/深链 `luoda://`/托盘命令等）仍用 `get_app_name()`。
+#[inline]
+pub fn get_display_app_name() -> String {
+    let name = get_app_name();
+    if name == "LUODA" {
+        "LDesk".to_owned()
+    } else {
+        name
+    }
+}
+
 #[inline]
 pub fn is_luoda() -> bool {
     hbb_common::config::APP_NAME.read().unwrap().eq("LUODA")

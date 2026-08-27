@@ -35,7 +35,7 @@ class BootReceiver : BroadcastReceiver() {
                 action = ACT_INIT_MEDIA_PROJECTION_AND_SERVICE
                 putExtra(EXT_INIT_FROM_BOOT, true)
             }
-            Toast.makeText(context, "LUODA is Open", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "LDesk is Open", Toast.LENGTH_LONG).show()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(it)
             } else {

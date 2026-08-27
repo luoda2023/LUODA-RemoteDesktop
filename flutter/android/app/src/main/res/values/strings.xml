@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">LUODA</string>
-    <string name="accessibility_service_description">Allow other devices to control your phone using virtual touch, when LUODA screen sharing is established</string>
+    <string name="app_name">LDesk</string>
+    <string name="accessibility_service_description">Allow other devices to control your phone using virtual touch, when LDesk screen sharing is established</string>
 </resources>

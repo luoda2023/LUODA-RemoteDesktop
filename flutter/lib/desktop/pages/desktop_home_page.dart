@@ -201,7 +201,7 @@ child: Text(translate('Close')),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            "LUODA 远程协助",
+                            "LDesk 远程协助",
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -287,7 +287,7 @@ child: Text(translate('Close')),
               ),
             ),
             Text(
-              "LUODA 远程协助",
+              "LDesk 远程协助",
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,

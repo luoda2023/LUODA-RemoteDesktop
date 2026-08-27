@@ -95,11 +95,11 @@ pub fn setup_panic_hook() {
         #[cfg(windows)]
         {
             let text = format!(
-                "LUODA encountered an error:\n\n{}\n\nPlease check the log file at:\n%PROGRAMDATA%\\LUODA\\logs\\",
+                "LDesk encountered an error:\n\n{}\n\nPlease check the log file at:\n%PROGRAMDATA%\\LUODA\\logs\\",
                 msg
             );
             let text_wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
-            let title_wide: Vec<u16> = "LUODA Error".encode_utf16().chain(std::iter::once(0)).collect();
+            let title_wide: Vec<u16> = "LDesk Error".encode_utf16().chain(std::iter::once(0)).collect();
             unsafe {
                 winapi::um::winuser::MessageBoxW(
                     std::ptr::null_mut(),
