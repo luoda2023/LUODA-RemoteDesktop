@@ -1169,12 +1169,10 @@ pub fn main_get_connect_status() -> String {
 pub fn main_check_connect_status() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     start_option_status_sync(); // avoid multi calls
-    // Pre-generate direct-access-port upfront so Flutter UI can display it immediately
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        let port = crate::rendezvous_mediator::ensure_direct_port();
-        crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
-    }
+    // Pre-generate direct-access-port upfront so Flutter UI can display it immediately.
+    // Runs on desktop and mobile so the mobile host also knows/shows its direct port.
+    let port = crate::rendezvous_mediator::ensure_direct_port();
+    crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
     // Get the LAN IP.
     // 优先级（依次）：
     //   1) 网卡上 192.168.x.x 的 IPv4 地址（家用/小型办公网络最常见）
@@ -1185,7 +1183,6 @@ pub fn main_check_connect_status() {
     // 必须用 default-net crate 枚举所有网卡，UDP connect 法只能拿默认路由
     // 出口 IP，多网卡/VPN 环境下会拿错（例如真实网卡是 192.168.x.x 但默认路由
     // 走的是 10.x.x.x 网卡，UDP connect 法返回的就只能是 10.x.x.x）。
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         // 用 direct_access 模块智能选择内网IP：
         // 1. 枚举所有网卡，避开VPN/WSL/Docker/Hyper-V等虚拟网卡
@@ -1239,8 +1236,8 @@ pub fn main_check_connect_status() {
             }
         }
     }
-    // Fetch public IP via HTTP first (most reliable), fallback to STUN
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    // Fetch public IP via HTTP first (most reliable), fallback to STUN.
+    // Also runs on mobile so the mobile host can be reached directly by public IP.
     std::thread::spawn(|| {
         // Try HTTP services first (returns same IP for all machines behind same NAT)
         let http_sources = [

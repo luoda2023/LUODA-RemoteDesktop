@@ -103,6 +103,8 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             body: DesktopTab(
               controller: tabController,
+              // 用户反馈: 去掉标题栏左上角的小图标, 只保留左侧栏顶部的图标
+              showLogo: false,
               showMinimize: !compactClient,
               showMaximize: !compactClient,
               showClose: true,
