@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -47,10 +47,13 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   Widget _buildQrView(BuildContext context) {
-    var scanArea = MediaQuery.of(context).size.width < 400 ||
-            MediaQuery.of(context).size.height < 400
-        ? 150.0
-        : 300.0;
+    final size = MediaQuery.of(context).size;
+    final minSide = size.width < size.height ? size.width : size.height;
+    var scanArea = (minSide < 400 ? 150.0 : 300.0) * 1.5;
+    // Enlarged by 1/2, but keep it inside the screen on narrow devices.
+    if (scanArea > minSide * 0.9) {
+      scanArea = minSide * 0.9;
+    }
     return QRView(
       key: qrKey,
       onQRViewCreated: _onQRViewCreated,

@@ -18,19 +18,16 @@ pub(crate) fn should_insert_headless(active_display_samples: &[bool]) -> bool {
 pub(crate) fn should_prepare_headless_before_disconnect(
     headless_capable: bool,
     headless_requested: bool,
-    _has_usable_display: bool,
+    has_usable_display: bool,
     has_headless_virtual: bool,
 ) -> bool {
-    // Allow headless recovery on any Windows that may lose its physical
-    // display after MSTSC disconnect - not just Windows Server.  Regular
-    // Windows running on a VPS / VM has the same problem: once the RDP
-    // session drops, the GDI/DXGI capturer is left with nothing to grab.
-    //
-    // Insert the virtual display as long as one hasn't been inserted yet.
-    // This covers both the proactive case (display still present, MSTSC
-    // about to disconnect) and the reactive case (display already gone
-    // after MSTSC disconnect).
-    headless_capable && headless_requested && !has_headless_virtual
+    // Insert the virtual display only when the machine is actually headless
+    // (no usable online display).  On a normal desktop with a live monitor,
+    // plugging in a virtual display re-enumerates the Windows display
+    // topology: the screen flickers and the cursor drifts onto the invisible
+    // monitor.  Headless VPS / VM machines that lose their display after an
+    // MSTSC disconnect are still covered by the reactive recovery path.
+    headless_capable && headless_requested && !has_usable_display && !has_headless_virtual
 }
 
 pub(crate) fn usable_display_indices(
@@ -101,14 +98,14 @@ mod tests {
     }
 
     #[test]
-    fn prepares_virtual_display_whenever_no_virtual_exists() {
-        // With a usable physical display and no virtual -> insert (proactive)
-        assert!(should_prepare_headless_before_disconnect(
-            true, true, true, false
-        ));
+    fn inserts_only_when_no_usable_display_exists() {
         // No usable display and no virtual -> insert (reactive, after MSTSC disconnect)
         assert!(should_prepare_headless_before_disconnect(
             true, true, false, false
+        ));
+        // Usable display and no virtual -> do NOT insert (normal desktop)
+        assert!(!should_prepare_headless_before_disconnect(
+            true, true, true, false
         ));
         // Virtual display already exists -> do not insert again
         assert!(!should_prepare_headless_before_disconnect(

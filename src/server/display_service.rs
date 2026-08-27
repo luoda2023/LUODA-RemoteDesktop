@@ -477,6 +477,26 @@ pub(super) fn prepare_headless_on_portable_host_startup() {
         return;
     }
 
+    let Ok(mut displays) = Display::all() else {
+        log::warn!("failed to enumerate displays before portable host startup");
+        return;
+    };
+    retain_usable_displays(&mut displays);
+
+    // Do NOT install / plug in the virtual display when the machine already
+    // has a usable monitor in the local console session.  Plugging in a
+    // virtual display re-enumerates the Windows display topology: the screen
+    // flickers and the cursor drifts onto the invisible monitor.  Headless
+    // VPS / VM machines (no display at all, or only a remote RDP session)
+    // still get the virtual display so they stay capturable after MSTSC
+    // disconnects.
+    if !displays.is_empty() && !crate::platform::windows::is_remote_session() {
+        log::info!(
+            "usable display in local session; skipping headless virtual display at startup"
+        );
+        return;
+    }
+
     // Pre-install / pre-plug the Amyuni virtual display driver as early as
     // possible.  The driver install requires elevation on a portable EXE's
     // first run; doing it here (rather than reactively during a connection)
@@ -487,11 +507,6 @@ pub(super) fn prepare_headless_on_portable_host_startup() {
     // every time MSTSC disconnects on a headless VPS.
     let _ = virtual_display_manager::preinstall_headless_driver();
 
-    let Ok(mut displays) = Display::all() else {
-        log::warn!("failed to enumerate displays before portable host startup");
-        return;
-    };
-    retain_usable_displays(&mut displays);
     prepare_headless_before_disconnect(&mut displays, true);
 }
 

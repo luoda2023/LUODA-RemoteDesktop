@@ -2058,6 +2058,14 @@ pub fn is_win_server() -> bool {
     unsafe { is_windows_server() > 0 }
 }
 
+/// Whether the current Windows session is a remote (RDP) session.
+/// Used to distinguish a normal local desktop from a VPS / VM that is only
+/// reachable through MSTSC, where the headless virtual display is required.
+#[inline]
+pub fn is_remote_session() -> bool {
+    unsafe { GetSystemMetrics(SM_REMOTESESSION) != 0 }
+}
+
 #[inline]
 pub fn is_win_10_or_greater() -> bool {
     unsafe { is_windows_10_or_greater() > 0 }
