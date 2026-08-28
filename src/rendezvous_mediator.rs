@@ -450,14 +450,17 @@ impl RendezvousMediator {
                     if last_recv_msg.elapsed().as_millis() as u64 > rz.keep_alive as u64 * 3 / 2 {
                         bail!("Rendezvous connection is timeout");
                     }
-                    if (!Config::get_key_confirmed()
-                        || !Config::get_host_key_confirmed(&rz.host_prefix))
-                        && last_register_sent
-                            .map(|x| x.elapsed().as_millis() as i64)
-                            .unwrap_or(REG_INTERVAL)
-                            >= REG_INTERVAL
+                    if last_register_sent
+                        .map(|x| x.elapsed().as_millis() as i64)
+                        .unwrap_or(REG_INTERVAL)
+                        >= REG_INTERVAL
                     {
-                        rz.register_pk(Sink::Stream(&mut conn)).await?;
+                        // register_peer() sends RegisterPk while the key is not
+                        // confirmed yet, then RegisterPeer afterwards, so the
+                        // peer stays in the server's punch table. Sending only
+                        // RegisterPk here left mobile (WebSocket/TCP) peers
+                        // unregistered: punches could not be routed to them.
+                        rz.register_peer(Sink::Stream(&mut conn)).await?;
                         last_register_sent = Some(Instant::now());
                     }
                 }
