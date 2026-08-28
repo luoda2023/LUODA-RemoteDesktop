@@ -63,23 +63,32 @@ def main():
             continue
 
         try:
-            scale = min(size * 0.9 / src.width, size * 0.9 / src.height)
-            resized = src.resize(
-                (max(1, round(src.width * scale)), max(1, round(src.height * scale))),
+            legacy_scale = min(size * 0.9 / src.width, size * 0.9 / src.height)
+            legacy = src.resize(
+                (max(1, round(src.width * legacy_scale)), max(1, round(src.height * legacy_scale))),
                 Image.Resampling.LANCZOS,
             )
-            canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-            canvas.alpha_composite(
-                resized,
-                ((size - resized.width) // 2, (size - resized.height) // 2),
+            legacy_canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+            legacy_canvas.alpha_composite(
+                legacy,
+                ((size - legacy.width) // 2, (size - legacy.height) // 2),
             )
-            for filename in (
-                "ic_launcher_foreground.png",
-                "ic_launcher.png",
-                "ic_launcher_round.png",
-            ):
-                dst_path = os.path.join(mipmap_dir, filename)
-                canvas.save(dst_path, "PNG")
+
+            adaptive_scale = min(size * 0.58 / src.width, size * 0.58 / src.height)
+            adaptive = src.resize(
+                (max(1, round(src.width * adaptive_scale)), max(1, round(src.height * adaptive_scale))),
+                Image.Resampling.LANCZOS,
+            )
+            adaptive_canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+            adaptive_canvas.alpha_composite(
+                adaptive,
+                ((size - adaptive.width) // 2, (size - adaptive.height) // 2),
+            )
+
+            legacy_canvas.save(os.path.join(mipmap_dir, "ic_launcher_legacy.png"), "PNG")
+            adaptive_canvas.save(os.path.join(mipmap_dir, "ic_launcher_foreground.png"), "PNG")
+            legacy_canvas.save(os.path.join(mipmap_dir, "ic_launcher.png"), "PNG")
+            legacy_canvas.save(os.path.join(mipmap_dir, "ic_launcher_round.png"), "PNG")
             print(f"  Generated {density} ({size}x{size}) transparent LDesk icons")
             success += 1
         except Exception as e:
