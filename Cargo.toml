@@ -1,6 +1,6 @@
 [package]
 name = "luoda"
-version = "2.2.10"
+version = "2.2.11"
 authors = ["LUODA <https://dicad.cn>"]
 edition = "2021"
 build= "build.rs"
