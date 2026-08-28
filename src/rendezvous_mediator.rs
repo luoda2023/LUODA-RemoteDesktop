@@ -494,7 +494,18 @@ impl RendezvousMediator {
             crate::is_udp_disabled(),
             false,
         ) {
-            Self::start_tcp(server, host).await
+            match Self::start_tcp(server.clone(), host.clone()).await {
+                Ok(()) => Ok(()),
+                Err(err) if !SHOULD_EXIT.load(Ordering::SeqCst) => {
+                    log::warn!("TCP rendezvous failed for {host}, falling back to UDP: {err}");
+                    crate::runtime_logger::warn(
+                        "NETWORK",
+                        &format!("TCP rendezvous failed; server={host}; fallback=UDP; error={err}"),
+                    );
+                    Self::start_udp(server, host).await
+                }
+                Err(err) => Err(err),
+            }
         } else {
             match Self::start_udp(server.clone(), host.clone()).await {
                 Ok(()) => Ok(()),
@@ -553,7 +564,17 @@ impl RendezvousMediator {
             secure,
         );
 
-        let mut socket = connect_tcp(&*self.host, CONNECT_TIMEOUT).await?;
+        let mut socket = match connect_tcp(&*self.host, CONNECT_TIMEOUT).await {
+            Ok(socket) => socket,
+            Err(err) => {
+                log::warn!(
+                    "WebSocket rendezvous relay failed for {}, falling back to raw TCP: {}",
+                    self.host,
+                    err
+                );
+                socket_client::connect_tcp_local(&*self.host, None, CONNECT_TIMEOUT).await?
+            }
+        };
 
         let mut msg_out = Message::new();
         let mut rr = RelayResponse {

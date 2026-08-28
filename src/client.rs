@@ -986,15 +986,23 @@ impl Client {
         conn_type: ConnType,
         ipv4: bool,
     ) -> ResultType<Stream> {
-        let mut conn = connect_tcp(
-            ipv4_to_ipv6(check_port(relay_server, RELAY_PORT), ipv4),
-            CONNECT_TIMEOUT,
-        )
-        .await
-        .with_context(|| "Failed to connect to relay server")?;
+        let target = ipv4_to_ipv6(check_port(relay_server, RELAY_PORT), ipv4);
+        let mut conn = match connect_tcp(target.clone(), CONNECT_TIMEOUT).await {
+            Ok(conn) => conn,
+            Err(err) => {
+                log::warn!(
+                    "WebSocket relay connection failed for {}, falling back to raw TCP: {}",
+                    target,
+                    err
+                );
+                connect_tcp_local(target.clone(), None, CONNECT_TIMEOUT)
+                    .await
+                    .with_context(|| "Failed to connect to relay server")?
+            }
+        };
         log::info!(
             "Relay connection established to {}, local {}",
-            conn.local_addr(),
+            target,
             conn.local_addr()
         );
         let mut msg_out = RendezvousMessage::new();

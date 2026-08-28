@@ -344,7 +344,17 @@ async fn create_relay_connection_(
     control_permissions: Option<ControlPermissions>,
 ) -> ResultType<()> {
     let target = socket_client::ipv4_to_ipv6(crate::check_port(relay_server, RELAY_PORT), ipv4);
-    let mut stream = socket_client::connect_tcp(target.clone(), CONNECT_TIMEOUT).await?;
+    let mut stream = match socket_client::connect_tcp(target.clone(), CONNECT_TIMEOUT).await {
+        Ok(stream) => stream,
+        Err(err) => {
+            log::warn!(
+                "WebSocket relay pairing failed for {}, falling back to raw TCP: {}",
+                target,
+                err
+            );
+            socket_client::connect_tcp_local(target.clone(), None, CONNECT_TIMEOUT).await?
+        }
+    };
     log::info!(
         "Relay pairing connection established to {}, local {}",
         target,
