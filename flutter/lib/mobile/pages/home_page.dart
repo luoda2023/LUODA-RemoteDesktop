@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:luoda_flutter/mobile/pages/server_page.dart';
@@ -16,6 +17,38 @@ import 'connection_page.dart';
 import 'scan_page.dart';
 
 const _kFirstRunAuthorization = 'android-first-run-authorization-v2';
+const _kPublicAuthMarkerName = 'first-run-authorization';
+
+/// The public-storage marker file lives next to the visit-history backup
+/// (Documents/LDesk/), so it survives uninstall/reinstall. The OS always
+/// resets runtime permissions on reinstall, but this lets the app remember
+/// that the user already completed the one-tap authorization flow before, and
+/// skip the explanation dialog on a fresh install.
+File? _publicAuthMarkerFile() {
+  final backupDir = bind.mainGetLocalOption(key: kOptionHistoryBackupDir);
+  if (backupDir.isEmpty) return null;
+  final dir = File(backupDir).parent;
+  return File('${dir.path}${Platform.pathSeparator}$_kPublicAuthMarkerName');
+}
+
+bool _readPublicAuthMarker() {
+  try {
+    final f = _publicAuthMarkerFile();
+    if (f == null) return false;
+    return f.existsSync() && f.readAsStringSync().trim() == 'Y';
+  } catch (_) {
+    return false;
+  }
+}
+
+void _writePublicAuthMarker() {
+  try {
+    final f = _publicAuthMarkerFile();
+    if (f == null) return;
+    f.parent.createSync(recursive: true);
+    f.writeAsStringSync('Y');
+  } catch (_) {}
+}
 
 abstract class PageShape extends Widget {
   final String title = "";
@@ -104,7 +137,9 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
           bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y';
       final previousAndroidMarker =
           await gFFI.invokeMethod('get_first_run_authorization') == true;
-      final previouslyCompleted = previousLocalMarker || previousAndroidMarker;
+      final previouslyCompleted = previousLocalMarker ||
+          previousAndroidMarker ||
+          _readPublicAuthMarker();
       if (!previouslyCompleted) {
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence started');
@@ -123,6 +158,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (completed) {
         await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
         await gFFI.invokeMethod('set_first_run_authorization', true);
+        _writePublicAuthMarker();
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence finished');
       } else {
@@ -159,8 +195,8 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 translate('Voice call during remote control')),
             _buildPermissionItem(Icons.battery_full, 'Battery',
                 translate('Keep service alive in background')),
-            _buildPermissionItem(Icons.folder, 'Storage',
-                translate('File transfer support')),
+            _buildPermissionItem(
+                Icons.folder, 'Storage', translate('File transfer support')),
             _buildPermissionItem(Icons.accessibility, 'Accessibility',
                 translate('Remote control of this device')),
             _buildPermissionItem(Icons.screen_share, 'Screen Capture',
@@ -169,8 +205,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
         actions: [
           TextButton(
-              onPressed: () => close(false),
-              child: Text(translate('Later'))),
+              onPressed: () => close(false), child: Text(translate('Later'))),
           ElevatedButton(
               onPressed: () => close(true),
               child: Text(translate('Authorize All'))),
@@ -193,8 +228,10 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(translate(title),
-                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-              Text(desc, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w500, fontSize: 13)),
+              Text(desc,
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600])),
             ],
           ),
         ),
@@ -220,7 +257,8 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       typesToRequest.add(kRecordAudio);
     }
     // Battery optimization
-    if (!await AndroidPermissionManager.check(kRequestIgnoreBatteryOptimizations)) {
+    if (!await AndroidPermissionManager.check(
+        kRequestIgnoreBatteryOptimizations)) {
       typesToRequest.add(kRequestIgnoreBatteryOptimizations);
     }
     // External storage
@@ -235,8 +273,8 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Request all ungranted standard permissions at once via batch API.
     // This shows a single system dialog (or minimal dialogs) instead of
     // popping up one dialog per permission.
-    RuntimeLogger.instance
-        .info('ANDROID', 'batch requesting ${typesToRequest.length} permissions: $typesToRequest');
+    RuntimeLogger.instance.info('ANDROID',
+        'batch requesting ${typesToRequest.length} permissions: $typesToRequest');
     await gFFI.invokeMethod('request_permissions_batch', typesToRequest);
 
     // Wait for the batch dialog to complete by polling each permission.
@@ -255,8 +293,8 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (!mounted) break;
       }
       if (!granted) allOk = false;
-      RuntimeLogger.instance
-          .info('ANDROID', 'batch permission result; type=$type granted=$granted');
+      RuntimeLogger.instance.info(
+          'ANDROID', 'batch permission result; type=$type granted=$granted');
     }
 
     return allOk;
@@ -343,9 +381,9 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initPages() {
     _pages.clear();
     if (!bind.isIncomingOnly()) {
-_pages.add(ConnectionPage(
-appBarActions: bind.isDisableSettings() ? [] : [_ScanConnectButton()],
-));
+      _pages.add(ConnectionPage(
+        appBarActions: bind.isDisableSettings() ? [] : [_ScanConnectButton()],
+      ));
     }
     if (isAndroid && !bind.isOutgoingOnly()) {
       _chatPageTabIndex = _pages.length;
@@ -536,15 +574,14 @@ class WebHomePage extends StatelessWidget {
           break;
       }
     }
-if (id != null) {
-connect(context, id,
-isFileTransfer: isFileTransfer,
-isViewCamera: isViewCamera,
-isTerminal: isTerminal,
-password: password);
-}
-}
-
+    if (id != null) {
+      connect(context, id,
+          isFileTransfer: isFileTransfer,
+          isViewCamera: isViewCamera,
+          isTerminal: isTerminal,
+          password: password);
+    }
+  }
 }
 
 /// AppBar button that opens the QR scanner for one-tap connect.
