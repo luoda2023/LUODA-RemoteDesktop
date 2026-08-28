@@ -136,14 +136,13 @@ fn check_update(manually: bool) -> ResultType<()> {
         let version = download_url.split('/').last().unwrap_or_default();
         #[cfg(target_os = "windows")]
         let download_url = if cfg!(feature = "flutter") {
-            format!(
-                "{}/LUODA-{}-x86_64.{}",
-                download_url,
-                version,
-                if update_msi { "msi" } else { "exe" }
-            )
+            if update_msi {
+                format!("{}/LDesk-Setup.msi", download_url)
+            } else {
+                format!("{}/LDesk-portable-x64.exe", download_url)
+            }
         } else {
-            format!("{}/LUODA-{}-x86-sciter.exe", download_url, version)
+            format!("{}/LDesk-portable-x86-sciter.exe", download_url)
         };
         log::debug!("New version available: {}", &version);
         let client = create_http_client_with_url(&download_url);

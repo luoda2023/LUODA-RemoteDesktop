@@ -18,7 +18,6 @@
 *.png binary
 *.jpg binary
 *.ico binary
-*.gif binary
 *.icns binary
 *.pdf binary
 *.dll binary

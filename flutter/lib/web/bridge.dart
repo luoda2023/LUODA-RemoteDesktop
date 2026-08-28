@@ -1605,8 +1605,8 @@ class Luoda {
   }
 
   bool isCustomClient({dynamic hint}) {
-    // is_custom_client() checks if app name is not "LUODA"
-    return mainGetAppNameSync(hint: hint) != "LUODA";
+    final appName = mainGetAppNameSync(hint: hint);
+    return appName != "LDesk" && appName != "LUODA";
   }
 
   bool isDisableSettings({dynamic hint}) {

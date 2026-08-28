@@ -175,12 +175,12 @@ class InputService : AccessibilityService() {
             return
         }
 
-        if (mask == WHEEL_DOWN || (mask == MOUSE_TYPE_WHEEL && _y < 0)) {
+        if (mask == WHEEL_DOWN || (mask == MOUSE_TYPE_WHEEL && y < 0)) {
             scrollWheel(true)
             return
         }
 
-        if (mask == WHEEL_UP || (mask == MOUSE_TYPE_WHEEL && _y > 0)) {
+        if (mask == WHEEL_UP || (mask == MOUSE_TYPE_WHEEL && y > 0)) {
             scrollWheel(false)
             return
         }

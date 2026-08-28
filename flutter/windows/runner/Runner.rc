@@ -92,7 +92,7 @@ BEGIN
             VALUE "CompanyName", "LDesk" "\0"
             VALUE "FileDescription", "LDesk Remote Desktop" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "luoda" "\0"
+            VALUE "InternalName", "LDesk" "\0"
             VALUE "LegalCopyright", "Copyright © 2025 LDesk. All rights reserved." "\0"
             VALUE "OriginalFilename", "LDesk.exe" "\0"
             VALUE "ProductName", "LDesk" "\0"

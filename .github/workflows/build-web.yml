@@ -5,7 +5,7 @@ permissions:
   deployments: write
   packages: read
 
-name: Build LUODA Web
+name: Build LDesk Web
 
 on:
   workflow_dispatch:
@@ -102,4 +102,3 @@ jobs:
           name: runtime-logs-web
           path: .auto_build_logs/
           if-no-files-found: ignore
-

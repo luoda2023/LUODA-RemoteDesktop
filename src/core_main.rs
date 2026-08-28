@@ -39,7 +39,7 @@ pub fn core_main() -> Option<Vec<String>> {
         let _ = hbb_common::file_logger::FileLogger::init(LevelFilter::Debug);
         hbb_common::file_logger::setup_panic_hook();
     }
-    log::info!("=== LUODA started (v{}) ===", crate::VERSION);
+    log::info!("=== LDesk started (v{}) ===", crate::VERSION);
     crate::load_custom_client();
     crate::common::prepare_network_config();
 

@@ -102,7 +102,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     return EXIT_FAILURE;
   }
 
-  std::wstring app_name = L"LUODA";
+  std::wstring app_name = L"LDesk";
   // Prefer the display name (LDesk). Flutter renames the window title to the
   // display name in main.dart, so FindWindowW below must look for the same
   // title or the single-instance check fails and a second instance launches.

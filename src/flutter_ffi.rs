@@ -3089,8 +3089,9 @@ pub fn main_get_common(key: String) -> String {
                 crate::platform::windows::is_msi_installed(),
                 crate::common::is_custom_client(),
             ) {
-                (Ok(true), false) => format!("luoda-{_version}-x86_64.msi"),
-                (Ok(true), true) | (Ok(false), _) => format!("luoda-{_version}-x86_64.exe"),
+                (Ok(true), false) => "LDesk-Setup.msi".to_owned(),
+                (Ok(true), true) => "LDesk-Client-x64.exe".to_owned(),
+                (Ok(false), false) | (Ok(false), true) => "LDesk-portable-x64.exe".to_owned(),
                 (Err(e), _) => {
                     log::error!("Failed to check if is msi: {}", e);
                     format!("error:update-failed-check-msi-tip")
@@ -3099,9 +3100,9 @@ pub fn main_get_common(key: String) -> String {
             #[cfg(target_os = "macos")]
             {
                 return if cfg!(target_arch = "x86_64") {
-                    format!("luoda-{_version}-x86_64.dmg")
+                    format!("LDesk-{_version}-x86_64.dmg")
                 } else if cfg!(target_arch = "aarch64") {
-                    format!("luoda-{_version}-aarch64.dmg")
+                    format!("LDesk-{_version}-aarch64.dmg")
                 } else {
                     "error:unsupported".to_owned()
                 };

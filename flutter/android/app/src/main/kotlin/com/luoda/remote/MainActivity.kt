@@ -299,6 +299,21 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                "get_first_run_authorization" -> {
+                    val prefs = getSharedPreferences(KEY_SHARED_PREFERENCES, MODE_PRIVATE)
+                    result.success(prefs.getBoolean(KEY_FIRST_RUN_AUTHORIZATION, false))
+                }
+                "set_first_run_authorization" -> {
+                    if (call.arguments is Boolean) {
+                        getSharedPreferences(KEY_SHARED_PREFERENCES, MODE_PRIVATE)
+                            .edit()
+                            .putBoolean(KEY_FIRST_RUN_AUTHORIZATION, call.arguments as Boolean)
+                            .apply()
+                        result.success(true)
+                    } else {
+                        result.success(false)
+                    }
+                }
                 GET_VALUE -> {
                     if (call.arguments is String) {
                         if (call.arguments == KEY_IS_SUPPORT_VOICE_CALL) {

@@ -100,8 +100,11 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
     try {
-      final previouslyCompleted =
+      final previousLocalMarker =
           bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y';
+      final previousAndroidMarker =
+          await gFFI.invokeMethod('get_first_run_authorization') == true;
+      final previouslyCompleted = previousLocalMarker || previousAndroidMarker;
       if (!previouslyCompleted) {
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence started');
@@ -119,6 +122,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final completed = await _firstRunPermissionFlow.run();
       if (completed) {
         await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
+        await gFFI.invokeMethod('set_first_run_authorization', true);
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence finished');
       } else {

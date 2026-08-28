@@ -1,4 +1,4 @@
-name: Build LUODA Client EXE
+name: Build LDesk Client EXE
 on:
   workflow_dispatch:
   push:
@@ -36,9 +36,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
-          echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
-          echo "Version: $LUODA_VERSION"
+          LDESK_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
+          echo "LDESK_VERSION=$LDESK_VERSION" >> $GITHUB_ENV
+          echo "Version: $LDESK_VERSION"
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -137,7 +137,7 @@ jobs:
           cd flutter
           flutter clean
           flutter build windows --release --dart-define=CLIENT_ONLY=true
-      - name: Sign executable with LUODA icon
+      - name: Sign executable with LDesk icon
         shell: bash
         run: |
           choco install rcedit -y
@@ -201,5 +201,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v${{ env.LUODA_VERSION }}
+          tag_name: v${{ env.LDESK_VERSION }}
           files: SignOutput/LDesk-Client-x64.exe

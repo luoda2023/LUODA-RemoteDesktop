@@ -102,7 +102,7 @@ fn main() {
 
     );
 
-    let matches = App::new("luoda")
+    let matches = App::new("LDesk")
 
         .version(crate::VERSION)
 
@@ -213,4 +213,3 @@ fn main() {
     common::global_clean();
 
 }
-

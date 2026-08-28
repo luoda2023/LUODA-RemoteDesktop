@@ -22,8 +22,9 @@
     <application
         android:name=".MainApplication"
         android:icon="@mipmap/ic_launcher"
-  android:label="LDesk"
-  android:roundIcon="@mipmap/ic_launcher"
+        android:label="LDesk"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:allowBackup="true"
         android:supportsRtl="true">
 
         <receiver

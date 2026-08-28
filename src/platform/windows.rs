@@ -3541,8 +3541,8 @@ pub fn try_remove_temp_update_files() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                // Match files like luoda-*.msi or luoda-*.exe
-                if file_name.starts_with("luoda-")
+                // Match files like LDesk-*.msi or LDesk-*.exe
+                if (file_name.starts_with("LDesk-") || file_name.starts_with("luoda-"))
                     && (file_name.ends_with(".msi") || file_name.ends_with(".exe"))
                 {
                     // Skip files modified within the last hour to avoid deleting files being downloaded

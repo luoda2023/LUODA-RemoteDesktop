@@ -5,7 +5,7 @@ permissions:
   deployments: write
   packages: read
 
-name: Build LUODA Windows Sciter (32-bit Portable)
+name: Build LDesk Windows Sciter (32-bit Portable)
 
 on:
   workflow_dispatch:
@@ -28,9 +28,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
-          echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
-          echo "Version: $LUODA_VERSION"
+          LDESK_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
+          echo "LDESK_VERSION=$LDESK_VERSION" >> $GITHUB_ENV
+          echo "Version: $LDESK_VERSION"
 
       - name: Setup Rust (i686)
         uses: dtolnay/rust-toolchain@v1
@@ -60,7 +60,7 @@ jobs:
           vcpkg install --triplet x86-windows-static --x-install-root="$env:VCPKG_ROOT\installed"
           vcpkg install --triplet x64-windows-static --x-install-root="$env:VCPKG_ROOT\installed"
 
-      - name: Build LUODA (sciter)
+      - name: Build LDesk (sciter)
         timeout-minutes: 40
         shell: bash
         run: |
@@ -89,20 +89,20 @@ jobs:
           cd libs/portable
           python3 generate.py -f ../../Release/ -o . -e ../../Release/luoda.exe -t i686-pc-windows-msvc
           mkdir -p ../../SignOutput
-          mv ./target/i686-pc-windows-msvc/release/luoda-portable-packer.exe ../../SignOutput/LUODA-portable-x86-sciter.exe
+          mv ./target/i686-pc-windows-msvc/release/luoda-portable-packer.exe ../../SignOutput/LDesk-portable-x86-sciter.exe
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LUODA-Sciter-x86
-          path: SignOutput/LUODA-portable-x86-sciter.exe
+          name: LDesk-Sciter-x86
+          path: SignOutput/LDesk-portable-x86-sciter.exe
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v${{ env.LUODA_VERSION }}
-          files: SignOutput/LUODA-portable-x86-sciter.exe
+          tag_name: v${{ env.LDESK_VERSION }}
+          files: SignOutput/LDesk-portable-x86-sciter.exe
       - name: Upload runtime logs (always)
         if: always()
         uses: actions/upload-artifact@v4
@@ -110,4 +110,3 @@ jobs:
           name: runtime-logs-sciter
           path: .auto_build_logs/
           if-no-files-found: ignore
-

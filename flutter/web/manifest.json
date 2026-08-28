@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#165D9F",
     "theme_color": "#165D9F",
-    "description": "LUODA Remote Desktop - Web Client",
+    "description": "LDesk Remote Desktop - Web Client",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
