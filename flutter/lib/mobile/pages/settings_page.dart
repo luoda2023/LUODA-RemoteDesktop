@@ -73,6 +73,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
   var _enableStartOnBoot = false;
   var _checkUpdateOnStartup = false;
   var _showTerminalExtraKeys = false;
+  var _saveHistory = true;
   var _keepScreenOn = KeepScreenOn.duringControlled;
   var _enableAbr = false;
   var _denyLANDiscovery = false;
@@ -145,6 +146,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         mainGetLocalBoolOptionSync(kOptionKeepAwakeDuringOutgoingSessions);
     _showTerminalExtraKeys =
         mainGetLocalBoolOptionSync(kOptionEnableShowTerminalExtraKeys);
+    _saveHistory = mainGetLocalBoolOptionSync(kOptionSaveHistory);
   }
 
   @override
@@ -602,6 +604,22 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
 
     enhancementsTiles.add(
       SettingsTile.switchTile(
+        initialValue: _saveHistory,
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(translate('save-history-title')),
+          Text('* ${translate('save-history-tip')}',
+              style: Theme.of(context).textTheme.bodySmall),
+        ]),
+        onToggle: (bool v) async {
+          await bind.mainSetLocalOption(
+              key: kOptionSaveHistory, value: v ? 'Y' : 'N');
+          setState(() => _saveHistory = v);
+        },
+      ),
+    );
+
+    enhancementsTiles.add(
+      SettingsTile.switchTile(
         initialValue: _showTerminalExtraKeys,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(translate('Show terminal extra keys')),
@@ -626,9 +644,8 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         _RadioEntry('During service is on',
             _keepScreenOnToOption(KeepScreenOn.serviceOn)),
       ],
-      getter: () => _keepScreenOnToOption(
-          optionToKeepScreenOn(
-              bind.mainGetLocalOption(key: kOptionKeepScreenOn))),
+      getter: () => _keepScreenOnToOption(optionToKeepScreenOn(
+          bind.mainGetLocalOption(key: kOptionKeepScreenOn))),
       asyncSetter: isOptionFixed(kOptionKeepScreenOn)
           ? null
           : (value) async {
@@ -1057,7 +1074,7 @@ void showAbout(OverlayDialogManager dialogManager) {
         Text(translate('Version: ') + version),
         InkWell(
             onTap: () async {
-const url = 'https://dicad.cn/';
+              const url = 'https://dicad.cn/';
               await launchUrl(Uri.parse(url));
             },
             child: Padding(
@@ -1239,7 +1256,8 @@ class __ManageTrustedDevicesState extends State<_ManageTrustedDevices> {
               return Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Center(child: Text('${translate('Error: ')}${snapshot.error}'));
+              return Center(
+                  child: Text('${translate('Error: ')}${snapshot.error}'));
             }
             final devices = snapshot.data as List<TrustedDevice>;
             trustedDevices = devices.obs;

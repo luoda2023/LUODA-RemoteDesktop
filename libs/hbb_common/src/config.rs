@@ -1789,10 +1789,12 @@ impl PeerConfig {
             log::error!("Failed to store config: {}", err);
         }
         NEW_STORED_PEER_CONFIG.lock().unwrap().insert(id.to_owned());
+        backup_peer_history(id);
     }
 
     pub fn remove(id: &str) {
         fs::remove_file(Self::path(id)).ok();
+        remove_peer_history_backup(id);
     }
 
     fn path(id: &str) -> PathBuf {
@@ -2065,6 +2067,118 @@ impl PeerConfig {
         } else {
             Ok(Self::default_edge_scroll_edge_thickness())
         }
+    }
+}
+
+// ---- Visit/browse history backup (survives uninstall) ----
+// The peer .toml files in the peers dir are the "recently visited / favorites"
+// history. On Android they live in the app-private dir and are wiped on
+// uninstall, so we mirror them to a public-storage folder that survives a
+// reinstall, and restore them on a fresh install.
+
+pub fn history_backup_dir() -> Option<PathBuf> {
+    if !cfg!(target_os = "android") {
+        return None;
+    }
+    let opt = LocalConfig::get_option("history-backup-dir");
+    if !opt.is_empty() {
+        return Some(PathBuf::from(opt));
+    }
+    let home = Config::get_home();
+    if home.as_os_str().is_empty() {
+        return None;
+    }
+    Some(home.join("LDesk").join("history"))
+}
+
+pub fn history_backup_enabled() -> bool {
+    LocalConfig::get_option("save-history") != "N"
+}
+
+pub fn backup_peer_history(id: &str) {
+    let Some(dir) = history_backup_dir() else {
+        return;
+    };
+    if !history_backup_enabled() {
+        return;
+    }
+    let src = PeerConfig::path(id);
+    if !src.is_file() {
+        return;
+    }
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let dst = dir.join(src.file_name().unwrap_or_default());
+    if let Err(err) = std::fs::copy(&src, &dst) {
+        log::error!("Failed to back up peer history '{}': {}", id, err);
+        return;
+    }
+    if let Ok(meta) = std::fs::metadata(&src) {
+        if let Ok(t) = meta.modified() {
+            let _ = filetime::set_file_mtime(
+                &dst,
+                filetime::FileTime::from_system_time(t),
+            );
+        }
+    }
+}
+
+pub fn remove_peer_history_backup(id: &str) {
+    let Some(dir) = history_backup_dir() else {
+        return;
+    };
+    let dst = dir.join(PeerConfig::path(id).file_name().unwrap_or_default());
+    let _ = std::fs::remove_file(dst);
+}
+
+pub fn restore_peer_history() {
+    let Some(dir) = history_backup_dir() else {
+        return;
+    };
+    let peers_dir = Config::path(PEERS);
+    let has_local = std::fs::read_dir(&peers_dir)
+        .map(|rd| {
+            rd.filter_map(Result::ok).any(|entry| {
+                entry.path().is_file()
+                    && entry
+                        .path()
+                        .extension()
+                        .map(|ext| ext == "toml")
+                        .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false);
+    if has_local {
+        return;
+    }
+    let Ok(rd) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    let mut restored = 0usize;
+    for entry in rd.flatten() {
+        let p = entry.path();
+        if !p.is_file()
+            || p.extension().map(|ext| ext == "toml").unwrap_or(false) == false
+        {
+            continue;
+        }
+        let _ = std::fs::create_dir_all(&peers_dir);
+        let dst = peers_dir.join(p.file_name().unwrap_or_default());
+        if std::fs::copy(&p, &dst).is_ok() {
+            if let Ok(meta) = std::fs::metadata(&p) {
+                if let Ok(t) = meta.modified() {
+                    let _ = filetime::set_file_mtime(
+                        &dst,
+                        filetime::FileTime::from_system_time(t),
+                    );
+                }
+            }
+            restored += 1;
+        }
+    }
+    if restored > 0 {
+        log::info!("Restored {} peer history file(s) from public storage", restored);
     }
 }
 

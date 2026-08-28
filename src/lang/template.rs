@@ -580,6 +580,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("enable-2fa-desc", ""),
         ("wrong-2fa-code", ""),
         ("enter-2fa-title", ""),
+        ("save-history-title", ""),
+        ("save-history-tip", ""),
         ("Email verification code must be 6 characters.", ""),
         ("2FA code must be 6 digits.", ""),
         ("Multiple Windows sessions found", ""),

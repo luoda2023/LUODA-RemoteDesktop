@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -30,9 +32,13 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
   bool _loading = true;
   bool _canGoBack = false;
   bool _canGoForward = false;
+  Timer? _loadingTimer;
 
   /// CSS injected into every page load to prevent horizontal scrolling
   /// while keeping vertical scroll, and making content fill the width.
+  /// Kept as pure CSS on purpose: the old version also installed a JS scroll
+  /// guard that called window.scrollTo() on every touchmove, which could fight
+  /// the page and freeze the WebView.
   static const String _noHorizontalScrollCss = r'''
 (function() {
   try {
@@ -47,19 +53,16 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
       'html,body{overflow-x:hidden !important;overflow-y:auto !important;'
       + 'width:100% !important;max-width:100% !important;'
       + 'margin:0 !important;padding:0 !important;'
-      + 'touch-action:pan-y !important;'
       + 'overscroll-behavior-x:none !important;'
       + 'overscroll-behavior-y:auto !important;}'
       + 'img,video,iframe,table,pre,canvas,svg{max-width:100% !important;height:auto !important;}'
       + '*,*::before,*::after{box-sizing:border-box !important;}'
       + 'body{overflow-wrap:break-word !important;word-break:break-word !important;}'
-      + 'body{position:relative !important;}'
       + '::-webkit-scrollbar{width:8px !important;height:8px !important;}'
       + '::-webkit-scrollbar-track{background:transparent !important;}'
       + '::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.5) !important;border-radius:4px !important;}'
       + '::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,0.8) !important;}'
-      + '::-webkit-scrollbar-corner{background:transparent !important;}'
-      + 'html{scrollbar-width:thin !important;scrollbar-color:rgba(128,128,128,0.5),transparent !important;}';
+      + '::-webkit-scrollbar-corner{background:transparent !important;}';
     var style = document.getElementById('__luoda_noscroll__');
     if (!style) {
       style = document.createElement('style');
@@ -74,28 +77,23 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
       d.style.width = '100%';
       d.style.maxWidth = '100%';
       d.style.overscrollBehaviorX = 'none';
-      d.style.touchAction = 'pan-y';
     }
     if (b) {
       b.style.overflowX = 'hidden';
       b.style.width = '100%';
       b.style.maxWidth = '100%';
       b.style.overscrollBehaviorX = 'none';
-      b.style.touchAction = 'pan-y';
-      b.style.position = 'relative';
-    }
-    if (!window.__luoda_scroll_guard__) {
-      window.__luoda_scroll_guard__ = true;
-      var guardFn = function() {
-        if (window.scrollX > 0) window.scrollTo(0, window.scrollY);
-      };
-      window.__luoda_scroll_handler__ = guardFn;
-      window.addEventListener('scroll', guardFn, { passive: true });
-      window.addEventListener('touchmove', guardFn, { passive: true });
     }
   } catch (e) {}
 })();
 ''';
+
+  void _startLoadingTimeout() {
+    _loadingTimer?.cancel();
+    _loadingTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _loading = false);
+    });
+  }
 
   void _injectNoHorizontalScroll(dynamic controller) {
     if (controller == null) return;
@@ -132,12 +130,14 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
 
   void _onPageStarted(dynamic controller) {
     _injectNoHorizontalScroll(controller);
+    _startLoadingTimeout();
     if (mounted) setState(() => _loading = true);
     _refreshNavState(controller);
   }
 
   void _onPageFinished(dynamic controller) {
     _injectNoHorizontalScroll(controller);
+    _loadingTimer?.cancel();
     if (mounted) setState(() => _loading = false);
     _refreshNavState(controller);
   }
@@ -177,12 +177,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
       const cleanup = r'''
 (function() {
   try {
-    if (window.__luoda_scroll_guard__) {
-      window.removeEventListener('scroll', window.__luoda_scroll_handler__);
-      window.removeEventListener('touchmove', window.__luoda_scroll_handler__);
-      delete window.__luoda_scroll_guard__;
-      delete window.__luoda_scroll_handler__;
-    }
     var style = document.getElementById('__luoda_noscroll__');
     if (style) style.remove();
   } catch (e) {}
@@ -198,6 +192,7 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
 
   @override
   void dispose() {
+    _loadingTimer?.cancel();
     _cleanupInjectedScripts(_mobileController);
     _cleanupInjectedScripts(_desktopController);
     super.dispose();
@@ -298,12 +293,14 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
           const SizedBox(height: 16),
           Text(
             translate('VIP features'),
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: textColor),
+            style: TextStyle(
+                fontSize: 20, fontWeight: FontWeight.w500, color: textColor),
           ),
           const SizedBox(height: 8),
           Text(
             kDownloadUrl,
-            style: TextStyle(fontSize: 14, color: textColor?.withValues(alpha: 0.5)),
+            style: TextStyle(
+                fontSize: 14, color: textColor?.withValues(alpha: 0.5)),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -340,9 +337,11 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
                 ? () async {
                     try {
                       if (controller is WebViewController) {
-                        if (await controller.canGoBack()) await controller.goBack();
+                        if (await controller.canGoBack())
+                          await controller.goBack();
                       } else if (controller is inapp.InAppWebViewController) {
-                        if (await controller.canGoBack()) await controller.goBack();
+                        if (await controller.canGoBack())
+                          await controller.goBack();
                       }
                     } catch (_) {}
                   }
@@ -357,9 +356,11 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
                 ? () async {
                     try {
                       if (controller is WebViewController) {
-                        if (await controller.canGoForward()) await controller.goForward();
+                        if (await controller.canGoForward())
+                          await controller.goForward();
                       } else if (controller is inapp.InAppWebViewController) {
-                        if (await controller.canGoForward()) await controller.goForward();
+                        if (await controller.canGoForward())
+                          await controller.goForward();
                       }
                     } catch (_) {}
                   }

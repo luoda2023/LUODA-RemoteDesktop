@@ -61,7 +61,8 @@ class PlatformFFI {
   }
 
   bool registerEventHandler(
-      String eventName, String handlerName, HandleEvent handler, {bool replace = false}) {
+      String eventName, String handlerName, HandleEvent handler,
+      {bool replace = false}) {
     debugPrint('registerEventHandler $eventName $handlerName');
     var handlers = _eventHandlers[eventName];
     if (handlers == null) {
@@ -220,6 +221,24 @@ class PlatformFFI {
         appDir: _dir,
         customClientConfig: '',
       );
+      if (isAndroid) {
+        try {
+          // Public-storage folder for the visit-history backup so it
+          // survives uninstall/reinstall. Set after mainInit so the Rust
+          // LocalConfig is already bound to the real app dir.
+          final pubDirs = await getExternalStorageDirectories(
+              type: StorageDirectory.documents);
+          if (pubDirs != null && pubDirs.isNotEmpty) {
+            final backupDir =
+                '${pubDirs.first.path}${Platform.pathSeparator}LDesk'
+                '${Platform.pathSeparator}history';
+            await _ffiBind.mainSetLocalOption(
+                key: kOptionHistoryBackupDir, value: backupDir);
+          }
+        } catch (e) {
+          debugPrint('history backup dir setup failed: $e');
+        }
+      }
     } catch (e) {
       debugPrintStack(label: 'initialize failed: $e');
     }

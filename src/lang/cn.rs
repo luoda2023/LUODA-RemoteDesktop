@@ -687,6 +687,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("enable-bot-tip", "如果您启用此功能，您可以从您的机器人接收双重认证码，亦可作为连线通知之用。"),
         ("enable-trusted-devices-tip", "允许受信任的设备跳过 2FA 验证"),
         ("enter-2fa-title", "双重认证"),
+        ("save-history-title", "保存浏览记录"),
+        ("save-history-tip", "将最近访问记录备份到本地存储，卸载重装后仍可恢复"),
         ("exceed_max_devices", "管理的设备数已达到最大值"),
         ("files", "文件"),
         ("floating_window_tip", "有助于保持 LUODA 后台服务"),

@@ -45,6 +45,8 @@ EdgeInsets? _menuPadding() {
 
 class _PeerTabPageState extends State<PeerTabPage>
     with SingleTickerProviderStateMixin {
+  PageController? _pageController;
+
   final List<_TabEntry> entries = [
     _TabEntry(RecentPeersView(
       menuPadding: _menuPadding(),
@@ -100,7 +102,28 @@ class _PeerTabPageState extends State<PeerTabPage>
       }
       gFFI.peerTabModel.setCurrentTab(tabIndex);
       entries[tabIndex].load?.call(hint: false);
+      if (isMobile) {
+        final visible = gFFI.peerTabModel.visibleEnabledOrderedIndexs;
+        final pos = visible.indexOf(tabIndex);
+        final pc = _pageController;
+        if (pos >= 0 && pc != null && pc.hasClients) {
+          try {
+            await pc.animateToPage(
+              pos,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+            );
+          } catch (_) {}
+        }
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _pageController?.dispose();
+    _pageController = null;
+    super.dispose();
   }
 
   @override
@@ -190,6 +213,9 @@ class _PeerTabPageState extends State<PeerTabPage>
       ));
     } else {
       if (model.visibleEnabledOrderedIndexs.contains(model.currentTab)) {
+        if (isMobile) {
+          return _createSwipeableTabs(model);
+        }
         child = entries[model.currentTab].widget;
       } else {
         debugPrint("should not happen! currentTab not in visibleIndexs");
@@ -202,6 +228,59 @@ class _PeerTabPageState extends State<PeerTabPage>
     return Expanded(
         child: child.marginSymmetric(
             vertical: (isDesktop || isWebDesktop) ? 12.0 : 6.0));
+  }
+
+  /// On mobile the visible tabs are horizontally swipeable so the user can
+  /// slide left/right to switch between "Recent", "Favorites", etc.
+  Widget _createSwipeableTabs(PeerTabModel model) {
+    final visible = model.visibleEnabledOrderedIndexs;
+    if (visible.isEmpty) return const SizedBox.shrink();
+    final currentPos = visible.indexOf(model.currentTab);
+    if (currentPos < 0) return const SizedBox.shrink();
+
+    var pc = _pageController;
+    if (pc == null) {
+      pc = PageController(initialPage: currentPos);
+      _pageController = pc;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller = _pageController;
+      final pos = visible.indexOf(gFFI.peerTabModel.currentTab);
+      if (controller != null &&
+          controller.hasClients &&
+          pos >= 0 &&
+          (controller.page?.round() ?? pos) != pos) {
+        controller.jumpToPage(pos);
+      }
+    });
+
+    return Expanded(
+      child: PageView.builder(
+        controller: pc,
+        itemCount: visible.length,
+        onPageChanged: (page) {
+          if (page < 0 || page >= visible.length) return;
+          final index = visible[page];
+          if (index != gFFI.peerTabModel.currentTab) {
+            gFFI.peerTabModel.setCurrentTabCachedPeers([]);
+          }
+          gFFI.peerTabModel.setCurrentTab(index);
+          if (index < entries.length) {
+            entries[index].load?.call(hint: false);
+          }
+          bind.setLocalFlutterOption(
+              k: kOptionPeerTabIndex, v: index.toString());
+        },
+        itemBuilder: (context, page) {
+          final index = visible[page];
+          final widget = index < entries.length
+              ? entries[index].widget
+              : entries[0].widget;
+          return widget.marginSymmetric(vertical: 6.0);
+        },
+      ),
+    );
   }
 
   Widget _createRefresh(

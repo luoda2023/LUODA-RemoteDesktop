@@ -220,6 +220,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("enable-bot-tip", "If you enable this feature, you can receive the 2FA code from your bot. It can also function as a connection notification."),
         ("enable-trusted-devices-tip", "Skip 2FA verification on trusted devices"),
         ("enter-2fa-title", "Two-factor authentication"),
+        ("save-history-title", "Save visit history"),
+        ("save-history-tip", "Back up recent-visit history to local storage so it can be restored after uninstall or reinstall"),
         ("exceed_max_devices", "You have reached the maximum number of managed devices."),
         ("floating_window_tip", "It helps to keep LUODA background service"),
         ("hide_cm_tip", "Allow hiding only if accepting sessions via password and using permanent password"),
