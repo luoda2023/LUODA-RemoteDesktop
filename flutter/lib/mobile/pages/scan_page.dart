@@ -49,10 +49,10 @@ class _ScanPageState extends State<ScanPage> {
   Widget _buildQrView(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final minSide = size.width < size.height ? size.width : size.height;
-    var scanArea = (minSide < 400 ? 150.0 : 300.0) * 1.5;
-    // Enlarged by 1/2, but keep it inside the screen on narrow devices.
-    if (scanArea > minSide * 0.9) {
-      scanArea = minSide * 0.9;
+    var scanArea = minSide * 0.92;
+    // Enlarged to 92% of the smaller side, but keep it inside the screen.
+    if (scanArea > minSide * 0.92) {
+      scanArea = minSide * 0.92;
     }
     return QRView(
       key: qrKey,

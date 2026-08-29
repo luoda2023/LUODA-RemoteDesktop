@@ -4195,6 +4195,13 @@ pub mod peer_online {
                         let mut onlines = Vec::new();
                         let mut offlines = Vec::new();
                         for i in 0..ids.len() {
+                            // Guard against a short/malformed response: without
+                            // enough state bytes this peer would index out of
+                            // bounds (panic). Keeping the previous UI state is
+                            // safer than reporting a false offline.
+                            if (i / 8) >= states.len() {
+                                break;
+                            }
                             // bytes index from left to right
                             let bit_value = 0x01 << (7 - i % 8);
                             if (states[i / 8] & bit_value) == bit_value {
