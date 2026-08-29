@@ -53,14 +53,17 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
       'html,body{overflow-x:hidden !important;overflow-y:auto !important;'
       + 'width:100% !important;max-width:100% !important;'
       + 'margin:0 !important;padding:0 !important;'
+      + 'touch-action:pan-y !important;'
       + 'overscroll-behavior-x:none !important;'
       + 'overscroll-behavior-y:auto !important;}'
+      + 'html{scroll-behavior:smooth !important;scrollbar-width:thin !important;'
+      + 'scrollbar-color:rgba(128,128,128,0.5),transparent !important;}'
       + 'img,video,iframe,table,pre,canvas,svg{max-width:100% !important;height:auto !important;}'
       + '*,*::before,*::after{box-sizing:border-box !important;}'
       + 'body{overflow-wrap:break-word !important;word-break:break-word !important;}'
-      + '::-webkit-scrollbar{width:8px !important;height:8px !important;}'
+      + '::-webkit-scrollbar{width:4px !important;height:4px !important;}'
       + '::-webkit-scrollbar-track{background:transparent !important;}'
-      + '::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.5) !important;border-radius:4px !important;}'
+      + '::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.5) !important;border-radius:2px !important;}'
       + '::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,0.8) !important;}'
       + '::-webkit-scrollbar-corner{background:transparent !important;}';
     var style = document.getElementById('__luoda_noscroll__');
@@ -124,6 +127,26 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
           _canGoBack = back;
           _canGoForward = forward;
         });
+      }
+    } catch (_) {}
+  }
+
+  /// Smoothly scroll the active webview by half a viewport height.
+  void _scrollPage(double direction) {
+    final js = '''
+(function() {
+  var doc = document.scrollingElement || document.documentElement;
+  var h = Math.max(doc.clientHeight || window.innerHeight, 200);
+  window.scrollBy({top: h * 0.5 * $direction, left: 0, behavior: 'smooth'});
+})();
+''';
+    try {
+      final m = _mobileController;
+      final d = _desktopController;
+      if (m != null) {
+        m.runJavaScript(js);
+      } else if (d != null) {
+        d.evaluateJavascript(source: js);
       }
     } catch (_) {}
   }
@@ -337,11 +360,13 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
                 ? () async {
                     try {
                       if (controller is WebViewController) {
-                        if (await controller.canGoBack())
+                        if (await controller.canGoBack()) {
                           await controller.goBack();
+                        }
                       } else if (controller is inapp.InAppWebViewController) {
-                        if (await controller.canGoBack())
+                        if (await controller.canGoBack()) {
                           await controller.goBack();
+                        }
                       }
                     } catch (_) {}
                   }
@@ -356,11 +381,13 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
                 ? () async {
                     try {
                       if (controller is WebViewController) {
-                        if (await controller.canGoForward())
+                        if (await controller.canGoForward()) {
                           await controller.goForward();
+                        }
                       } else if (controller is inapp.InAppWebViewController) {
-                        if (await controller.canGoForward())
+                        if (await controller.canGoForward()) {
                           await controller.goForward();
+                        }
                       }
                     } catch (_) {}
                   }
@@ -380,6 +407,20 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
                 }
               } catch (_) {}
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+            tooltip: translate('Scroll up'),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _scrollPage(-1),
+          ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+            tooltip: translate('Scroll down'),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _scrollPage(1),
           ),
           const Spacer(),
           IconButton(

@@ -23,7 +23,7 @@ class ConnectionPage extends StatefulWidget implements PageShape {
   ConnectionPage({Key? key, required this.appBarActions}) : super(key: key);
 
   @override
-  final icon = const Icon(Icons.connected_tv);
+  final icon = const Icon(Icons.link);
 
   @override
   final title = translate("Connection");
