@@ -2336,12 +2336,14 @@ class _AboutState extends State<_About> {
       return SingleChildScrollView(
         controller: scrollController,
         child: _Card(title: translate('About'), children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(
-                height: 8.0,
-              ),
+          SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(
+                  height: 8.0,
+                ),
               SelectionArea(
                   child: Text('${translate('Version')}: $version')
                       .marginSymmetric(vertical: 4.0)),
@@ -2397,7 +2399,7 @@ class _AboutState extends State<_About> {
                 )),
               ).marginSymmetric(vertical: 4.0)
             ],
-          ).marginOnly(left: _kContentHMargin)
+          )).marginOnly(left: _kContentHMargin),
         ]),
       );
     });

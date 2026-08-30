@@ -182,30 +182,11 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
           const SizedBox(width: 10),
           Text(translate('One-time Authorization')),
         ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(translate('android_first_run_permission_tip'),
-                style: const TextStyle(fontSize: 14)),
-            const SizedBox(height: 12),
-            _buildPermissionItem(Icons.notifications, 'Notification',
-                translate('Receive connection notifications')),
-            _buildPermissionItem(Icons.mic, 'Microphone',
-                translate('Voice call during remote control')),
-            _buildPermissionItem(Icons.battery_full, 'Battery',
-                translate('Keep service alive in background')),
-            _buildPermissionItem(
-                Icons.folder, 'Storage', translate('File transfer support')),
-            _buildPermissionItem(Icons.accessibility, 'Accessibility',
-                translate('Remote control of this device')),
-            _buildPermissionItem(Icons.screen_share, 'Screen Capture',
-                translate('Share screen to remote')),
-          ],
+        content: Text(
+          translate('android_first_run_permission_tip'),
+          style: const TextStyle(fontSize: 14),
         ),
         actions: [
-          TextButton(
-              onPressed: () => close(false), child: Text(translate('Later'))),
           ElevatedButton(
               onPressed: () => close(true),
               child: Text(translate('Authorize All'))),
@@ -217,27 +198,6 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return res == true;
   }
 
-  Widget _buildPermissionItem(IconData icon, String title, String desc) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(children: [
-        Icon(icon, size: 18, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(translate(title),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w500, fontSize: 13)),
-              Text(desc,
-                  style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-            ],
-          ),
-        ),
-      ]),
-    );
-  }
 
   /// Batch-request all standard runtime permissions in a single system dialog.
   /// This replaces the old approach of requesting each permission one-by-one
