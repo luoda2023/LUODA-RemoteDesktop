@@ -13,8 +13,8 @@ mod runtime_layout;
 mod ui;
 
 const APP_METADATA_CONFIG: &str = "meta.toml";
-const APP_PREFIX: &str = "LUODA";
-const APPNAME_RUNTIME_ENV_KEY: &str = "LUODA_APPNAME";
+const APP_PREFIX: &str = "LDesk";
+const APPNAME_RUNTIME_ENV_KEY: &str = "LDESK_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
 
@@ -119,7 +119,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
     let child = match cmd.spawn() {
         Ok(child) => child,
         Err(e) => {
-            let msg = format!("Failed to start LUODA:\n\n{}", e);
+            let msg = format!("Failed to start LDesk:\n\n{}", e);
             #[cfg(windows)]
             {
                 use std::os::windows::ffi::OsStrExt;
@@ -156,7 +156,7 @@ fn main() {
         #[cfg(windows)]
         {
             use std::os::windows::ffi::OsStrExt;
-            let msg = format!("LUODA encountered an error:\n\n{}", info);
+            let msg = format!("LDesk encountered an error:\n\n{}", info);
             let wide: Vec<u16> = std::ffi::OsStr::new(&msg).encode_wide().chain(std::iter::once(0)).collect();
             unsafe {
                 winapi::um::winuser::MessageBoxW(
@@ -168,7 +168,7 @@ fn main() {
             }
         }
         #[cfg(not(windows))]
-        eprintln!("LUODA encountered an error:\n\n{}", info);
+        eprintln!("LDesk encountered an error:\n\n{}", info);
     }));
 
     let mut args = Vec::new();

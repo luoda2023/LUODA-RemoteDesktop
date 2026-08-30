@@ -106,9 +106,9 @@ fn main() {
 
         .version(crate::VERSION)
 
-        .author("LUODA <info@dicad.cn>")
+        .author("LDesk <info@dicad.cn>")
 
-        .about("LUODA command line tool")
+        .about("LDesk command line tool")
 
         .args_from_usage(&args)
 

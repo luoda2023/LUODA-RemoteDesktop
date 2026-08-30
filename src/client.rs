@@ -4228,6 +4228,7 @@ pub mod peer_online {
     #[cfg(test)]
     mod tests {
         use hbb_common::{
+            log,
             config::{keys::OPTION_CUSTOM_RENDEZVOUS_SERVER, Config},
             message_proto::{Hash, Message},
             protobuf::Message as _,

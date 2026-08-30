@@ -122,16 +122,16 @@ struct RuntimeLog {
 impl RuntimeLog {
 fn new() -> Self {
 let base = if cfg!(target_os = "windows") {
-std::env::var("APPDATA").map(|p| PathBuf::from(p).join("LUODA").join("logs"))
-.unwrap_or_else(|_| PathBuf::from("C:\\LUODA\\logs"))
+std::env::var("APPDATA").map(|p| PathBuf::from(p).join("LDesk").join("logs"))
+.unwrap_or_else(|_| PathBuf::from("C:\\LDesk\\logs"))
 } else if cfg!(target_os = "macos") {
 PathBuf::from(std::env::var("HOME").unwrap_or_default())
-.join("Library").join("Logs").join("LUODA")
+.join("Library").join("Logs").join("LDesk")
 } else {
 PathBuf::from(std::env::var("HOME").unwrap_or_default())
-.join(".config").join("luoda").join("logs")
+.join(".config").join("ldesk").join("logs")
 };
-let log_file = base.join("luoda_runtime.log");
+let log_file = base.join("ldesk_runtime.log");
 let _ = create_dir_all(&base);
 let mut written = 0u64;
 let file = OpenOptions::new().create(true).append(true).open(&log_file).ok().map(|mut f| {
@@ -180,7 +180,7 @@ pub fn warn(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("WA
 pub fn error(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("ERROR", tag, msg); } }
 pub fn debug(tag: &str, msg: &str) { if let Ok(mut g) = LOGGER.lock() { g.log("DEBUG", tag, msg); } }
 pub fn init() {
-info("SYSTEM", &format!("LUODA v{} starting on {}", env!("CARGO_PKG_VERSION"), std::env::consts::OS));
+info("SYSTEM", &format!("LDesk v{} starting on {}", env!("CARGO_PKG_VERSION"), std::env::consts::OS));
 info("SYSTEM", &format!("Args: {:?}", std::env::args().collect::<Vec<_>>()));
 }
 }
