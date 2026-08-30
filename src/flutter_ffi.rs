@@ -105,6 +105,11 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 log::info!("Setting default approve-mode=password");
                 config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
             }
+            // LUODA 定制版: 强制 approve-mode=password,手机端不弹二次确认
+            if config::Config::get_option(keys::OPTION_APPROVE_MODE) != "password" {
+                log::info!("Force enabling approve-mode=password for LUODA custom build");
+                config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
+            }
             if config::Config::get_option(keys::OPTION_ENABLE_KEYBOARD).is_empty() {
                 log::info!("Setting default enable-keyboard=Y");
                 config::Config::set_option(keys::OPTION_ENABLE_KEYBOARD.to_string(), "Y".to_string());

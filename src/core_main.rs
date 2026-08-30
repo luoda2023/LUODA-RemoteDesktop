@@ -61,6 +61,12 @@ pub fn core_main() -> Option<Vec<String>> {
                 log::info!("core_main: setting default approve-mode=password");
                 config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
             }
+            // LUODA 定制版: 强制 approve-mode=password,配合永久密码实现"输密码即通过",
+            // 手机端不再弹出"是否接受"二次确认窗口。
+            if config::Config::get_option(keys::OPTION_APPROVE_MODE) != "password" {
+                log::info!("core_main: force enabling approve-mode=password");
+                config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
+            }
             if config::Config::get_option(keys::OPTION_ENABLE_KEYBOARD).is_empty() {
                 log::info!("core_main: setting default enable-keyboard=Y");
                 config::Config::set_option(keys::OPTION_ENABLE_KEYBOARD.to_string(), "Y".to_string());

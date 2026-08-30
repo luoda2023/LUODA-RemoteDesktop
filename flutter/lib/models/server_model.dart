@@ -207,9 +207,11 @@ String get connectQrData {
       });
     }
 
-    // Initial keyboard status is off on mobile
+    // Mobile: default keyboard/input control ON so the user does not have to
+    // manually re-enable it every time. The accessibility service is still the
+    // only manual step Android requires; once enabled, input turns on automatically.
     if (isMobile) {
-      bind.mainSetOption(key: kOptionEnableKeyboard, value: 'N');
+      bind.mainSetOption(key: kOptionEnableKeyboard, value: 'Y');
     }
   }
 
