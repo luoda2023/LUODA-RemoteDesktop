@@ -265,26 +265,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return true;
     }
 
-    // Show a brief hint before jumping to settings
-    if (mounted) {
-      await gFFI.dialogManager.show<void>((setState, close, context) {
-        return CustomAlertDialog(
-          title: Row(children: [
-            const Icon(Icons.accessibility, color: Colors.blue, size: 24),
-            const SizedBox(width: 8),
-            Text(translate('Enable Accessibility')),
-          ]),
-          content: Text(translate('android_accessibility_hint')),
-          actions: [
-            ElevatedButton(
-                onPressed: close, child: Text(translate('Go to Settings'))),
-          ],
-          onSubmit: close,
-          onCancel: close,
-        );
-      });
-    }
-
+    // 直接跳转到无障碍设置页，不弹中间提示框，让"一键授权"尽可能一步到位
     final waiting = Completer<void>();
     _accessibilityReturn = waiting;
     _leftForAccessibilitySettings = false;
