@@ -143,13 +143,6 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!previouslyCompleted) {
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence started');
-        // Show a one-time guidance dialog before requesting permissions
-        final userAgreed = await _showFirstRunPermissionDialog();
-        if (!userAgreed) {
-          RuntimeLogger.instance
-              .warn('ANDROID', 'user deferred first-run authorization');
-          return;
-        }
       } else {
         RuntimeLogger.instance
             .info('ANDROID', 'rechecking Android authorization state');
@@ -170,34 +163,6 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
           'ANDROID', 'first-run authorization failed: $error\n$stackTrace');
     }
   }
-
-  /// Show a one-time dialog explaining all permissions before requesting them.
-  /// Returns true if the user tapped "一键授权", false if they deferred.
-  Future<bool> _showFirstRunPermissionDialog() async {
-    if (!mounted) return false;
-    final res = await gFFI.dialogManager.show<bool>((setState, close, context) {
-      return CustomAlertDialog(
-        title: Row(children: [
-          const Icon(Icons.security, color: Colors.blue, size: 28),
-          const SizedBox(width: 10),
-          Text(translate('One-time Authorization')),
-        ]),
-        content: Text(
-          translate('android_first_run_permission_tip'),
-          style: const TextStyle(fontSize: 14),
-        ),
-        actions: [
-          ElevatedButton(
-              onPressed: () => close(true),
-              child: Text(translate('Authorize All'))),
-        ],
-        onSubmit: () => close(true),
-        onCancel: () => close(false),
-      );
-    });
-    return res == true;
-  }
-
 
   /// Batch-request all standard runtime permissions in a single system dialog.
   /// This replaces the old approach of requesting each permission one-by-one
