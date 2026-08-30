@@ -74,6 +74,17 @@ pub fn core_main() -> Option<Vec<String>> {
                 log::info!("core_main: force enabling direct-server");
                 config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
             }
+            // LUODA: 默认启用 D3D 渲染、UDP 打洞、IPv6 P2P（后台一次性设置，用户无需再配置）
+            for (k, label) in [
+                (keys::OPTION_ALLOW_D3D_RENDER, "allow-d3d-render"),
+                (keys::OPTION_ENABLE_UDP_PUNCH, "enable-udp-punch"),
+                (keys::OPTION_ENABLE_IPV6_PUNCH, "enable-ipv6-punch"),
+            ] {
+                if config::Config::get_option(k).is_empty() {
+                    log::info!("core_main: setting default {}=Y", label);
+                    config::Config::set_option(k.to_string(), "Y".to_string());
+                }
+            }
         }
     }
 
