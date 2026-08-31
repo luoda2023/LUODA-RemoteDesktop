@@ -94,6 +94,7 @@ cpal = { git = "https://github.com/luoda2023/cpal", branch = "osx-screencapturek
 ringbuf = "0.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+mimalloc = { version = "0.1", default-features = false }
 magnum-opus = { git = "https://github.com/rustdesk-org/magnum-opus" }
 mac_address = "1.1"
 sciter-rs = { git = "https://github.com/luoda2023/rust-sciter", branch = "dyn" }
@@ -243,7 +244,8 @@ lto = true
 codegen-units = 1
 panic = 'abort'
 strip = true
-#opt-level = 'z' # only have smaller size after strip
+opt-level = 'z'
+debug = false
 rpath = true
 
 # CI trigger: retry after stuck runs (2026-05-17)
