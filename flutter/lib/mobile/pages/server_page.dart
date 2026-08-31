@@ -848,13 +848,12 @@ class ConnectionManager extends StatelessWidget {
           onPressed: () {
             serverModel.sendLoginResponse(client, false);
           }).marginOnly(right: 15),
-      if (serverModel.approveMode != 'password')
-        ElevatedButton.icon(
-            icon: const Icon(Icons.check),
-            label: Text(translate("Accept")),
-            onPressed: () {
-              serverModel.sendLoginResponse(client, true);
-            }),
+      ElevatedButton.icon(
+          icon: const Icon(Icons.check),
+          label: Text(translate("Accept")),
+          onPressed: () {
+            serverModel.sendLoginResponse(client, true);
+          }),
     ]);
   }
 
@@ -871,13 +870,12 @@ class ConnectionManager extends StatelessWidget {
             onPressed: () {
               serverModel.handleVoiceCall(client, false);
             }).marginOnly(right: 15),
-        if (serverModel.approveMode != 'password')
-          ElevatedButton.icon(
-              icon: const Icon(Icons.check),
-              label: Text(translate("Accept")),
-              onPressed: () {
-                serverModel.handleVoiceCall(client, true);
-              }),
+        ElevatedButton.icon(
+            icon: const Icon(Icons.check),
+            label: Text(translate("Accept")),
+            onPressed: () {
+              serverModel.handleVoiceCall(client, true);
+            }),
       ])
     ];
   }
