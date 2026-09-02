@@ -805,7 +805,9 @@ class Luoda {
   }
 
   String mainGetAppNameSync({dynamic hint}) {
-    return js.context.callMethod('getByName', ['app-name']);
+    final name = js.context.callMethod('getByName', ['app-name']) as String;
+    // 软件显示名改为 LDesk（默认品牌）；OEM 定制名保留
+    return name == 'LUODA' ? 'LDesk' : name;
   }
 
   String mainUriPrefixSync({dynamic hint}) {
@@ -1276,6 +1278,11 @@ class Luoda {
     return Future(() => js.context.callMethod('setByName', ['restart']));
   }
 
+  Future<void> sessionShutdownRemoteDevice(
+      {required UuidValue sessionId, dynamic hint}) {
+    return Future(() => js.context.callMethod('setByName', ['shutdown']));
+  }
+
   String sessionGetAuditServerSync(
       {required UuidValue sessionId, required String typ, dynamic hint}) {
     return js.context.callMethod('getByName', ['audit_server', typ]);
@@ -1598,8 +1605,8 @@ class Luoda {
   }
 
   bool isCustomClient({dynamic hint}) {
-    // is_custom_client() checks if app name is not "LUODA"
-    return mainGetAppNameSync(hint: hint) != "LUODA";
+    final appName = mainGetAppNameSync(hint: hint);
+    return appName != "LDesk" && appName != "LUODA";
   }
 
   bool isDisableSettings({dynamic hint}) {

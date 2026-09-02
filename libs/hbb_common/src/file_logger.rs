@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 /// A logger that writes to a daily log file.
-/// Log file location: %PROGRAMDATA%/LUODA/logs/luoda-YYYY-MM-DD.log
+/// Log file location: %PROGRAMDATA%/LDesk/logs/ldesk-YYYY-MM-DD.log
 pub struct FileLogger {
     file: Mutex<Option<File>>,
     level: LevelFilter,
@@ -23,10 +23,10 @@ impl FileLogger {
     fn log_path() -> Option<PathBuf> {
         let base = std::env::var("ALLUSERSPROFILE")
             .unwrap_or_else(|_| "C:\\ProgramData".to_string());
-        let dir = PathBuf::from(base).join("LUODA").join("logs");
+        let dir = PathBuf::from(base).join("LDesk").join("logs");
         fs::create_dir_all(&dir).ok()?;
         let date = Local::now().format("%Y-%m-%d");
-        Some(dir.join(format!("luoda-{}.log", date)))
+        Some(dir.join(format!("ldesk-{}.log", date)))
     }
 
     fn write_log(&self, msg: &str) {
@@ -95,11 +95,11 @@ pub fn setup_panic_hook() {
         #[cfg(windows)]
         {
             let text = format!(
-                "LUODA encountered an error:\n\n{}\n\nPlease check the log file at:\n%PROGRAMDATA%\\LUODA\\logs\\",
+                "LDesk encountered an error:\n\n{}\n\nPlease check the log file at:\n%PROGRAMDATA%\\LDesk\\logs\\",
                 msg
             );
             let text_wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
-            let title_wide: Vec<u16> = "LUODA Error".encode_utf16().chain(std::iter::once(0)).collect();
+            let title_wide: Vec<u16> = "LDesk Error".encode_utf16().chain(std::iter::once(0)).collect();
             unsafe {
                 winapi::um::winuser::MessageBoxW(
                     std::ptr::null_mut(),

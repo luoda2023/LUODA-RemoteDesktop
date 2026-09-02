@@ -518,7 +518,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                 )),
                 const SizedBox(width: 8),
                 // 方形连接按钮: 只显示图标,不显示"Connect"文字,
-                // 连接图标用"登入箭头"(Icons.login),与登录对话框的钥匙图标(Icons.vpn_key)区分。
+                // 连接图标用"屏幕共享"(Icons.screen_share),与登录对话框的钥匙图标(Icons.vpn_key)区分。
                 SizedBox(
                   height: 48.0,
                   width: 48.0,
@@ -535,7 +535,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                     },
                     child: Tooltip(
                       message: translate("Connect"),
-                      child: const Icon(Icons.login,
+                      child: const Icon(Icons.screen_share,
                           size: 22, color: Colors.white),
                     ),
                   ),

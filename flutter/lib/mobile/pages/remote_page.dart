@@ -369,12 +369,18 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
               ? null
               : FloatingActionButton(
                   mini: !keyboardIsVisible,
-                  child: Icon(
-                    (keyboardIsVisible || _showGestureHelp)
-                        ? Icons.expand_more
-                        : Icons.expand_less,
-                    color: Colors.white,
-                  ),
+                  child: (keyboardIsVisible || _showGestureHelp)
+                      ? Icon(Icons.expand_more, color: Colors.white)
+                      : Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Image.asset(
+                            'assets/icon.png',
+                            fit: BoxFit.contain,
+                            errorBuilder: (ctx, error, stackTrace) =>
+                                const Icon(Icons.expand_less,
+                                    color: Colors.white),
+                          ),
+                        ),
                   backgroundColor: MyTheme.accent,
                   onPressed: () {
                     setState(() {
@@ -491,6 +497,12 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                       ? []
                       : gFFI.ffiModel.isPeerAndroid
                           ? [
+                              IconButton(
+                                  color: Colors.white,
+                                  icon: const Icon(Icons.arrow_back),
+                                  onPressed: () =>
+                                      gFFI.inputModel.onMobileBack(),
+                                ),
                               IconButton(
                                   color: Colors.white,
                                   icon: Icon(Icons.keyboard),

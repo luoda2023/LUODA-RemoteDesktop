@@ -108,7 +108,7 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         if (!FFI.isLoaded) {
             AlertDialog.Builder(this)
-                .setTitle("LUODA startup failed")
+                .setTitle("LDesk startup failed")
                 .setMessage(
                     "The native library for this phone could not be loaded. " +
                         "Please install the universal APK.\n\n${FFI.loadError}"
@@ -299,6 +299,24 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                "get_public_auth_base_dir" -> {
+                    result.success(publicAuthBaseDir(activity))
+                }
+                "get_first_run_authorization" -> {
+                    val prefs = getSharedPreferences(KEY_SHARED_PREFERENCES, MODE_PRIVATE)
+                    result.success(prefs.getBoolean(KEY_FIRST_RUN_AUTHORIZATION, false))
+                }
+                "set_first_run_authorization" -> {
+                    if (call.arguments is Boolean) {
+                        getSharedPreferences(KEY_SHARED_PREFERENCES, MODE_PRIVATE)
+                            .edit()
+                            .putBoolean(KEY_FIRST_RUN_AUTHORIZATION, call.arguments as Boolean)
+                            .apply()
+                        result.success(true)
+                    } else {
+                        result.success(false)
+                    }
+                }
                 GET_VALUE -> {
                     if (call.arguments is String) {
                         if (call.arguments == KEY_IS_SUPPORT_VOICE_CALL) {
@@ -468,18 +486,5 @@ class MainActivity : FlutterActivity() {
         } else {
             Log.d(logTag, "onVoiceCallClosed success")
         }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        val disableFloatingWindow = FFI.getLocalOption("disable-floating-window") == "Y"
-        if (!disableFloatingWindow && MainService.isReady) {
-            startService(Intent(this, FloatingWindowService::class.java))
-        }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        stopService(Intent(this, FloatingWindowService::class.java))
     }
 }

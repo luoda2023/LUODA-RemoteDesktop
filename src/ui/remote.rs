@@ -559,6 +559,7 @@ impl sciter::EventHandler for SciterSession {
         fn alternative_codecs();
         fn update_supported_decodings();
         fn restart_remote_device();
+        fn shutdown_remote_device();
         fn request_voice_call();
         fn close_voice_call();
         fn version_cmp(String, String);

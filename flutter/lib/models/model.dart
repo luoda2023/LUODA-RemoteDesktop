@@ -961,16 +961,24 @@ class FfiModel with ChangeNotifier {
     }
   }
 
-  /// Auto-retry check for "Remote desktop is offline" error.
+  /// Auto-retry check for transient connection errors.
   /// returns true to auto-retry, false otherwise.
   bool shouldAutoRetryOnOffline(
     String type,
     String title,
     String text,
   ) {
+    final lowerText = text.toLowerCase();
+    final transient = text == 'Remote desktop is offline' ||
+        text == 'Reset by the peer' ||
+        lowerText.contains('connection closed') ||
+        lowerText.contains('connection reset') ||
+        lowerText.contains('broken pipe') ||
+        lowerText.contains('10054') ||
+        lowerText.contains('error 104');
     if (type == 'error' &&
         title == 'Connection Error' &&
-        text == 'Remote desktop is offline' &&
+        transient &&
         _pi.isSet.isTrue) {
       // Auto retry for ~30s (server's peer offline threshold) when controlled peer's account changes
       // (e.g., signout, switch user, login into OS) causes temporary offline via websocket/tcp connection.

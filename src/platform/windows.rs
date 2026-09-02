@@ -1275,7 +1275,7 @@ fn get_default_install_path() -> String {
             pf = tmp;
         }
     }
-    format!("{}\\{}", pf, crate::get_app_name())
+    format!("{}\\{}", pf, crate::get_display_app_name())
 }
 
 pub fn check_update_broker_process() -> ResultType<()> {
@@ -1331,9 +1331,9 @@ fn get_install_info_with_subkey(subkey: String) -> (String, String, String, Stri
     path = path.trim_end_matches('\\').to_owned();
     let start_menu = format!(
         "%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\{}",
-        crate::get_app_name()
+        crate::get_display_app_name()
     );
-    let exe = format!("{}\\{}.exe", path, crate::get_app_name());
+    let exe = format!("{}\\{}.exe", path, crate::get_display_app_name());
     (subkey, path, start_menu, exe)
 }
 
@@ -1369,7 +1369,7 @@ pub fn rename_exe_cmd(src_exe: &str, path: &str) -> ResultType<String> {
         .ok_or(anyhow!("Can't get file name of {src_exe}"))?
         .to_string_lossy()
         .to_string();
-    let app_name = crate::get_app_name().to_lowercase();
+    let app_name = crate::get_display_app_name().to_lowercase();
     if src_exe_filename.to_lowercase() == format!("{app_name}.exe") {
         Ok("".to_owned())
     } else {
@@ -1479,6 +1479,7 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
         version_build = versions[2];
     }
     let app_name = crate::get_app_name();
+    let display_name = crate::get_display_app_name();
 
     let current_exe = std::env::current_exe()?;
 
@@ -1489,7 +1490,7 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
         format!(
             "
 Set oWS = WScript.CreateObject(\"WScript.Shell\")
-sLinkFile = \"{tmp_path}\\{app_name}.lnk\"
+sLinkFile = \"{tmp_path}\\{display_name}.lnk\"
 
 Set oLink = oWS.CreateShortcut(sLinkFile)
     oLink.TargetPath = \"{exe}\"
@@ -1508,7 +1509,7 @@ oLink.Save
         format!(
             "
 Set oWS = WScript.CreateObject(\"WScript.Shell\")
-sLinkFile = \"{tmp_path}\\Uninstall {app_name}.lnk\"
+sLinkFile = \"{tmp_path}\\Uninstall {display_name}.lnk\"
 Set oLink = oWS.CreateShortcut(sLinkFile)
     oLink.TargetPath = \"{exe}\"
     oLink.Arguments = \"--uninstall\"
@@ -1531,7 +1532,7 @@ oLink.Save
         shortcuts = format!(
             "copy /Y \"{}\\{}.lnk\" \"%PUBLIC%\\Desktop\\\"",
             tmp_path,
-            crate::get_app_name()
+            crate::get_display_app_name()
         );
         reg_value_desktop_shortcuts = "1".to_owned();
     }
@@ -1539,8 +1540,8 @@ oLink.Save
         shortcuts = format!(
             "{shortcuts}
 md \"{start_menu}\"
-copy /Y \"{tmp_path}\\{app_name}.lnk\" \"{start_menu}\\\"
-copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\\"
+copy /Y \"{tmp_path}\\{display_name}.lnk\" \"{start_menu}\\\"
+copy /Y \"{tmp_path}\\Uninstall {display_name}.lnk\" \"{start_menu}\\\"
      "
         );
         reg_value_start_menu_shortcuts = "1".to_owned();
@@ -1566,9 +1567,9 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\\"
 if exist \"{mk_shortcut}\" del /f /q \"{mk_shortcut}\"
 if exist \"{uninstall_shortcut}\" del /f /q \"{uninstall_shortcut}\"
 if exist \"{tray_shortcut}\" del /f /q \"{tray_shortcut}\"
-if exist \"{tmp_path}\\{app_name}.lnk\" del /f /q \"{tmp_path}\\{app_name}.lnk\"
-if exist \"{tmp_path}\\Uninstall {app_name}.lnk\" del /f /q \"{tmp_path}\\Uninstall {app_name}.lnk\"
-if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} Tray.lnk\"
+if exist \"{tmp_path}\\{display_name}.lnk\" del /f /q \"{tmp_path}\\{display_name}.lnk\"
+if exist \"{tmp_path}\\Uninstall {display_name}.lnk\" del /f /q \"{tmp_path}\\Uninstall {display_name}.lnk\"
+if exist \"{tmp_path}\\{display_name} Tray.lnk\" del /f /q \"{tmp_path}\\{display_name} Tray.lnk\"
         "
     );
     let src_exe = std::env::current_exe()?.to_str().unwrap_or("").to_string();
@@ -1585,7 +1586,7 @@ if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} 
     } else {
         format!("
 cscript \"{tray_shortcut}\"
-copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
+copy /Y \"{tmp_path}\\{display_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
 ")
     };
 
@@ -1610,12 +1611,12 @@ md \"{path}\"
 {copy_exe}
 reg add {subkey} /f
 reg add {subkey} /f /v DisplayIcon /t REG_SZ /d \"{display_icon}\"
-reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{app_name}\"
+reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{display_name}\"
 reg add {subkey} /f /v DisplayVersion /t REG_SZ /d \"{version}\"
 reg add {subkey} /f /v Version /t REG_SZ /d \"{version}\"
 reg add {subkey} /f /v BuildDate /t REG_SZ /d \"{build_date}\"
 reg add {subkey} /f /v InstallLocation /t REG_SZ /d \"{path}\"
-reg add {subkey} /f /v Publisher /t REG_SZ /d \"{app_name}\"
+reg add {subkey} /f /v Publisher /t REG_SZ /d \"{display_name}\"
 reg add {subkey} /f /v VersionMajor /t REG_DWORD /d {version_major}
 reg add {subkey} /f /v VersionMinor /t REG_DWORD /d {version_minor}
 reg add {subkey} /f /v VersionBuild /t REG_DWORD /d {version_build}
@@ -1626,7 +1627,7 @@ cscript \"{mk_shortcut}\"
 cscript \"{uninstall_shortcut}\"
 {tray_shortcuts}
 {shortcuts}
-copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
+copy /Y \"{tmp_path}\\Uninstall {display_name}.lnk\" \"{path}\\\"
 {dels}
 {import_config}
 {after_install}
@@ -1667,6 +1668,7 @@ pub fn run_before_uninstall() -> ResultType<()> {
 
 fn get_before_uninstall(kill_self: bool) -> String {
     let app_name = crate::get_app_name();
+    let display_name = crate::get_display_app_name();
     let ext = app_name.to_lowercase();
     let filter = if kill_self {
         "".to_string()
@@ -1679,7 +1681,7 @@ fn get_before_uninstall(kill_self: bool) -> String {
     sc stop {app_name}
     sc delete {app_name}
     taskkill /F /IM {broker_exe}
-    taskkill /F /IM {app_name}.exe{filter}
+    taskkill /F /IM {display_name}.exe{filter}
     reg delete HKEY_CLASSES_ROOT\\.{ext} /f
     reg delete HKEY_CLASSES_ROOT\\{ext} /f
     netsh advfirewall firewall delete rule name=\"{app_name} Service\"
@@ -1726,12 +1728,12 @@ fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> String {
     {uninstall_amyuni_idd}
     if exist \"{path}\" rd /s /q \"{path}\"
     if exist \"{start_menu}\" rd /s /q \"{start_menu}\"
-    if exist \"%PUBLIC%\\Desktop\\{app_name}.lnk\" del /f /q \"%PUBLIC%\\Desktop\\{app_name}.lnk\"
-    if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
+    if exist \"%PUBLIC%\\Desktop\\{display_name}.lnk\" del /f /q \"%PUBLIC%\\Desktop\\{display_name}.lnk\"
+    if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\"
     ",
         before_uninstall=get_before_uninstall(kill_self),
         uninstall_amyuni_idd=get_uninstall_amyuni_idd(),
-        app_name = crate::get_app_name(),
+        display_name = crate::get_display_app_name(),
     )
 }
 
@@ -2056,6 +2058,14 @@ pub fn update_install_option(k: &str, v: &str) -> ResultType<()> {
 #[inline]
 pub fn is_win_server() -> bool {
     unsafe { is_windows_server() > 0 }
+}
+
+/// Whether the current Windows session is a remote (RDP) session.
+/// Used to distinguish a normal local desktop from a VPS / VM that is only
+/// reachable through MSTSC, where the headless virtual display is required.
+#[inline]
+pub fn is_remote_session() -> bool {
+    unsafe { GetSystemMetrics(SM_REMOTESESSION) != 0 }
 }
 
 #[inline]
@@ -2946,17 +2956,19 @@ impl Drop for WakeLock {
 pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
     log::info!("Uninstalling service...");
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
+    let display_name = crate::get_display_app_name();
     Config::set_option("stop-service".into(), "Y".into());
     let cmds = format!(
         "
     chcp 65001
     sc stop {app_name}
     sc delete {app_name}
-    if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
+    if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\"
     taskkill /F /IM {broker_exe}
-    taskkill /F /IM {app_name}.exe{filter}
+    taskkill /F /IM {display_name}.exe{filter}
     ",
         app_name = crate::get_app_name(),
+        display_name = crate::get_display_app_name(),
         broker_exe = WIN_TOPMOST_INJECTED_PROCESS_EXE,
     );
     if let Err(err) = run_cmds(cmds, false, "uninstall") {
@@ -2973,6 +2985,7 @@ pub fn install_service() -> bool {
     let _installing = crate::platform::InstallingService::new();
     let (_, _, _, exe) = get_install_info();
     let tmp_path = std::env::temp_dir().to_string_lossy().to_string();
+    let display_name = crate::get_display_app_name();
     let tray_shortcut = get_tray_shortcut(&exe, &tmp_path).unwrap_or_default();
     let filter = format!(" /FI \"PID ne {}\"", get_current_pid());
     Config::set_option("stop-service".into(), "".into());
@@ -2980,14 +2993,14 @@ pub fn install_service() -> bool {
     let cmds = format!(
         "
 chcp 65001
-taskkill /F /IM {app_name}.exe{filter}
+taskkill /F /IM {display_name}.exe{filter}
 cscript \"{tray_shortcut}\"
-copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
+copy /Y \"{tmp_path}\\{display_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
 {import_config}
 {create_service}
 if exist \"{tray_shortcut}\" del /f /q \"{tray_shortcut}\"
     ",
-        app_name = crate::get_app_name(),
+        display_name = crate::get_display_app_name(),
         import_config = get_import_config(&exe),
         create_service = get_create_service(&exe),
     );
@@ -3041,6 +3054,7 @@ fn get_directory_size_kb(path: &str) -> u64 {
 
 pub fn update_me(debug: bool) -> ResultType<()> {
     let app_name = crate::get_app_name();
+    let display_name = crate::get_display_app_name();
     let src_exe = std::env::current_exe()?.to_string_lossy().to_string();
     let (subkey, path, _, exe) = get_install_info();
     let is_installed = std::fs::metadata(&exe).is_ok();
@@ -3048,7 +3062,7 @@ pub fn update_me(debug: bool) -> ResultType<()> {
         bail!("{} is not installed.", &app_name);
     }
 
-    let app_exe_name = &format!("{}.exe", &app_name);
+    let app_exe_name = &format!("{}.exe", &display_name);
     let main_window_pids =
         crate::platform::get_pids_of_process_with_args::<_, &str>(&app_exe_name, &[]);
     let main_window_sessions = main_window_pids
@@ -3184,7 +3198,7 @@ reg add {subkey} /f /v EstimatedSize /t REG_DWORD /d {size}
         "
 chcp 65001
 sc stop {app_name}
-taskkill /F /IM {app_name}.exe{filter}
+taskkill /F /IM {display_name}.exe{filter}
 {reg_cmd}
 {copy_exe}
 {rename_exe}
@@ -3195,6 +3209,7 @@ taskkill /F /IM {app_name}.exe{filter}
 {sleep}
     ",
         app_name = app_name,
+        display_name = display_name,
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
         rename_exe = rename_exe_cmd(&src_exe, &path)?,
         remove_meta_toml = remove_meta_toml_cmd(is_msi.unwrap_or(true), &path),
@@ -3453,7 +3468,7 @@ Set oLink = oWS.CreateShortcut(sLinkFile)
     {shortcut_icon_location}
 oLink.Save
         ",
-            app_name = crate::get_app_name(),
+            app_name = crate::get_display_app_name(),
         ),
         "vbs",
         "tray_shortcut",
@@ -3488,7 +3503,7 @@ fn get_create_service(exe: &str) -> String {
     if stop {
         format!("
 if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
-", app_name = crate::get_app_name())
+", app_name = crate::get_display_app_name())
     } else {
         format!("
 sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{app_name} Service\"
@@ -3526,8 +3541,8 @@ pub fn try_remove_temp_update_files() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                // Match files like luoda-*.msi or luoda-*.exe
-                if file_name.starts_with("luoda-")
+                // Match files like LDesk-*.msi or LDesk-*.exe
+                if (file_name.starts_with("LDesk-") || file_name.starts_with("luoda-"))
                     && (file_name.ends_with(".msi") || file_name.ends_with(".exe"))
                 {
                     // Skip files modified within the last hour to avoid deleting files being downloaded
@@ -3734,7 +3749,8 @@ pub fn is_x64() -> bool {
 pub fn try_kill_luoda_main_window_process() -> ResultType<()> {
     // Kill luoda.exe without extra arg, should only be called by --server
     // We can find the exact process which occupies the ipc, see more from https://github.com/winsiderss/systeminformer
-    let app_name = crate::get_app_name().to_lowercase();
+    let app_name = crate::get_display_app_name().to_lowercase();
+    let legacy_name = crate::get_app_name().to_lowercase();
     log::info!("try kill main window process");
     use hbb_common::sysinfo::System;
     let mut sys = System::new();
@@ -3750,7 +3766,11 @@ pub fn try_kill_luoda_main_window_process() -> ResultType<()> {
     for (_, p) in sys.processes().iter() {
         let p_name = p.name().to_lowercase();
         // name equal
-        if !(p_name == app_name || p_name == app_name.clone() + ".exe") {
+        if !(p_name == app_name
+            || p_name == app_name.clone() + ".exe"
+            || p_name == legacy_name
+            || p_name == legacy_name.clone() + ".exe")
+        {
             continue;
         }
         // arg more than 1

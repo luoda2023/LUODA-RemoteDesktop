@@ -1,8 +1,8 @@
-name: Build LUODA Windows EXE
+name: Build LDesk Windows EXE
 on:
   workflow_dispatch:
   push:
-    branches: [master, v2.0.0, v2.0.1, 2.1.1]
+    branches: [master, v2.0.0, v2.0.1, v2.0.1-track, 2.1.1]
     paths:
       - 'build.rs'
       - 'src/**'
@@ -36,9 +36,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
-          echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
-          echo "Version: $LUODA_VERSION"
+          LDESK_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
+          echo "LDESK_VERSION=$LDESK_VERSION" >> $GITHUB_ENV
+          echo "Version: $LDESK_VERSION"
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -146,7 +146,7 @@ jobs:
           cd flutter
           flutter clean
           flutter build windows --release
-      - name: Sign executable with LUODA icon
+      - name: Sign executable with LDesk icon
         shell: bash
         run: |
           choco install rcedit -y
@@ -155,7 +155,7 @@ jobs:
             rcedit "target/i686-pc-windows-msvc/release/service.exe" --set-icon "res/icon.ico" || true
             rcedit "target/i686-pc-windows-msvc/release/naming.exe" --set-icon "res/icon.ico" || true
           else
-            rcedit "flutter/build/windows/x64/runner/Release/luoda.exe" --set-icon "res/icon.ico"
+            rcedit "flutter/build/windows/x64/runner/Release/LDesk.exe" --set-icon "res/icon.ico"
           fi
       - name: Build portable packer
         timeout-minutes: 15
@@ -165,10 +165,10 @@ jobs:
             RUST_TARGET="i686-pc-windows-msvc"
             mkdir -p SignOutput
             if [ -f "target/${RUST_TARGET}/release/service.exe" ]; then
-              cp "target/${RUST_TARGET}/release/service.exe" SignOutput/LUODA-service-x86.exe
+              cp "target/${RUST_TARGET}/release/service.exe" SignOutput/LDesk-service-x86.exe
             fi
             if [ -f "target/${RUST_TARGET}/release/naming.exe" ]; then
-              cp "target/${RUST_TARGET}/release/naming.exe" SignOutput/LUODA-naming-x86.exe
+              cp "target/${RUST_TARGET}/release/naming.exe" SignOutput/LDesk-naming-x86.exe
             fi
             echo "=== x86 CLI executables ==="
             ls -la SignOutput/
@@ -209,22 +209,22 @@ jobs:
             ls -la Release/
             pip3 install brotli
             cd libs/portable
-            python3 generate.py -f ../../Release/ -o . -e ../../Release/luoda.exe
+            python3 generate.py -f ../../Release/ -o . -e ../../Release/LDesk.exe
             cd ../..
             cd libs/portable
             cargo build --release
             cd ../..
             mkdir -p SignOutput
-            cp target/release/luoda-portable-packer.exe SignOutput/LUODA-portable-x64.exe
-            cp target/release/luoda-portable-packer.exe SignOutput/LUODA-install.exe
-            7z a -tzip SignOutput/LUODA-service-x64.zip ./Release/*
+            cp target/release/luoda-portable-packer.exe SignOutput/LDesk-portable-x64.exe
+            cp target/release/luoda-portable-packer.exe SignOutput/LDesk-install.exe
+            7z a -tzip SignOutput/LDesk-service-x64.zip ./Release/*
             echo "=== Final Windows EXEs ==="
-            ls -la SignOutput/LUODA-portable-x64.exe SignOutput/LUODA-install.exe SignOutput/LUODA-service-x64.zip
+            ls -la SignOutput/LDesk-portable-x64.exe SignOutput/LDesk-install.exe SignOutput/LDesk-service-x64.zip
           fi
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LUODA-Portable-${{ matrix.arch }}
+          name: LDesk-Portable-${{ matrix.arch }}
           path: SignOutput/
       - name: Upload runtime logs (always)
         if: always()
@@ -238,8 +238,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v${{ env.LUODA_VERSION }}
+          tag_name: v${{ env.LDESK_VERSION }}
           files: |
-            SignOutput/LUODA-portable-x64.exe
-            SignOutput/LUODA-install.exe
-            SignOutput/LUODA-service-x64.zip
+            SignOutput/LDesk-portable-x64.exe
+            SignOutput/LDesk-install.exe
+            SignOutput/LDesk-service-x64.zip

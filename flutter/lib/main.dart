@@ -218,6 +218,9 @@ void runMainApp(bool startService) async {
 void runMobileApp() async {
   await initEnv(kAppTypeMain);
   // checkUpdate(); // disabled: no auto update
+  // Refresh direct-connect info (LAN/public IP + direct port) on mobile startup,
+  // so the mobile host can be reached directly like desktop peers.
+  await bind.mainCheckConnectStatus();
   if (isAndroid) androidChannelInit();
   if (isAndroid) platformFFI.syncAndroidServiceAppDirConfigPath();
   draggablePositions.load();

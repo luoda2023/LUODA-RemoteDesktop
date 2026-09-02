@@ -59,41 +59,41 @@ impl WsFramedStream {
         }
     }
 
-async fn connect(
- url: &str,
- ms_timeout: u64,
-) -> ResultType<WebSocketStream<MaybeTlsStream<TcpStream>>> {
- // to-do: websocket proxy.
+    async fn connect(
+        url: &str,
+        ms_timeout: u64,
+    ) -> ResultType<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+        // to-do: websocket proxy.
 
- // Plain ws:// URLs do not use TLS — skip the TLS type cache and
- // connector entirely so we don't attempt a TLS handshake on a
- // non-TLS port (e.g. hbbs WebSocket on 21118).
- if url.starts_with("ws://") {
- return Self::try_connect(
- url,
- ms_timeout,
- TlsType::Plain,
- true,
- Some(false),
- Some(false),
- )
- .await;
- }
+        // Plain ws:// URLs do not use TLS — skip the TLS type cache and
+        // connector entirely so we don't attempt a TLS handshake on a
+        // non-TLS port (e.g. hbbs WebSocket on 21118).
+        if url.starts_with("ws://") {
+            return Self::try_connect(
+                url,
+                ms_timeout,
+                TlsType::Plain,
+                true,
+                Some(false),
+                Some(false),
+            )
+            .await;
+        }
 
- let tls_type = get_cached_tls_type(url);
- let is_tls_type_cached = tls_type.is_some();
- let tls_type = tls_type.unwrap_or(TlsType::Rustls);
- let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(&url);
- Self::try_connect(
- url,
- ms_timeout,
- tls_type,
- is_tls_type_cached,
- danger_accept_invalid_cert,
- danger_accept_invalid_cert,
- )
- .await
-}
+        let tls_type = get_cached_tls_type(url);
+        let is_tls_type_cached = tls_type.is_some();
+        let tls_type = tls_type.unwrap_or(TlsType::Rustls);
+        let danger_accept_invalid_cert = get_cached_tls_accept_invalid_cert(&url);
+        Self::try_connect(
+            url,
+            ms_timeout,
+            tls_type,
+            is_tls_type_cached,
+            danger_accept_invalid_cert,
+            danger_accept_invalid_cert,
+        )
+        .await
+    }
 
     #[async_recursion]
     async fn try_connect(
@@ -111,72 +111,72 @@ async fn connect(
             .map_err(|e| Error::new(ErrorKind::Other, e))?;
         let connector =
             Self::get_connector(&tls_type, danger_accept_invalid_cert.unwrap_or(false))?;
- match timeout(
- Duration::from_millis(ms_timeout),
- connect_async_tls_with_config(request, ws_config, disable_nagle, connector),
- )
- .await
- {
- Ok(Ok((ws_stream, _))) => {
- upsert_tls_cache(url, tls_type, danger_accept_invalid_cert.unwrap_or(false));
- Ok(ws_stream)
- }
- Ok(Err(e)) => {
- let should_retry_with_danger = danger_accept_invalid_cert.is_none()
- || (danger_accept_invalid_cert == Some(false)
- && original_danger_accept_invalid_certs.is_none());
- if should_retry_with_danger {
- log::warn!(
+        match timeout(
+            Duration::from_millis(ms_timeout),
+            connect_async_tls_with_config(request, ws_config, disable_nagle, connector),
+        )
+        .await
+        {
+            Ok(Ok((ws_stream, _))) => {
+                upsert_tls_cache(url, tls_type, danger_accept_invalid_cert.unwrap_or(false));
+                Ok(ws_stream)
+            }
+            Ok(Err(e)) => {
+                let should_retry_with_danger = danger_accept_invalid_cert.is_none()
+                    || (danger_accept_invalid_cert == Some(false)
+                        && original_danger_accept_invalid_certs.is_none());
+                if should_retry_with_danger {
+                    log::warn!(
  "WebSocket connection with {:?}-tls failed, retry accepting invalid certs: {}, {:?}",
  tls_type,
  url,
  e
  );
- Self::try_connect(
- url,
- ms_timeout,
- tls_type,
- is_tls_type_cached,
- Some(true),
- original_danger_accept_invalid_certs,
- )
- .await
- } else {
- log::error!(
- "WebSocket connection failed with tls_type {:?}: {}, {:?}",
- tls_type,
- url,
- e
- );
- bail!(e)
- }
- }
- Err(elapsed) => {
- let should_retry_with_danger = danger_accept_invalid_cert.is_none()
- || (danger_accept_invalid_cert == Some(false)
- && original_danger_accept_invalid_certs.is_none());
- if should_retry_with_danger {
- log::warn!(
- "WebSocket connection timed out, retry accepting invalid certs: {}",
- url
- );
- Self::try_connect(
- url,
- ms_timeout,
- tls_type,
- is_tls_type_cached,
- Some(true),
- original_danger_accept_invalid_certs,
- )
- .await
- } else {
- bail!("WebSocket connection timed out: {}, {:?}", url, elapsed)
- }
- }
- }
-}
+                    Self::try_connect(
+                        url,
+                        ms_timeout,
+                        tls_type,
+                        is_tls_type_cached,
+                        Some(true),
+                        original_danger_accept_invalid_certs,
+                    )
+                    .await
+                } else {
+                    log::error!(
+                        "WebSocket connection failed with tls_type {:?}: {}, {:?}",
+                        tls_type,
+                        url,
+                        e
+                    );
+                    bail!(e)
+                }
+            }
+            Err(elapsed) => {
+                let should_retry_with_danger = danger_accept_invalid_cert.is_none()
+                    || (danger_accept_invalid_cert == Some(false)
+                        && original_danger_accept_invalid_certs.is_none());
+                if should_retry_with_danger {
+                    log::warn!(
+                        "WebSocket connection timed out, retry accepting invalid certs: {}",
+                        url
+                    );
+                    Self::try_connect(
+                        url,
+                        ms_timeout,
+                        tls_type,
+                        is_tls_type_cached,
+                        Some(true),
+                        original_danger_accept_invalid_certs,
+                    )
+                    .await
+                } else {
+                    bail!("WebSocket connection timed out: {}, {:?}", url, elapsed)
+                }
+            }
+        }
+    }
 
-pub async fn new<T: AsRef<str>>(
+    pub async fn new<T: AsRef<str>>(
         url: T,
         _local_addr: Option<SocketAddr>,
         _proxy_conf: Option<&Socks5Server>,
@@ -374,54 +374,54 @@ pub fn check_ws(endpoint: &str) -> String {
         (true, endpoint_port + 2)
     };
 
- let endpoint_host = endpoint_host.trim_end_matches('.');
- let is_public_server = RENDEZVOUS_SERVERS.iter().any(|server| {
- let server_host = split_host_port(server)
- .map(|(host, _)| host)
- .unwrap_or_else(|| (*server).to_owned());
- endpoint_host.eq_ignore_ascii_case(server_host.trim_end_matches('.'))
- });
+    let endpoint_host = endpoint_host.trim_end_matches('.');
+    let is_public_server = RENDEZVOUS_SERVERS.iter().any(|server| {
+        let server_host = split_host_port(server)
+            .map(|(host, _)| host)
+            .unwrap_or_else(|| (*server).to_owned());
+        endpoint_host.eq_ignore_ascii_case(server_host.trim_end_matches('.'))
+    }); // For public servers (the built-in RENDEZVOUS_SERVERS list), prefer the
+        // nginx/caddy reverse-proxy on port 443 (wss://) so that mobile clients
+        // on carrier networks (4G/5G) that block non-standard ports (21116-21119)
+        // can still reach hbbs/hbbr.  This requires nginx on the server to proxy
+        // /ws/id  -> hbbs:21118  and  /ws/relay -> hbbr:21119.
+    if is_public_server {
+        let domain_path = if relay { "/ws/relay" } else { "/ws/id" };
+        let address = format!("{}{}", endpoint_host, domain_path);
+        // Always use wss:// (port 443) for public servers — the nginx
+        // reverse proxy terminates TLS and forwards to hbbs/hbbr.
+        let websocket_url = format!("wss://{}", address);
+        log::debug!(
+            "WebSocket endpoint selected (public server, wss 443): {} -> {}",
+            endpoint,
+            websocket_url
+        );
+        return websocket_url;
+    }
 
- // For public servers, connect directly to the native WebSocket port
- // (21118 for rendezvous, 21119 for relay) using plain ws://.
- // The hbbs/hbbr WebSocket servers on these ports do not use TLS —
- // they rely on the application-layer key exchange (secure_tcp) for
- // encryption.  This avoids dependency on the nginx reverse-proxy on
- // port 443, which can fail with 502 Bad Gateway if the nginx upstream
- // config is broken or the TLS certificate has expired.
- if is_public_server {
- let websocket_url = format!("ws://{}:{}", endpoint_host, dst_port);
- log::debug!(
- "WebSocket endpoint selected (public server, ws native port): {} -> {}",
- endpoint,
- websocket_url
- );
- return websocket_url;
- }
-
- let (address, is_domain) = if crate::is_ip_str(endpoint) {
- (format!("{}:{}", endpoint_host, dst_port), false)
- } else {
- let domain_path = if relay { "/ws/relay" } else { "/ws/id" };
- (format!("{}{}", endpoint_host, domain_path), true)
- };
- let protocol = if is_domain {
- let api_server = Config::get_option("api-server");
- if api_server.starts_with("https://") {
- "wss"
- } else {
- "ws"
- }
- } else {
- "ws"
- };
- let websocket_url = format!("{}://{}", protocol, address);
- log::debug!(
- "WebSocket endpoint selected: {} -> {}",
- endpoint,
- websocket_url
- );
- websocket_url
+    let (address, is_domain) = if crate::is_ip_str(endpoint) {
+        (format!("{}:{}", endpoint_host, dst_port), false)
+    } else {
+        let domain_path = if relay { "/ws/relay" } else { "/ws/id" };
+        (format!("{}{}", endpoint_host, domain_path), true)
+    };
+    let protocol = if is_domain {
+        let api_server = Config::get_option("api-server");
+        if api_server.starts_with("https://") {
+            "wss"
+        } else {
+            "ws"
+        }
+    } else {
+        "ws"
+    };
+    let websocket_url = format!("{}://{}", protocol, address);
+    log::debug!(
+        "WebSocket endpoint selected: {} -> {}",
+        endpoint,
+        websocket_url
+    );
+    websocket_url
 }
 
 #[cfg(test)]
@@ -457,29 +457,30 @@ mod tests {
         }
     }
 
- #[test]
- fn public_server_uses_direct_websocket_ports() {
- let _lock = CONFIG_TEST_LOCK
- .lock()
- .unwrap_or_else(|err| err.into_inner());
- let _snapshot = OptionSnapshot::capture();
+    #[test]
+    fn public_server_uses_direct_websocket_ports() {
+        let _lock = CONFIG_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        let _snapshot = OptionSnapshot::capture();
 
-	Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), "Y".to_owned());
-	Config::set_option("custom-rendezvous-server".to_owned(), "".to_owned());
-	Config::set_option("relay-server".to_owned(), "".to_owned());
-	Config::set_option("api-server".to_owned(), "http://rev.dicad.cn".to_owned());
+        Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), "Y".to_owned());
+        Config::set_option("custom-rendezvous-server".to_owned(), "".to_owned());
+        Config::set_option("relay-server".to_owned(), "".to_owned());
+        Config::set_option("api-server".to_owned(), "http://rev.dicad.cn".to_owned());
 
-	// Public servers connect directly to native WS ports (21118/21119)
-	// using plain ws://, bypassing the nginx 443 reverse proxy.
-	assert_eq!(check_ws("rev.dicad.cn:21116"), "ws://rev.dicad.cn:21118");
-	assert_eq!(
-	check_ws("rev.dicad.cn:21117"),
-	"ws://rev.dicad.cn:21119"
-	);
+        // Public servers connect through nginx on port 443 (wss://) so that
+        // mobile clients on carrier networks (4G/5G) can reach hbbs/hbbr even
+        // when ports 21116-21119 are blocked.
+        assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
+        assert_eq!(
+            check_ws("rev.dicad.cn:21117"),
+            "wss://rev.dicad.cn/ws/relay"
+        );
 
-	Config::set_option("api-server".to_owned(), "".to_owned());
-	assert_eq!(check_ws("rev.dicad.cn:21116"), "ws://rev.dicad.cn:21118");
- }
+        Config::set_option("api-server".to_owned(), "".to_owned());
+        assert_eq!(check_ws("rev.dicad.cn:21116"), "wss://rev.dicad.cn/ws/id");
+    }
 
     #[test]
     fn test_check_ws() {
@@ -522,10 +523,7 @@ mod tests {
         );
         assert_eq!(check_ws("luoda.com:21115"), "wss://luoda.com/ws/id");
         assert_eq!(check_ws("luoda.com:21116"), "wss://luoda.com/ws/id");
-        assert_eq!(
-            check_ws("luoda.com:21117"),
-            "wss://luoda.com/ws/relay"
-        );
+        assert_eq!(check_ws("luoda.com:21117"), "wss://luoda.com/ws/relay");
         // set relay-server with default port
         Config::set_option("relay-server".to_string(), "127.0.0.1:21117".to_string());
         assert_eq!(check_ws("127.0.0.1:21115"), "ws://127.0.0.1:21118");
@@ -535,10 +533,7 @@ mod tests {
         Config::set_option("relay-server".to_string(), "127.0.0.1:34567".to_string());
         assert_eq!(check_ws("luoda.com:21115"), "wss://luoda.com/ws/id");
         assert_eq!(check_ws("luoda.com:21116"), "wss://luoda.com/ws/id");
-        assert_eq!(
-            check_ws("luoda.com:34567"),
-            "wss://luoda.com/ws/relay"
-        );
+        assert_eq!(check_ws("luoda.com:34567"), "wss://luoda.com/ws/relay");
 
         // set custom-rendezvous-server without port
         Config::set_option(

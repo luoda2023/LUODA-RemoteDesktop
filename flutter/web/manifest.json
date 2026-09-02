@@ -1,11 +1,11 @@
 {
-    "name": "LUODA Remote Desktop",
-    "short_name": "LUODA",
+    "name": "LDesk Remote Desktop",
+    "short_name": "LDesk",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "LUODA Remote Desktop - Web Client",
+    "background_color": "#165D9F",
+    "theme_color": "#165D9F",
+    "description": "LDesk Remote Desktop - Web Client",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

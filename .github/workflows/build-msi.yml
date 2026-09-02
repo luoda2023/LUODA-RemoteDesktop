@@ -5,7 +5,7 @@ permissions:
   deployments: write
   packages: read
 
-name: Build LUODA Windows MSI
+name: Build LDesk Windows MSI
 
 on:
   workflow_dispatch:
@@ -37,9 +37,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
-          echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
-          echo "Version: $LUODA_VERSION"
+          LDESK_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
+          echo "LDESK_VERSION=$LDESK_VERSION" >> $GITHUB_ENV
+          echo "Version: $LDESK_VERSION"
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -167,7 +167,7 @@ jobs:
         shell: cmd
         run: |
           cd res\msi
-          python preprocess.py -m LUODA
+          python preprocess.py -m LDesk --app-name LDesk
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -221,14 +221,14 @@ jobs:
       - name: Upload MSI
         uses: actions/upload-artifact@v4
         with:
-          name: LUODA-MSI
+          name: LDesk-MSI
           path: res/msi/dist/*.msi
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v${{ env.LUODA_VERSION }}
+          tag_name: v${{ env.LDESK_VERSION }}
           files: res/msi/dist/*.msi
       - name: Upload runtime logs (always)
         if: always()
@@ -237,8 +237,6 @@ jobs:
           name: runtime-logs-msi
           path: .auto_build_logs/
           if-no-files-found: ignore
-
-
 
 
 

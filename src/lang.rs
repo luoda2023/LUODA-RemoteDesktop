@@ -181,30 +181,30 @@ pub fn translate_locale(name: String, locale: &str) -> String {
         if let Some(value) = placeholder_value.as_ref() {
             s = s.replace("{}", &value);
         }
-        if !crate::is_luoda() {
-            if s.contains("LUODA")
-                && !name.starts_with("upgrade_luoda_server_pro")
-                && name != "powered_by_me"
-            {
-                let app_name = crate::get_app_name();
-                if !app_name.contains("LUODA") {
+        // 默认品牌显示名改为 LDesk：翻译文案里的 "LUODA" 统一替换为显示名；
+        // OEM 定制客户端（APP_NAME 被覆盖）仍替换为定制名。
+        if s.contains("LUODA")
+            && !name.starts_with("upgrade_luoda_server_pro")
+            && name != "powered_by_me"
+        {
+            let app_name = crate::get_display_app_name();
+            if !app_name.contains("LUODA") {
+                s = s.replace("LUODA", &app_name);
+            } else {
+                // https://github.com/luoda/luoda-server-pro/issues/845
+                // If app_name contains "LUODA" (e.g., "LUODA-Admin"), we need to avoid
+                // replacing "LUODA" within the already-substituted app_name, which would
+                // cause duplication like "LUODA-Admin" -> "LUODA-Admin-Admin".
+                //
+                // app_name only contains alphanumeric and hyphen.
+                const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
+                if !s.contains(PLACEHOLDER) {
+                    s = s.replace(&app_name, PLACEHOLDER);
                     s = s.replace("LUODA", &app_name);
+                    s = s.replace(PLACEHOLDER, &app_name);
                 } else {
-                    // https://github.com/luoda/luoda-server-pro/issues/845
-                    // If app_name contains "LUODA" (e.g., "LUODA-Admin"), we need to avoid
-                    // replacing "LUODA" within the already-substituted app_name, which would
-                    // cause duplication like "LUODA-Admin" -> "LUODA-Admin-Admin".
-                    //
-                    // app_name only contains alphanumeric and hyphen.
-                    const PLACEHOLDER: &str = "#A-P-P-N-A-M-E#";
-                    if !s.contains(PLACEHOLDER) {
-                        s = s.replace(&app_name, PLACEHOLDER);
-                        s = s.replace("LUODA", &app_name);
-                        s = s.replace(PLACEHOLDER, &app_name);
-                    } else {
-                        // It's very unlikely to reach here.
-                        // Skip replacement to avoid incorrect result.
-                    }
+                    // It's very unlikely to reach here.
+                    // Skip replacement to avoid incorrect result.
                 }
             }
         }

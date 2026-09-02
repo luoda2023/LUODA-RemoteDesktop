@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto-backup second layer for the first-run authorization SharedPreferences
+  (KEY_SHARED_PREFERENCES.xml). The primary cross-reinstall mechanism is the
+  public-storage marker under Documents/LDesk/, which lives outside app data;
+  this rules file additionally lets OEM backup transports restore the
+  "already authorized" flag on reinstall / device migration.
+
+  Keep this minimal: lint (lintVitalRelease) requires every <exclude> to
+  reference an <include>d path, so no excludes are declared here.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="KEY_SHARED_PREFERENCES.xml" />
+</full-backup-content>

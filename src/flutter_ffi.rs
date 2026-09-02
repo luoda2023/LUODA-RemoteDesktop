@@ -44,6 +44,7 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
     {
         *config::APP_DIR.write().unwrap() = app_dir.to_owned();
     }
+    config::restore_peer_history();
     // core_main's load_custom_client does not work for flutter since it is only applied to its load_library in main.c
     if custom_client_config.is_empty() {
         crate::load_custom_client();
@@ -104,6 +105,11 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 log::info!("Setting default approve-mode=password");
                 config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
             }
+            // LUODA 定制版: 强制 approve-mode=password,手机端不弹二次确认
+            if config::Config::get_option(keys::OPTION_APPROVE_MODE) != "password" {
+                log::info!("Force enabling approve-mode=password for LUODA custom build");
+                config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
+            }
             if config::Config::get_option(keys::OPTION_ENABLE_KEYBOARD).is_empty() {
                 log::info!("Setting default enable-keyboard=Y");
                 config::Config::set_option(keys::OPTION_ENABLE_KEYBOARD.to_string(), "Y".to_string());
@@ -117,6 +123,18 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
             if config::Config::get_option(keys::OPTION_DIRECT_SERVER) != "Y" {
                 log::info!("Force enabling direct-server for LUODA custom build");
                 config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
+            }
+
+            // LUODA: 默认启用 D3D 渲染、UDP 打洞、IPv6 P2P（后台一次性设置，用户无需再配置）
+            for (k, label) in [
+                (keys::OPTION_ALLOW_D3D_RENDER, "allow-d3d-render"),
+                (keys::OPTION_ENABLE_UDP_PUNCH, "enable-udp-punch"),
+                (keys::OPTION_ENABLE_IPV6_PUNCH, "enable-ipv6-punch"),
+            ] {
+                if config::Config::get_option(k).is_empty() {
+                    log::info!("flutter_ffi: setting default {}=Y", label);
+                    config::Config::set_option(k.to_string(), "Y".to_string());
+                }
             }
 
             // Remove the old forced high-load defaults without overwriting
@@ -1098,11 +1116,11 @@ pub fn main_get_socks() -> Vec<String> {
 }
 
 pub fn main_get_app_name() -> String {
-    get_app_name()
+    crate::get_display_app_name()
 }
 
 pub fn main_get_app_name_sync() -> SyncReturn<String> {
-    SyncReturn(get_app_name())
+    SyncReturn(crate::get_display_app_name())
 }
 
 pub fn main_uri_prefix_sync() -> SyncReturn<String> {
@@ -1169,12 +1187,10 @@ pub fn main_get_connect_status() -> String {
 pub fn main_check_connect_status() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     start_option_status_sync(); // avoid multi calls
-    // Pre-generate direct-access-port upfront so Flutter UI can display it immediately
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        let port = crate::rendezvous_mediator::ensure_direct_port();
-        crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
-    }
+    // Pre-generate direct-access-port upfront so Flutter UI can display it immediately.
+    // Runs on desktop and mobile so the mobile host also knows/shows its direct port.
+    let port = crate::rendezvous_mediator::ensure_direct_port();
+    crate::ui_interface::set_option("direct-access-port".to_owned(), port.to_string());
     // Get the LAN IP.
     // 优先级（依次）：
     //   1) 网卡上 192.168.x.x 的 IPv4 地址（家用/小型办公网络最常见）
@@ -1185,7 +1201,6 @@ pub fn main_check_connect_status() {
     // 必须用 default-net crate 枚举所有网卡，UDP connect 法只能拿默认路由
     // 出口 IP，多网卡/VPN 环境下会拿错（例如真实网卡是 192.168.x.x 但默认路由
     // 走的是 10.x.x.x 网卡，UDP connect 法返回的就只能是 10.x.x.x）。
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         // 用 direct_access 模块智能选择内网IP：
         // 1. 枚举所有网卡，避开VPN/WSL/Docker/Hyper-V等虚拟网卡
@@ -1239,8 +1254,8 @@ pub fn main_check_connect_status() {
             }
         }
     }
-    // Fetch public IP via HTTP first (most reliable), fallback to STUN
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    // Fetch public IP via HTTP first (most reliable), fallback to STUN.
+    // Also runs on mobile so the mobile host can be reached directly by public IP.
     std::thread::spawn(|| {
         // Try HTTP services first (returns same IP for all machines behind same NAT)
         let http_sources = [
@@ -1593,6 +1608,7 @@ pub fn main_load_recent_peers() {
     };
 
     if !config::APP_DIR.read().unwrap().is_empty() {
+        config::restore_peer_history();
         let vec_id_modified_time_path = PeerConfig::get_vec_id_modified_time_path(&None);
         if vec_id_modified_time_path.is_empty() {
             push_to_flutter("".to_owned(), None);
@@ -2197,6 +2213,12 @@ pub fn session_send_mouse(session_id: SessionID, msg: String) {
 pub fn session_restart_remote_device(session_id: SessionID) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.restart_remote_device();
+    }
+}
+
+pub fn session_shutdown_remote_device(session_id: SessionID) {
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        session.shutdown_remote_device();
     }
 }
 
@@ -3086,8 +3108,9 @@ pub fn main_get_common(key: String) -> String {
                 crate::platform::windows::is_msi_installed(),
                 crate::common::is_custom_client(),
             ) {
-                (Ok(true), false) => format!("luoda-{_version}-x86_64.msi"),
-                (Ok(true), true) | (Ok(false), _) => format!("luoda-{_version}-x86_64.exe"),
+                (Ok(true), false) => "LDesk-Setup.msi".to_owned(),
+                (Ok(true), true) => "LDesk-Client-x64.exe".to_owned(),
+                (Ok(false), false) | (Ok(false), true) => "LDesk-portable-x64.exe".to_owned(),
                 (Err(e), _) => {
                     log::error!("Failed to check if is msi: {}", e);
                     format!("error:update-failed-check-msi-tip")
@@ -3096,9 +3119,9 @@ pub fn main_get_common(key: String) -> String {
             #[cfg(target_os = "macos")]
             {
                 return if cfg!(target_arch = "x86_64") {
-                    format!("luoda-{_version}-x86_64.dmg")
+                    format!("LDesk-{_version}-x86_64.dmg")
                 } else if cfg!(target_arch = "aarch64") {
-                    format!("luoda-{_version}-aarch64.dmg")
+                    format!("LDesk-{_version}-aarch64.dmg")
                 } else {
                     "error:unsupported".to_owned()
                 };

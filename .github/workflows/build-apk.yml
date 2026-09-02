@@ -5,12 +5,12 @@ permissions:
   deployments: write
   packages: read
 
-name: Build LUODA Android APK
+name: Build LDesk Android APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [master,v2.0.0,v2.0.1,v2.1.1]
+    branches: [master,v2.0.0,v2.0.1,v2.0.1-track,v2.1.1]
     paths:
       - 'build.rs'
       - 'src/**'
@@ -39,9 +39,9 @@ jobs:
         id: version
         shell: bash
         run: |
-          LUODA_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
-          echo "LUODA_VERSION=$LUODA_VERSION" >> $GITHUB_ENV
-          echo "Version: $LUODA_VERSION"
+          LDESK_VERSION=$(grep '^version' Cargo.toml | head -1 | awk -F'"' '{print $2}')
+          echo "LDESK_VERSION=$LDESK_VERSION" >> $GITHUB_ENV
+          echo "Version: $LDESK_VERSION"
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -428,11 +428,11 @@ jobs:
           for apk in "${apks[@]}"; do
             name="$(basename "$apk")"
             case "$name" in
-              app-release.apk) out="LUODA-universal.apk" ;;
-              app-armeabi-v7a-release.apk) out="LUODA-armeabi-v7a.apk" ;;
-              app-arm64-v8a-release.apk) out="LUODA-arm64-v8a.apk" ;;
-              app-x86_64-release.apk) out="LUODA-x86_64.apk" ;;
-              *) out="LUODA-${name#app-}" ;;
+              app-release.apk) out="LDesk-universal.apk" ;;
+              app-armeabi-v7a-release.apk) out="LDesk-armeabi-v7a.apk" ;;
+              app-arm64-v8a-release.apk) out="LDesk-arm64-v8a.apk" ;;
+              app-x86_64-release.apk) out="LDesk-x86_64.apk" ;;
+              *) out="LDesk-${name#app-}" ;;
             esac
             cp "$apk" "$DIST_DIR/$out"
           done
@@ -462,12 +462,12 @@ jobs:
            if [ -n "$missing" ]; then exit 1; fi
            }
 
-          verify_native_lib "$DIST_DIR/LUODA-armeabi-v7a.apk" "armeabi-v7a"
-          verify_native_lib "$DIST_DIR/LUODA-arm64-v8a.apk" "arm64-v8a"
-          verify_native_lib "$DIST_DIR/LUODA-x86_64.apk" "x86_64"
-          verify_native_lib "$DIST_DIR/LUODA-universal.apk" "armeabi-v7a"
-          verify_native_lib "$DIST_DIR/LUODA-universal.apk" "arm64-v8a"
-          verify_native_lib "$DIST_DIR/LUODA-universal.apk" "x86_64"
+          verify_native_lib "$DIST_DIR/LDesk-armeabi-v7a.apk" "armeabi-v7a"
+          verify_native_lib "$DIST_DIR/LDesk-arm64-v8a.apk" "arm64-v8a"
+          verify_native_lib "$DIST_DIR/LDesk-x86_64.apk" "x86_64"
+          verify_native_lib "$DIST_DIR/LDesk-universal.apk" "armeabi-v7a"
+          verify_native_lib "$DIST_DIR/LDesk-universal.apk" "arm64-v8a"
+          verify_native_lib "$DIST_DIR/LDesk-universal.apk" "x86_64"
 
           for apk in "$DIST_DIR"/*.apk; do
             "$APKSIGNER" verify --verbose "$apk"
@@ -477,7 +477,7 @@ jobs:
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: LUODA-APK
+          name: LDesk-APK
           path: flutter/build/app/outputs/dist-apk/*.apk
           if-no-files-found: error
 
@@ -485,7 +485,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           prerelease: false
-          tag_name: v${{ env.LUODA_VERSION }}
+          tag_name: v${{ env.LDESK_VERSION }}
           files: flutter/build/app/outputs/dist-apk/*.apk
       - name: Upload runtime logs (always)
         if: always()

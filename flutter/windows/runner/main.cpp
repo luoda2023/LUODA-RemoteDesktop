@@ -19,9 +19,68 @@ const std::vector<std::string> parameters_white_list = {"--install", "--cm"};
 
 const wchar_t* getWindowClassName();
 
+// Kept alive for the whole process lifetime so the named mutex (and therefore
+// the single-instance guarantee) stays valid until this instance exits.
+static HANDLE g_main_instance_mutex = nullptr;
+
+/// Fallback: the first top-level window of the app class whose title is a
+/// plain main-window title (session / connection-manager windows all carry a
+/// " - " suffix, so they are skipped).
+static BOOL CALLBACK FindMainWindowFallbackProc(HWND hwnd, LPARAM lparam) {
+  wchar_t class_name[256] = {0};
+  wchar_t title[1024] = {0};
+  if (::GetClassNameW(hwnd, class_name, 256) > 0 &&
+      wcscmp(class_name, getWindowClassName()) == 0 &&
+      ::GetWindowTextW(hwnd, title, 1024) > 0 &&
+      wcsstr(title, L" - ") == nullptr) {
+    *reinterpret_cast<HWND*>(lparam) = hwnd;
+    return FALSE;
+  }
+  return TRUE;
+}
+
+static HWND FindMainWindow(const std::wstring& app_name) {
+  HWND hwnd = ::FindWindowW(getWindowClassName(), app_name.c_str());
+  if (hwnd != nullptr) {
+    return hwnd;
+  }
+  HWND fallback = nullptr;
+  ::EnumWindows(FindMainWindowFallbackProc, reinterpret_cast<LPARAM>(&fallback));
+  return fallback;
+}
+
+/// Brings the already-running main window to the foreground, if found.
+static void ActivateExistingMainWindow(const std::wstring& app_name) {
+  HWND hwnd = FindMainWindow(app_name);
+  if (hwnd != nullptr) {
+    ::ShowWindow(hwnd, SW_NORMAL);
+    ::SetForegroundWindow(hwnd);
+  }
+}
+
+/// Enforces "only one main instance". Returns true when another main instance
+/// is already running and this process should exit (after activating it).
+static bool SingleInstanceGuard(const std::wstring& app_name) {
+  std::wstring mutex_name = L"Local\\" + app_name + L"_SingleInstanceMutex";
+  g_main_instance_mutex = ::CreateMutexW(nullptr, FALSE, mutex_name.c_str());
+  if (g_main_instance_mutex != nullptr &&
+      ::GetLastError() == ERROR_ALREADY_EXISTS) {
+    ActivateExistingMainWindow(app_name);
+    return true;
+  }
+  return false;
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command)
 {
+  std::vector<std::string> command_line_arguments =
+      GetCommandLineArguments();
+  // Remove possible trailing whitespace from command line arguments
+  for (auto& argument : command_line_arguments) {
+    argument.erase(argument.find_last_not_of(" \n\r\t"));
+  }
+
   HINSTANCE hInstance = LoadLibraryA("luoda.dll");
   if (!hInstance)
   {
@@ -42,11 +101,29 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     std::cout << "Failed to get free_c_args." << std::endl;
     return EXIT_FAILURE;
   }
-  std::vector<std::string> command_line_arguments =
-      GetCommandLineArguments();
-  // Remove possible trailing whitespace from command line arguments
-  for (auto& argument : command_line_arguments) {
-    argument.erase(argument.find_last_not_of(" \n\r\t"));
+
+  std::wstring app_name = L"LDesk";
+  // Prefer the display name (LDesk). Flutter renames the window title to the
+  // display name in main.dart, so FindWindowW below must look for the same
+  // title or the single-instance check fails and a second instance launches.
+  FUNC_LUODA_GET_APP_NAME get_luoda_app_name = (FUNC_LUODA_GET_APP_NAME)GetProcAddress(hInstance, "get_luoda_display_app_name");
+  if (!get_luoda_app_name) {
+    get_luoda_app_name = (FUNC_LUODA_GET_APP_NAME)GetProcAddress(hInstance, "get_luoda_app_name");
+  }
+  if (get_luoda_app_name) {
+    wchar_t app_name_buffer[512] = {0};
+    if (get_luoda_app_name(app_name_buffer, 512) == 0) {
+      app_name = std::wstring(app_name_buffer);
+    }
+  }
+
+  // Enforce a single main-window instance BEFORE the Rust core runs, so a
+  // second launch (e.g. double-clicking the tray icon or the desktop
+  // shortcut) can never start a second server or create a second tray icon.
+  // Helper invocations that carry arguments (--tray, --server, --cm,
+  // --install, URI links, ...) are not main-window launches and skip this.
+  if (command_line_arguments.empty() && SingleInstanceGuard(app_name)) {
+    return EXIT_FAILURE;
   }
 
   int args_len = 0;
@@ -62,15 +139,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
   std::vector<std::string> rust_args(c_args, c_args + args_len);
   free_c_args(c_args, args_len);
-
-  std::wstring app_name = L"LUODA";
-  FUNC_LUODA_GET_APP_NAME get_luoda_app_name = (FUNC_LUODA_GET_APP_NAME)GetProcAddress(hInstance, "get_luoda_app_name");
-  if (get_luoda_app_name) {
-    wchar_t app_name_buffer[512] = {0};
-    if (get_luoda_app_name(app_name_buffer, 512) == 0) {
-      app_name = std::wstring(app_name_buffer);
-    }
-  }
 
   // Uri links dispatch
   HWND hwnd = ::FindWindowW(getWindowClassName(), app_name.c_str());

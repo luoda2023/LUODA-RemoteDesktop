@@ -108,7 +108,7 @@ lazy_static::lazy_static! {
     static ref ONLINE: Mutex<HashMap<String, i64>> = Default::default();
     pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new("".to_owned());
     pub static ref EXE_RENDEZVOUS_SERVER: RwLock<String> = Default::default();
-    pub static ref APP_NAME: RwLock<String> = RwLock::new("LUODA".to_owned());
+    pub static ref APP_NAME: RwLock<String> = RwLock::new("LDesk".to_owned());
     static ref KEY_PAIR: Mutex<Option<KeyPair>> = Default::default();
     static ref USER_DEFAULT_CONFIG: RwLock<(UserDefaultConfig, Instant)> = RwLock::new((UserDefaultConfig::load(), Instant::now()));
     pub static ref NEW_STORED_PEER_CONFIG: Mutex<HashSet<String>> = Default::default();
@@ -1789,10 +1789,12 @@ impl PeerConfig {
             log::error!("Failed to store config: {}", err);
         }
         NEW_STORED_PEER_CONFIG.lock().unwrap().insert(id.to_owned());
+        backup_peer_history(id);
     }
 
     pub fn remove(id: &str) {
         fs::remove_file(Self::path(id)).ok();
+        remove_peer_history_backup(id);
     }
 
     fn path(id: &str) -> PathBuf {
@@ -2065,6 +2067,125 @@ impl PeerConfig {
         } else {
             Ok(Self::default_edge_scroll_edge_thickness())
         }
+    }
+}
+
+// ---- Visit/browse history backup (survives uninstall) ----
+// The peer .toml files in the peers dir are the "recently visited / favorites"
+// history. On Android they live in the app-private dir and are wiped on
+// uninstall, so we mirror them to a public-storage folder that survives a
+// reinstall, and restore them on a fresh install.
+
+pub fn history_backup_dir() -> Option<PathBuf> {
+    if !cfg!(target_os = "android") {
+        return None;
+    }
+    let opt = LocalConfig::get_option("history-backup-dir");
+    if !opt.is_empty() {
+        return Some(PathBuf::from(opt));
+    }
+    // The Flutter side resolves the *true* public directory (Documents/LDesk)
+    // from Java and stores it in the authorization-base-dir local option;
+    // prefer it here too so backups survive uninstall/reinstall.
+    let base = LocalConfig::get_option("authorization-base-dir");
+    if !base.is_empty() {
+        return Some(PathBuf::from(base).join("history"));
+    }
+    let home = Config::get_home();
+    if home.as_os_str().is_empty() {
+        return None;
+    }
+    Some(home.join("LDesk").join("history"))
+}
+
+pub fn history_backup_enabled() -> bool {
+    LocalConfig::get_option("save-history") != "N"
+}
+
+pub fn backup_peer_history(id: &str) {
+    let Some(dir) = history_backup_dir() else {
+        return;
+    };
+    if !history_backup_enabled() {
+        return;
+    }
+    let src = PeerConfig::path(id);
+    if !src.is_file() {
+        return;
+    }
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let dst = dir.join(src.file_name().unwrap_or_default());
+    if let Err(err) = std::fs::copy(&src, &dst) {
+        log::error!("Failed to back up peer history '{}': {}", id, err);
+        return;
+    }
+    if let Ok(meta) = std::fs::metadata(&src) {
+        if let Ok(t) = meta.modified() {
+            let _ = filetime::set_file_mtime(
+                &dst,
+                filetime::FileTime::from_system_time(t),
+            );
+        }
+    }
+}
+
+pub fn remove_peer_history_backup(id: &str) {
+    let Some(dir) = history_backup_dir() else {
+        return;
+    };
+    let dst = dir.join(PeerConfig::path(id).file_name().unwrap_or_default());
+    let _ = std::fs::remove_file(dst);
+}
+
+pub fn restore_peer_history() {
+    let Some(dir) = history_backup_dir() else {
+        return;
+    };
+    let peers_dir = Config::path(PEERS);
+    let has_local = std::fs::read_dir(&peers_dir)
+        .map(|rd| {
+            rd.filter_map(Result::ok).any(|entry| {
+                entry.path().is_file()
+                    && entry
+                        .path()
+                        .extension()
+                        .map(|ext| ext == "toml")
+                        .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false);
+    if has_local {
+        return;
+    }
+    let Ok(rd) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    let mut restored = 0usize;
+    for entry in rd.flatten() {
+        let p = entry.path();
+        if !p.is_file()
+            || p.extension().map(|ext| ext == "toml").unwrap_or(false) == false
+        {
+            continue;
+        }
+        let _ = std::fs::create_dir_all(&peers_dir);
+        let dst = peers_dir.join(p.file_name().unwrap_or_default());
+        if std::fs::copy(&p, &dst).is_ok() {
+            if let Ok(meta) = std::fs::metadata(&p) {
+                if let Ok(t) = meta.modified() {
+                    let _ = filetime::set_file_mtime(
+                        &dst,
+                        filetime::FileTime::from_system_time(t),
+                    );
+                }
+            }
+            restored += 1;
+        }
+    }
+    if restored > 0 {
+        log::info!("Restored {} peer history file(s) from public storage", restored);
     }
 }
 
@@ -2875,20 +2996,25 @@ pub fn option2bool(option: &str, value: &str) -> bool {
 }
 
 pub fn use_ws() -> bool {
- let option = keys::OPTION_ALLOW_WEBSOCKET;
- let val = Config::get_option(option);
- if val.is_empty() {
- // All platforms default to UDP rendezvous.  The hbbs WebSocket
- // listener (21118) does not respond to RegisterPeer, and the hbbr
- // WebSocket listener (21119) does not complete the relay key
- // handshake, so forcing WebSocket on mobile breaks peer registration
- // and incoming relay connections.  The transport layer falls back to
- // TCP automatically after repeated UDP registration failures.
- false
- } else {
- option2bool(option, &val)
- }
- }
+    let option = keys::OPTION_ALLOW_WEBSOCKET;
+    let val = Config::get_option(option);
+    if val.is_empty() {
+        // On mobile (Android/iOS), carrier networks frequently block
+        // non-standard ports (21116-21119).  Default to WebSocket-over-443
+        // (wss://) which goes through nginx on port 443 and is virtually
+        // always reachable.  Desktop users can still toggle it in settings.
+        // NOTE: The relay connection paths (client.rs::create_relay,
+        // server.rs::create_relay_connection_) now use connect_tcp_local()
+        // to bypass WebSocket, so enabling use_ws() for registration no
+        // longer breaks relay pairing.
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        return true;
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        return false;
+    } else {
+        option2bool(option, &val)
+    }
+}
 
 pub fn allow_insecure_tls_fallback() -> bool {
     let option = keys::OPTION_ALLOW_INSECURE_TLS_FALLBACK;

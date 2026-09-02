@@ -54,7 +54,7 @@ pub enum GrabState {
 pub type NotifyMessageBox = fn(String, String, String, String) -> dyn Future<Output = ()>;
 
 // the executable name of the portable version
-pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "LUODA_APPNAME";
+pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "LDESK_APPNAME";
 
 pub const PLATFORM_WINDOWS: &str = "Windows";
 pub const PLATFORM_LINUX: &str = "Linux";
@@ -567,14 +567,14 @@ pub struct CheckTestNatType {
 impl CheckTestNatType {
     pub fn new() -> Self {
         Self {
-            is_direct: Config::get_socks().is_none() && !config::use_ws(),
+            is_direct: Config::get_socks().is_none(),
         }
     }
 }
 
 impl Drop for CheckTestNatType {
     fn drop(&mut self) {
-        let is_direct = Config::get_socks().is_none() && !config::use_ws();
+        let is_direct = Config::get_socks().is_none();
         if self.is_direct != is_direct {
             test_nat_type();
         }
@@ -593,7 +593,7 @@ pub fn test_nat_type() {
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         crate::ipc::get_socks_ws();
-        let is_direct = Config::get_socks().is_none() && !config::use_ws();
+        let is_direct = Config::get_socks().is_none();
         if !is_direct {
             Config::set_nat_type(NatType::SYMMETRIC as _);
             IS_RUNNING.store(false, Ordering::SeqCst);
@@ -1014,6 +1014,18 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
 #[inline]
 pub fn get_app_name() -> String {
     hbb_common::config::APP_NAME.read().unwrap().clone()
+}
+
+/// 软件显示名：默认品牌显示 "LDesk"；OEM 定制客户端（APP_NAME 被覆盖）保留定制名。
+/// 内部标识（配置路径/IPC/深链 `luoda://`/托盘命令等）仍用 `get_app_name()`。
+#[inline]
+pub fn get_display_app_name() -> String {
+    let name = get_app_name();
+    if name == "LUODA" {
+        "LDesk".to_owned()
+    } else {
+        name
+    }
 }
 
 #[inline]
@@ -2053,13 +2065,21 @@ pub fn prepare_network_config() {
             relay_server
         );
         if invalid_custom {
-            Config::set_option(keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(), String::new());
+            Config::set_option(
+                keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(),
+                String::new(),
+            );
         }
         if invalid_relay {
             Config::set_option(keys::OPTION_RELAY_SERVER.to_owned(), String::new());
         }
-        Config::set_option(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), String::new());
     }
+    // Do NOT clear allow-websocket here.  Mobile devices (4G/5G) need
+    // WebSocket (wss://443) to register with the rendezvous server because
+    // carriers block UDP port 21116.  The relay connection paths have been
+    // fixed to use connect_tcp_local() directly, bypassing WebSocket
+    // regardless of the use_ws() setting, so enabling WebSocket for
+    // registration no longer breaks relay pairing.
 
     if !is_client_only() {
         return;
@@ -2072,7 +2092,6 @@ pub fn prepare_network_config() {
         RENDEZVOUS.to_owned(),
     );
     settings.insert(keys::OPTION_RELAY_SERVER.to_owned(), String::new());
-    settings.insert(keys::OPTION_ALLOW_WEBSOCKET.to_owned(), String::new());
     log::info!(
         "Client-only network policy: native rendezvous {}:{}, P2P first with automatic relay fallback",
         RENDEZVOUS,

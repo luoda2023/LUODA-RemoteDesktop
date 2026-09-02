@@ -131,6 +131,22 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
       onPressed: () => onCopyFingerprint(FingerprintState.find(id).value),
     ));
   }
+  // Remote restart / shutdown for desktop peers.
+  final isDesktopPeer = pi.platform == kPeerPlatformWindows ||
+      pi.platform == kPeerPlatformLinux ||
+      pi.platform == kPeerPlatformMacOS;
+  if (isDesktopPeer && ffi.ffiModel.permissions['restart'] != false) {
+    v.add(TTextMenu(
+      child: Text(translate('Restart remote device')),
+      onPressed: () => showRestartRemoteDevice(
+          pi, id, sessionId, ffi.dialogManager),
+    ));
+    v.add(TTextMenu(
+      child: Text(translate('Shutdown remote device')),
+      onPressed: () => showShutdownRemoteDevice(
+          pi, id, sessionId, ffi.dialogManager),
+    ));
+  }
   return v;
 }
 
@@ -175,17 +191,17 @@ Future<List<TRadioMenu<String>>> toolbarImageQuality(
 
   return [
     TRadioMenu<String>(
-        child: Text(translate('Good image quality')),
+        child: Text(translate('Ultra HD')),
         value: kRemoteImageQualityBest,
         groupValue: groupValue,
         onChanged: onChanged),
     TRadioMenu<String>(
-        child: Text(translate('Balanced')),
+        child: Text(translate('HD')),
         value: kRemoteImageQualityBalanced,
         groupValue: groupValue,
         onChanged: onChanged),
     TRadioMenu<String>(
-        child: Text(translate('Optimize reaction time')),
+        child: Text(translate('Fast')),
         value: kRemoteImageQualityLow,
         groupValue: groupValue,
         onChanged: onChanged),

@@ -245,16 +245,16 @@ class MyTheme {
   MyTheme._();
 
   static const Color grayBg = Color(0xFFEFEFF2);
-  static const Color accent = Color(0xFF2A84BA);
-  static const Color accent50 = Color(0x772A84BA);
-  static const Color accent80 = Color(0xAA2A84BA);
+  static const Color accent = Color(0xFF165D9F);
+  static const Color accent50 = Color(0x77165D9F);
+  static const Color accent80 = Color(0xAA165D9F);
   static const Color canvasColor = Color(0xFF212121);
   static const Color border = Color(0xFFCCCCCC);
-  static const Color idColor = Color(0xFF2A84BA);
+  static const Color idColor = Color(0xFF165D9F);
   static const Color darkGray = Color.fromARGB(255, 148, 148, 148);
   static const Color cmIdColor = Color(0xFF21790B);
   static const Color dark = Colors.black87;
-  static const Color button = Color(0xFF2A84BA);
+  static const Color button = Color(0xFF165D9F);
   static const Color hoverBorder = Color(0xFF999999);
 
   // ListTile

@@ -39,8 +39,8 @@ const double _kContentHSubMargin = _kContentHMargin + 33;
 const double _kCheckBoxLeftMargin = 10;
 const double _kRadioLeftMargin = 10;
 const double _kListViewBottomMargin = 15;
-const double _kTitleFontSize = 20;
-const double _kContentFontSize = 15;
+const double _kTitleFontSize = 16;
+const double _kContentFontSize = 13;
 const Color _accentColor = MyTheme.accent;
 const String _kSettingPageControllerTag = 'settingPageController';
 const String _kSettingPageTabKeyTag = 'settingPageTabKey';
@@ -334,7 +334,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           const VerticalDivider(width: 1),
           Expanded(
             child: Container(
-              color: Colors.white,
+              color: MyTheme.grayBg,
               child: Theme(
                 data: Theme.of(context).copyWith(
                   cardColor: Colors.white,
@@ -540,123 +540,23 @@ class _GeneralState extends State<_General> {
   }
 
   Widget other() {
-    final showAutoUpdate = isWindows && bind.mainIsInstalled();
+    // LUODA: 精简设置项，只保留用户友好的核心选项
     final children = <Widget>[
       if (!isWeb && !bind.isIncomingOnly())
         _OptionCheckBox(context, 'Confirm before closing multiple tabs',
             kOptionEnableConfirmClosingTabs,
             isServer: false),
-      _OptionCheckBox(context, 'Adaptive bitrate', kOptionEnableAbr),
-      if (!isWeb) wallpaper(),
-      if (!isWeb && !bind.isIncomingOnly()) ...[
+      if (!isWeb && !bind.isIncomingOnly())
         _OptionCheckBox(
           context,
           'Open connection in new tab',
           kOptionOpenNewConnInTabs,
           isServer: false,
         ),
-        // though this is related to GUI, but opengl problem affects all users, so put in config rather than local
-        if (isLinux)
-          Tooltip(
-            message: translate('software_render_tip'),
-            child: _OptionCheckBox(
-              context,
-              "Always use software rendering",
-              kOptionAllowAlwaysSoftwareRender,
-            ),
-          ),
-        if (!isWeb)
-          Tooltip(
-            message: translate('texture_render_tip'),
-            child: _OptionCheckBox(
-              context,
-              "Use texture rendering",
-              kOptionTextureRender,
-              optGetter: bind.mainGetUseTextureRender,
-              optSetter: (k, v) async =>
-                  await bind.mainSetLocalOption(key: k, value: v ? 'Y' : 'N'),
-            ),
-          ),
-        if (isWindows)
-          Tooltip(
-            message: translate('d3d_render_tip'),
-            child: _OptionCheckBox(
-              context,
-              "Use D3D rendering",
-              kOptionD3DRender,
-              isServer: false,
-            ),
-          ),
-        if (!isWeb && !bind.isCustomClient())
-          _OptionCheckBox(
-            context,
-            'Check for software update on startup',
-            kOptionEnableCheckUpdate,
-            isServer: false,
-            enabled: false, // Disabled by LUODA
-          ),
-        if (showAutoUpdate)
-          _OptionCheckBox(
-            context,
-            'Auto update',
-            kOptionAllowAutoUpdate,
-            isServer: true,
-            enabled: false, // Disabled by LUODA
-          ),
-        if (isWindows && !bind.isOutgoingOnly())
-          _OptionCheckBox(
-            context,
-            'Capture screen using DirectX',
-            kOptionDirectxCapture,
-          ),
-        if (!bind.isIncomingOnly()) ...[
-          _OptionCheckBox(
-            context,
-            'Enable UDP hole punching',
-            kOptionEnableUdpPunch,
-            isServer: false,
-          ),
-          _OptionCheckBox(
-            context,
-            'Enable IPv6 P2P connection',
-            kOptionEnableIpv6Punch,
-            isServer: false,
-          ),
-        ],
-      ],
     ];
-
-    // Add client-side wakelock option for desktop platforms
-    if (!bind.isIncomingOnly()) {
-      children.add(_OptionCheckBox(
-        context,
-        'keep-awake-during-outgoing-sessions-label',
-        kOptionKeepAwakeDuringOutgoingSessions,
-        isServer: false,
-      ));
-    }
-
-    if (!isWeb && bind.mainShowOption(key: kOptionAllowLinuxHeadless)) {
-      children.add(_OptionCheckBox(
-          context, 'Allow linux headless', kOptionAllowLinuxHeadless));
-    }
-    if (!bind.isDisableAccount()) {
-      children.add(_OptionCheckBox(
-        context,
-        'note-at-conn-end-tip',
-        kOptionAllowAskForNoteAtEndOfConnection,
-        isServer: false,
-        optSetter: (key, value) async {
-          if (value && !gFFI.userModel.isLogin) {
-            final res = await loginDialog();
-            if (res != true) return;
-          }
-          await mainSetLocalBoolOption(key, value);
-        },
-      ));
-    }
     return _Card(title: 'Other', children: children);
   }
+
 
   Widget wallpaper() {
     if (bind.isOutgoingOnly()) {
@@ -1297,8 +1197,6 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
     bool enabled = !locked;
     return _Card(title: 'Security', children: [
       shareRdp(context, enabled),
-      _OptionCheckBox(context, 'Deny LAN discovery', 'enable-lan-discovery',
-          reverse: true, enabled: enabled),
       ...directIp(context),
       whitelist(),
       ...autoDisconnect(context),
@@ -1896,17 +1794,17 @@ class _DisplayState extends State<_Display> {
       _Radio(context,
           value: kRemoteImageQualityBest,
           groupValue: groupValue,
-          label: 'Good image quality',
+          label: 'Ultra HD',
           onChanged: isOptFixed ? null : onChanged),
       _Radio(context,
           value: kRemoteImageQualityBalanced,
           groupValue: groupValue,
-          label: 'Balanced',
+          label: 'HD',
           onChanged: isOptFixed ? null : onChanged),
       _Radio(context,
           value: kRemoteImageQualityLow,
           groupValue: groupValue,
-          label: 'Optimize reaction time',
+          label: 'Fast',
           onChanged: isOptFixed ? null : onChanged),
       _Radio(context,
           value: kRemoteImageQualityCustom,
@@ -2438,12 +2336,14 @@ class _AboutState extends State<_About> {
       return SingleChildScrollView(
         controller: scrollController,
         child: _Card(title: translate('About'), children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(
-                height: 8.0,
-              ),
+          SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(
+                  height: 8.0,
+                ),
               SelectionArea(
                   child: Text('${translate('Version')}: $version')
                       .marginSymmetric(vertical: 4.0)),
@@ -2471,7 +2371,7 @@ class _AboutState extends State<_About> {
                     style: linkStyle,
                   ).marginSymmetric(vertical: 4.0)),
               Container(
-                decoration: const BoxDecoration(color: Color(0xFF2A84BA)),
+                decoration: const BoxDecoration(color: Color(0xFF165D9F)),
                 padding:
                     const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
                 child: SelectionArea(
@@ -2499,7 +2399,7 @@ class _AboutState extends State<_About> {
                 )),
               ).marginSymmetric(vertical: 4.0)
             ],
-          ).marginOnly(left: _kContentHMargin)
+          )).marginOnly(left: _kContentHMargin),
         ]),
       );
     });
@@ -2511,42 +2411,94 @@ class _AboutState extends State<_About> {
 //#region components
 
 // ignore: non_constant_identifier_names
+// LUODA: 响应式多列设置项，每项底部加浅灰色底线，宽度随父容器自适应
+const Color _kOptionDividerColor = Color(0xFFE0E0E0);
+
 Widget _Card(
     {required String title,
     required List<Widget> children,
     List<Widget>? title_suffix}) {
-  return Row(
-    children: [
-      Flexible(
-        child: SizedBox(
-          width: _kCardFixedWidth,
-          child: Card(
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                        child: Text(
-                      translate(title),
-                      textAlign: TextAlign.start,
-                      style: const TextStyle(
-                        fontSize: _kTitleFontSize,
-                      ),
-                    )),
-                    ...?title_suffix
-                  ],
-                ).marginOnly(left: _kContentHMargin, top: 10, bottom: 10),
-                ...children
-                    .map((e) => e.marginOnly(top: 4, right: _kContentHMargin)),
-              ],
-            ).marginOnly(bottom: 10),
-          ).marginOnly(left: _kCardLeftMargin, top: 15),
+  return Container(
+    margin: const EdgeInsets.only(left: _kContentHMargin, right: _kContentHMargin, top: 10, bottom: 10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.04),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
         ),
-      ),
-    ],
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 标题栏
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  translate(title),
+                  textAlign: TextAlign.start,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ...?title_suffix
+            ],
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, color: _kOptionDividerColor),
+        // 响应式多列：每项最小 210px，根据可用宽度自动决定列数
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const double minItemWidth = 210;
+              final int columns =
+                  (constraints.maxWidth / minItemWidth).floor().clamp(1, 6);
+              final double itemWidth =
+                  (constraints.maxWidth - (columns - 1) * 12) / columns;
+              return Wrap(
+                alignment: WrapAlignment.start,
+                runAlignment: WrapAlignment.start,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 0,
+                children: children
+                    .map((e) => SizedBox(
+                          width: itemWidth,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 8),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: children.length > 1
+                                      ? _kOptionDividerColor
+                                      : Colors.transparent,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            child: e,
+                          ),
+                        ))
+                    .toList(),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+    ),
   );
 }
-
 // ignore: non_constant_identifier_names
 Widget _OptionCheckBox(
   BuildContext context,
@@ -2606,7 +2558,9 @@ Widget _OptionCheckBox(
           Expanded(
               child: Text(
             translate(label),
-            style: TextStyle(color: disabledTextColor(context, enabled)),
+            style: TextStyle(
+                fontSize: _kContentFontSize,
+                color: disabledTextColor(context, enabled)),
           ))
         ],
       ),

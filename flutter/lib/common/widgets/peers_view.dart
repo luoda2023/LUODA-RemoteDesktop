@@ -93,6 +93,7 @@ class _PeersViewState extends State<_PeersView>
   var _lastQueryPeers = <String>{};
   var _lastQueryTime = DateTime.now();
   var _lastWindowRestoreTime = DateTime.now();
+  var _lastReloadTime = DateTime.now();
   var _exit = false;
   bool _isActive = true;
 
@@ -162,6 +163,11 @@ class _PeersViewState extends State<_PeersView>
     if (isDesktop || isWebDesktop) return;
     if (state == AppLifecycleState.resumed) {
       _isActive = true;
+      // Mobile equivalent of onWindowFocus: force a refresh right after the
+      // app returns to the foreground, instead of waiting out one full
+      // polling interval. Otherwise returning to the app can leave peers
+      // grey/outdated for several seconds or longer.
+      _lastQueryTime = DateTime.now().subtract(_queryInterval);
     } else if (state == AppLifecycleState.inactive) {
       _isActive = false;
     }
@@ -375,8 +381,17 @@ class _PeersViewState extends State<_PeersView>
                         }));
 
             if (updateEvent == UpdateEvent.load) {
-              _curPeers.clear();
-              _curPeers.addAll(peers.map((e) => e.id));
+              // Query the *whole* known peer set of this model, not only the
+              // cards currently visible on screen. A device that is in the
+              // list but not yet scrolled into view (or rendered later)
+              // otherwise never gets queried and stays grey forever.
+              _curPeers
+                ..clear()
+                ..addAll(peers.map((e) => e.id));
+              final all = widget.peers.peers;
+              if (all.length > _curPeers.length) {
+                _curPeers.addAll(all.map((e) => e.id));
+              }
               _queryOnlines(true);
             }
             return child;
@@ -421,6 +436,19 @@ class _PeersViewState extends State<_PeersView>
             if (_curPeers.isNotEmpty) {
               bind.queryOnlines(ids: _curPeers.toList(growable: false));
               _lastQueryTime = DateTime.now();
+            }
+          }
+          // 自动刷新最近访问/收藏列表，与在线状态轮询并行执行，
+          // 保证连接记录（最近访问/收藏）在停留时也能自动更新。
+          final isRecentOrFav = widget.peerTabIndex == PeerTabIndex.recent ||
+              widget.peerTabIndex == PeerTabIndex.fav;
+          if (isRecentOrFav &&
+              now.difference(_lastReloadTime) >= effectiveInterval) {
+            _lastReloadTime = DateTime.now();
+            if (widget.peerTabIndex == PeerTabIndex.recent) {
+              bind.mainLoadRecentPeers();
+            } else {
+              bind.mainLoadFavPeers();
             }
           }
         }

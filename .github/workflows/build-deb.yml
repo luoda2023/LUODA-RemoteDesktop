@@ -5,7 +5,7 @@ permissions:
   deployments: write
   packages: read
 
-name: Build LUODA Linux DEB
+name: Build LDesk Linux DEB
 
 on:
   workflow_dispatch:
@@ -152,7 +152,7 @@ jobs:
           Version: 1.0.0
           Architecture: amd64
           Maintainer: LUODA
-          Description: LUODA Remote Desktop
+          Description: LDesk Remote Desktop
           EOF
           # Include postinst/prerm scripts to auto-start service
           cp res/DEBIAN/postinst tmpdeb/DEBIAN/
@@ -197,4 +197,3 @@ jobs:
           name: runtime-logs-deb
           path: .auto_build_logs/
           if-no-files-found: ignore
-

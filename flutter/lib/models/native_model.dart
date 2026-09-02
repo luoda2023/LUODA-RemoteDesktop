@@ -61,7 +61,8 @@ class PlatformFFI {
   }
 
   bool registerEventHandler(
-      String eventName, String handlerName, HandleEvent handler, {bool replace = false}) {
+      String eventName, String handlerName, HandleEvent handler,
+      {bool replace = false}) {
     debugPrint('registerEventHandler $eventName $handlerName');
     var handlers = _eventHandlers[eventName];
     if (handlers == null) {
@@ -220,6 +221,25 @@ class PlatformFFI {
         appDir: _dir,
         customClientConfig: '',
       );
+      if (isAndroid) {
+        try {
+          // True public-storage folder resolved natively (survives
+          // uninstall/reinstall). Resolve once here, cache in LocalConfig so
+          // both the Flutter marker and the Rust history backup use the same
+          // base directory.
+          final resolved =
+              await _toAndroidChannel.invokeMethod('get_public_auth_base_dir');
+          if (resolved is String && resolved.isNotEmpty) {
+            await _ffiBind.mainSetLocalOption(
+                key: kOptionAuthorizationBaseDir, value: resolved);
+            await _ffiBind.mainSetLocalOption(
+                key: kOptionHistoryBackupDir,
+                value: '$resolved${Platform.pathSeparator}history');
+          }
+        } catch (e) {
+          debugPrint('history backup dir setup failed: $e');
+        }
+      }
     } catch (e) {
       debugPrintStack(label: 'initialize failed: $e');
     }

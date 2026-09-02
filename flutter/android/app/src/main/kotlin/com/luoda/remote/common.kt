@@ -3,6 +3,7 @@ package com.luoda.remote
 import android.Manifest.permission.*
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.media.AudioRecord
 import android.media.AudioRecord.READ_BLOCKING
@@ -10,6 +11,7 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -23,6 +25,7 @@ import androidx.core.content.ContextCompat.getSystemService
 import com.hjq.permissions.Permission
 import com.hjq.permissions.XXPermissions
 import ffi.FFI
+import java.io.File
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -54,6 +57,7 @@ const val KEY_IS_SUPPORT_VOICE_CALL = "KEY_IS_SUPPORT_VOICE_CALL"
 const val KEY_SHARED_PREFERENCES = "KEY_SHARED_PREFERENCES"
 const val KEY_START_ON_BOOT_OPT = "KEY_START_ON_BOOT_OPT"
 const val KEY_APP_DIR_CONFIG_PATH = "KEY_APP_DIR_CONFIG_PATH"
+const val KEY_FIRST_RUN_AUTHORIZATION = "KEY_FIRST_RUN_AUTHORIZATION"
 
 @SuppressLint("ConstantLocale")
 val LOCAL_NAME = Locale.getDefault().toString()
@@ -62,6 +66,33 @@ val SCREEN_INFO = Info(0, 0, 1, 200)
 data class Info(
     var width: Int, var height: Int, var scale: Int, var dpi: Int
 )
+
+
+/**
+ * True *shared/public* external storage directory (/storage/emulated/0/Documents
+ * or Download on API 28+; the root /storage/emulated/0 on older releases).
+ * Unlike path_provider's app-scoped getExternalFilesDirs this path survives an
+ * app uninstall/reinstall, so it is the right home for the authorization marker.
+ * Prefer a user-visible folder that is guaranteed writable without extra
+ * runtime permission:
+ *  - API 29+: /storage/emulated/0/Documents/LDesk (no permission needed to write
+ *    our own subfolder; media permissions govern other apps' files only).
+ *  - API 28-: /storage/emulated/0 (app-specific subfolders there are the only
+ *    reliably writable public location without runtime grants).
+ */
+fun publicAuthBaseDir(context: Context): String {
+    return try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val documents = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+            File(documents, "LDesk").absolutePath
+        } else {
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
+        }
+    } catch (e: Exception) {
+        Log.e("common", "publicAuthBaseDir failed: ${e.message}")
+        Environment.getExternalStorageDirectory().absolutePath
+    }
+}
 
 fun isSupportVoiceCall(): Boolean {
     // https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#VOICE_COMMUNICATION
@@ -106,13 +137,23 @@ fun requestPermissionsBatch(context: Context, types: List<String>) {
 
 fun startAction(context: Context, action: String): Boolean {
     try {
-        context.startActivity(Intent(action).apply {
+        val intent = Intent(action).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            // don't pass package name when launch ACTION_ACCESSIBILITY_SETTINGS
-            if (ACTION_ACCESSIBILITY_SETTINGS != action) {
-                data = Uri.parse("package:" + context.packageName)
+        }
+        when (action) {
+            // don't pass package name when launching the accessibility list
+            ACTION_ACCESSIBILITY_SETTINGS -> { /* no extras */ }
+            "android.settings.ACCESSIBILITY_DETAILS_SETTINGS" -> {
+                // Land on the LUODA Input toggle directly where the ROM
+                // supports component-targeted accessibility settings.
+                intent.putExtra(
+                    Intent.EXTRA_COMPONENT_NAME,
+                    ComponentName(context, InputService::class.java)
+                )
             }
-        })
+            else -> intent.data = Uri.parse("package:" + context.packageName)
+        }
+        context.startActivity(intent)
         return true
     } catch (e: Exception) {
         Log.e("common", "Unable to open Android settings action $action", e)

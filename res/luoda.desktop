@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=LUODA
+Name=LDesk
 GenericName=Remote Desktop
 Comment=Remote Desktop
 Exec=luoda %u
@@ -10,7 +10,7 @@ StartupNotify=true
 Categories=Network;RemoteAccess;GTK;
 Keywords=internet;linux;dart;rust;remote-control;p2p;teamviewer;rust-lang;rdp;remote-desktop;vnc;
 Actions=new-window;
-StartupWMClass=luoda
+StartupWMClass=LDesk
 
 X-Desktop-File-Install-Version=0.23
 

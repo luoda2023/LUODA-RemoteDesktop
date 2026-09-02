@@ -5,7 +5,7 @@
     <Configurations>Release</Configurations>
     <Platforms>x64</Platforms>
     <Culture>en-us;zh-cn</Culture>
-    <OutputName>LUODA-Setup</OutputName>
+    <OutputName>LDesk-Setup</OutputName>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="Includes.wxi" />

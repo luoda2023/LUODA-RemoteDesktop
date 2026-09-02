@@ -39,7 +39,7 @@ pub fn core_main() -> Option<Vec<String>> {
         let _ = hbb_common::file_logger::FileLogger::init(LevelFilter::Debug);
         hbb_common::file_logger::setup_panic_hook();
     }
-    log::info!("=== LUODA started (v{}) ===", crate::VERSION);
+    log::info!("=== LDesk started (v{}) ===", crate::VERSION);
     crate::load_custom_client();
     crate::common::prepare_network_config();
 
@@ -61,6 +61,12 @@ pub fn core_main() -> Option<Vec<String>> {
                 log::info!("core_main: setting default approve-mode=password");
                 config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
             }
+            // LUODA 定制版: 强制 approve-mode=password,配合永久密码实现"输密码即通过",
+            // 手机端不再弹出"是否接受"二次确认窗口。
+            if config::Config::get_option(keys::OPTION_APPROVE_MODE) != "password" {
+                log::info!("core_main: force enabling approve-mode=password");
+                config::Config::set_option(keys::OPTION_APPROVE_MODE.to_string(), "password".to_string());
+            }
             if config::Config::get_option(keys::OPTION_ENABLE_KEYBOARD).is_empty() {
                 log::info!("core_main: setting default enable-keyboard=Y");
                 config::Config::set_option(keys::OPTION_ENABLE_KEYBOARD.to_string(), "Y".to_string());
@@ -73,6 +79,17 @@ pub fn core_main() -> Option<Vec<String>> {
             if config::Config::get_option(keys::OPTION_DIRECT_SERVER) != "Y" {
                 log::info!("core_main: force enabling direct-server");
                 config::Config::set_option(keys::OPTION_DIRECT_SERVER.to_string(), "Y".to_string());
+            }
+            // LUODA: 默认启用 D3D 渲染、UDP 打洞、IPv6 P2P（后台一次性设置，用户无需再配置）
+            for (k, label) in [
+                (keys::OPTION_ALLOW_D3D_RENDER, "allow-d3d-render"),
+                (keys::OPTION_ENABLE_UDP_PUNCH, "enable-udp-punch"),
+                (keys::OPTION_ENABLE_IPV6_PUNCH, "enable-ipv6-punch"),
+            ] {
+                if config::Config::get_option(k).is_empty() {
+                    log::info!("core_main: setting default {}=Y", label);
+                    config::Config::set_option(k.to_string(), "Y".to_string());
+                }
             }
         }
     }
@@ -867,7 +884,7 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
         use winapi::um::winuser::WM_USER;
         let res = crate::platform::send_message_to_hnwd(
             &crate::platform::FLUTTER_RUNNER_WIN32_WINDOW_CLASS,
-            &crate::get_app_name(),
+            &crate::get_display_app_name(),
             (WM_USER + 2) as _, // referred from unilinks desktop pub
             uni_links.as_str(),
             true, // show_window: bring the main window to foreground so the user sees the connection dialog

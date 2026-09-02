@@ -197,6 +197,17 @@ pub unsafe extern "C" fn get_luoda_app_name(buffer: *mut u16, length: i32) -> i3
     -1
 }
 
+#[cfg(windows)]
+#[no_mangle]
+pub unsafe extern "C" fn get_luoda_display_app_name(buffer: *mut u16, length: i32) -> i32 {
+    let name = crate::platform::wide_string(&crate::get_display_app_name());
+    if length > name.len() as i32 {
+        std::ptr::copy_nonoverlapping(name.as_ptr(), buffer, name.len());
+        return 0;
+    }
+    -1
+}
+
 #[derive(Default)]
 struct SessionHandler {
     event_stream: Option<StreamSink<EventToUI>>,

@@ -3145,6 +3145,21 @@ impl Connection {
                             }
                         }
                     }
+                    Some(misc::Union::ShutdownRemoteDevice(_)) => {
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        if self.restart {
+                            #[cfg(target_os = "windows")]
+                            match system_shutdown::force_shutdown() {
+                                Ok(_) => log::info!("Shutdown by the peer"),
+                                Err(e) => log::error!("Failed to shutdown: {}", e),
+                            }
+                            #[cfg(any(target_os = "linux", target_os = "macos"))]
+                            match system_shutdown::shutdown() {
+                                Ok(_) => log::info!("Shutdown by the peer"),
+                                Err(e) => log::error!("Failed to shutdown: {}", e),
+                            }
+                        }
+                    }
                     #[cfg(windows)]
                     Some(misc::Union::ElevationRequest(r)) => match r.union {
                         Some(elevation_request::Union::Direct(_)) => {

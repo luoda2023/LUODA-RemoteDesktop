@@ -1,7 +1,6 @@
 package com.luoda.remote
 
 import android.Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-import android.Manifest.permission.SYSTEM_ALERT_WINDOW
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -27,8 +26,8 @@ class BootReceiver : BroadcastReceiver() {
                 return
             }
             // check pre-permission
-            if (!XXPermissions.isGranted(context, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, SYSTEM_ALERT_WINDOW)){
-                Log.d(logTag, "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS or SYSTEM_ALERT_WINDOW is not granted")
+            if (!XXPermissions.isGranted(context, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)) {
+                Log.d(logTag, "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is not granted")
                 return
             }
 
@@ -36,7 +35,7 @@ class BootReceiver : BroadcastReceiver() {
                 action = ACT_INIT_MEDIA_PROJECTION_AND_SERVICE
                 putExtra(EXT_INIT_FROM_BOOT, true)
             }
-            Toast.makeText(context, "LUODA is Open", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "LDesk is Open", Toast.LENGTH_LONG).show()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(it)
             } else {

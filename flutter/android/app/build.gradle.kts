@@ -107,6 +107,12 @@ android {
     namespace = "com.luoda.remote"
     compileSdkVersion(36)
 
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     sourceSets {
         getByName("main") {
             java.srcDirs("src/main/kotlin")

@@ -397,9 +397,6 @@ impl RendezvousMediator {
     pub async fn start_tcp(server: ServerPtr, host: String) -> ResultType<()> {
         let host = check_port(&host, RENDEZVOUS_PORT);
         log::info!("start tcp: {}", hbb_common::websocket::check_ws(&host));
-        // Try the normal connect_tcp first (may use WebSocket if enabled).
-        // If that fails, fall back to raw TCP so the rendezvous registration
-        // still works even when the WebSocket endpoint is unreachable.
         let mut conn = match connect_tcp(host.clone(), CONNECT_TIMEOUT).await {
             Ok(c) => c,
             Err(err) => {
@@ -412,13 +409,8 @@ impl RendezvousMediator {
                     .await?
             }
         };
- // NOTE: The hbbs TCP rendezvous protocol does NOT use a key-exchange
- // handshake.  The server waits for the client to send the first message
- // (RegisterPeer / PunchHoleRequest).  Calling secure_tcp() here would
- // block for READ_TIMEOUT waiting for a KeyExchange that never arrives.
- // hbbs does NOT support KeyExchange on its WebSocket (21118) port either.
- // WebSocket (wss://) already provides TLS encryption via nginx on port 443.
- // Do NOT call secure_tcp() for any rendezvous connection (TCP or WebSocket).
+        let key = crate::get_key(true).await;
+        crate::secure_tcp(&mut conn, &key).await?;
         let mut rz = Self {
             addr: conn.local_addr().into_target_addr()?,
             host: host.clone(),
@@ -427,17 +419,8 @@ impl RendezvousMediator {
         };
         let mut timer = crate::luoda_interval(interval(crate::TIMER_OUT));
         let mut last_recv_msg = Instant::now();
-        // we won't support connecting to multiple rendzvous servers any more, so we can use a global variable here.
-        Config::set_host_key_confirmed(&rz.host_prefix, true);
-        // TCP rendezvous: send RegisterPeer directly.  The hbbs server returns
-        // NOT_SUPPORT for RegisterPk over TCP, so we must skip the PK handshake
-        // and register the peer immediately.
-        rz.register_peer_tcp(Sink::Stream(&mut conn)).await?;
-        let mut last_register_sent = Some(Instant::now());
-        crate::runtime_logger::info(
-            "NETWORK",
-            &format!("TCP rendezvous registration sent; server={host}"),
-        );
+        Config::set_host_key_confirmed(&rz.host_prefix, false);
+        let mut last_register_sent: Option<Instant> = None;
         loop {
             let mut update_latency = || {
                 let latency = last_register_sent
@@ -472,7 +455,12 @@ impl RendezvousMediator {
                         .unwrap_or(REG_INTERVAL)
                         >= REG_INTERVAL
                     {
-                        rz.register_peer_tcp(Sink::Stream(&mut conn)).await?;
+                        // register_peer() sends RegisterPk while the key is not
+                        // confirmed yet, then RegisterPeer afterwards, so the
+                        // peer stays in the server's punch table. Sending only
+                        // RegisterPk here left mobile (WebSocket/TCP) peers
+                        // unregistered: punches could not be routed to them.
+                        rz.register_peer(Sink::Stream(&mut conn)).await?;
                         last_register_sent = Some(Instant::now());
                     }
                 }
@@ -494,7 +482,18 @@ impl RendezvousMediator {
             crate::is_udp_disabled(),
             false,
         ) {
-            Self::start_tcp(server, host).await
+            match Self::start_tcp(server.clone(), host.clone()).await {
+                Ok(()) => Ok(()),
+                Err(err) if !SHOULD_EXIT.load(Ordering::SeqCst) => {
+                    log::warn!("TCP rendezvous failed for {host}, falling back to UDP: {err}");
+                    crate::runtime_logger::warn(
+                        "NETWORK",
+                        &format!("TCP rendezvous failed; server={host}; fallback=UDP; error={err}"),
+                    );
+                    Self::start_udp(server, host).await
+                }
+                Err(err) => Err(err),
+            }
         } else {
             match Self::start_udp(server.clone(), host.clone()).await {
                 Ok(()) => Ok(()),
@@ -553,7 +552,17 @@ impl RendezvousMediator {
             secure,
         );
 
-        let mut socket = connect_tcp(&*self.host, CONNECT_TIMEOUT).await?;
+        let mut socket = match connect_tcp(&*self.host, CONNECT_TIMEOUT).await {
+            Ok(socket) => socket,
+            Err(err) => {
+                log::warn!(
+                    "WebSocket rendezvous relay failed for {}, falling back to raw TCP: {}",
+                    self.host,
+                    err
+                );
+                socket_client::connect_tcp_local(&*self.host, None, CONNECT_TIMEOUT).await?
+            }
+        };
 
         let mut msg_out = Message::new();
         let mut rr = RelayResponse {
@@ -592,7 +601,7 @@ impl RendezvousMediator {
         }
         let peer_addr_v6 = hbb_common::AddrMangle::decode(&fla.socket_addr_v6);
         let relay_server = self.get_relay_server(fla.relay_server.clone());
-        let relay = use_ws() || Config::is_proxy();
+        let relay = Config::is_proxy();
         let mut socket_addr_v6 = Default::default();
         if peer_addr_v6.port() > 0 && !relay {
             socket_addr_v6 = start_ipv6(
@@ -691,7 +700,7 @@ impl RendezvousMediator {
             return Ok(());
         }
         let peer_addr_v6 = hbb_common::AddrMangle::decode(&ph.socket_addr_v6);
-        let relay = use_ws() || Config::is_proxy() || ph.force_relay;
+        let relay = Config::is_proxy() || ph.force_relay;
         let mut socket_addr_v6 = Default::default();
         let control_permissions = ph.control_permissions.into_option();
         if peer_addr_v6.port() > 0 && !relay {

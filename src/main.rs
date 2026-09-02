@@ -102,13 +102,13 @@ fn main() {
 
     );
 
-    let matches = App::new("luoda")
+    let matches = App::new("LDesk")
 
         .version(crate::VERSION)
 
-        .author("LUODA <info@dicad.cn>")
+        .author("LDesk <info@dicad.cn>")
 
-        .about("LUODA command line tool")
+        .about("LDesk command line tool")
 
         .args_from_usage(&args)
 
@@ -213,4 +213,3 @@ fn main() {
     common::global_clean();
 
 }
-

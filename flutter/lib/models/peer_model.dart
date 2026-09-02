@@ -168,7 +168,13 @@ enum UpdateEvent { online, load }
 
 typedef GetInitPeers = RxList<Peer> Function();
 
+/// 在线状态的“权威表”：与 Peer 对象生命周期解耦。
+/// 每次 load 事件都会重新解码出一批全新的 Peer 对象（默认 online=false），
+/// 若直接用旧 peers 的 online 字段去恢复，任何一次“先 load 后异步查询返回”
+/// 的时序抖动都会把已确认的在线状态覆盖回灰。这里单独保存 id->online，
+/// 跨 load 存活，load 后统一回填，保证 UI 永不因重新加载而把在线设备误置灰。
 class Peers extends ChangeNotifier {
+  final Map<String, bool> _onlineStates = {};
   final String name;
   final String loadEvent;
   List<Peer> peers = List.empty(growable: true);
@@ -215,27 +221,31 @@ class Peers extends ChangeNotifier {
 
   void _updateOnlineState(Map<String, dynamic> evt) {
     int changedCount = 0;
-    evt['onlines'].split(',').forEach((online) {
-      for (var i = 0; i < peers.length; i++) {
-        if (peers[i].id == online) {
-          if (!peers[i].online) {
-            changedCount += 1;
-            peers[i].online = true;
-          }
-        }
-      }
-    });
 
-    evt['offlines'].split(',').forEach((offline) {
+    void apply(String id, bool online) {
+      if (id.isEmpty) return;
+      // 权威表先行：即使该 id 此刻不在当前列表中（例如另一个列表/刚刚切换
+      // 加载），也记录下来，等它下一次被 load 进来时直接回填成正确状态。
+      final existed = _onlineStates.containsKey(id);
+      if (!existed || _onlineStates[id] != online) {
+        _onlineStates[id] = online;
+        changedCount += 1;
+      }
       for (var i = 0; i < peers.length; i++) {
-        if (peers[i].id == offline) {
-          if (peers[i].online) {
-            changedCount += 1;
-            peers[i].online = false;
-          }
+        if (peers[i].id == id && peers[i].online != online) {
+          peers[i].online = online;
         }
       }
-    });
+    }
+
+    final onlines = (evt['onlines'] as String? ?? '').trim();
+    final offlines = (evt['offlines'] as String? ?? '').trim();
+    if (onlines.isNotEmpty) {
+      onlines.split(',').forEach((id) => apply(id.trim(), true));
+    }
+    if (offlines.isNotEmpty) {
+      offlines.split(',').forEach((id) => apply(id.trim(), false));
+    }
 
     if (changedCount > 0) {
       event = UpdateEvent.online;
@@ -244,7 +254,6 @@ class Peers extends ChangeNotifier {
   }
 
   void _updatePeers(Map<String, dynamic> evt) {
-    final onlineStates = _getOnlineStates();
     if (getInitPeers != null) {
       peers = getInitPeers?.call() ?? [];
     } else {
@@ -256,20 +265,13 @@ class Peers extends ChangeNotifier {
       restPeerIds = (evt['ids'] as String).split(',');
     }
 
+    // 用跨 load 存活的权威表回填：之前已被服务端确认在线的设备，重新加载后
+    // 依然显示在线，而不是先被重置成灰、再等异步查询“碰运气”翻绿。
     for (var peer in peers) {
-      final state = onlineStates[peer.id];
-      peer.online = state != null && state != false;
+      peer.online = _onlineStates[peer.id] ?? false;
     }
     event = UpdateEvent.load;
     notifyListeners();
-  }
-
-  Map<String, bool> _getOnlineStates() {
-    var onlineStates = <String, bool>{};
-    for (var peer in peers) {
-      onlineStates[peer.id] = peer.online;
-    }
-    return onlineStates;
   }
 
   List<Peer> _decodePeers(String peersStr) {

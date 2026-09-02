@@ -42,6 +42,8 @@ const val LEFT_DOWN = 9
 const val LEFT_MOVE = 8
 const val LEFT_UP = 10
 const val RIGHT_UP = 18
+// current protocol sends wheel events as type-only mask with y as wheel delta
+const val MOUSE_TYPE_WHEEL = 3
 // (BUTTON_BACK << 3) | BUTTON_UP
 const val BACK_UP = 66
 const val WHEEL_BUTTON_DOWN = 33
@@ -173,42 +175,35 @@ class InputService : AccessibilityService() {
             return
         }
 
-        if (mask == WHEEL_DOWN) {
-            if (mouseY < WHEEL_STEP) {
-                return
-            }
-            val path = Path()
-            path.moveTo(mouseX.toFloat(), mouseY.toFloat())
-            path.lineTo(mouseX.toFloat(), (mouseY - WHEEL_STEP).toFloat())
-            val stroke = GestureDescription.StrokeDescription(
-                path,
-                0,
-                WHEEL_DURATION
-            )
-            val builder = GestureDescription.Builder()
-            builder.addStroke(stroke)
-            wheelActionsQueue.offer(builder.build())
-            consumeWheelActions()
-
+        if (mask == WHEEL_DOWN || (mask == MOUSE_TYPE_WHEEL && y < 0)) {
+            scrollWheel(true)
+            return
         }
 
-        if (mask == WHEEL_UP) {
-            if (mouseY < WHEEL_STEP) {
-                return
-            }
-            val path = Path()
-            path.moveTo(mouseX.toFloat(), mouseY.toFloat())
-            path.lineTo(mouseX.toFloat(), (mouseY + WHEEL_STEP).toFloat())
-            val stroke = GestureDescription.StrokeDescription(
-                path,
-                0,
-                WHEEL_DURATION
-            )
-            val builder = GestureDescription.Builder()
-            builder.addStroke(stroke)
-            wheelActionsQueue.offer(builder.build())
-            consumeWheelActions()
+        if (mask == WHEEL_UP || (mask == MOUSE_TYPE_WHEEL && y > 0)) {
+            scrollWheel(false)
+            return
         }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.N)
+    private fun scrollWheel(scrollDown: Boolean) {
+        if (mouseY < WHEEL_STEP) {
+            return
+        }
+        val targetY = if (scrollDown) mouseY - WHEEL_STEP else mouseY + WHEEL_STEP
+        val path = Path()
+        path.moveTo(mouseX.toFloat(), mouseY.toFloat())
+        path.lineTo(mouseX.toFloat(), targetY.toFloat())
+        val stroke = GestureDescription.StrokeDescription(
+            path,
+            0,
+            WHEEL_DURATION
+        )
+        val builder = GestureDescription.Builder()
+        builder.addStroke(stroke)
+        wheelActionsQueue.offer(builder.build())
+        consumeWheelActions()
     }
 
     @RequiresApi(Build.VERSION_CODES.N)
@@ -412,7 +407,12 @@ class InputService : AccessibilityService() {
             ke = KeyEventConverter.toAndroidKeyEvent(keyEvent)
         }
         ke?.let { event ->
-            if (tryHandleVolumeKeyEvent(event)) {
+            if (event.keyCode == KeyEventAndroid.KEYCODE_BACK) {
+                if (event.action == KeyEventAndroid.ACTION_DOWN) {
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                }
+                return
+            } else if (tryHandleVolumeKeyEvent(event)) {
                 return
             } else if (tryHandlePowerKeyEvent(event)) {
                 return

@@ -2,7 +2,7 @@
 name = "luoda-portable-packer"
 version = "1.0.0"
 edition = "2021"
-description = "LUODA Remote Desktop"
+description = "LDesk Remote Desktop"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -27,13 +27,12 @@ native-windows-gui = {version = "1.0", default-features = false, features = ["an
 sysinfo = { git = "https://github.com/luoda2023/sysinfo", branch = "rlim_max" }
 
 [package.metadata.winres]
-LegalCopyright = "Copyright © 2025 LUODA. All rights reserved."
-ProductName = "LUODA"
-OriginalFilename = "luoda.exe"
-FileDescription = "LUODA Remote Desktop"
+LegalCopyright = "Copyright © 2025 LDesk. All rights reserved."
+ProductName = "LDesk"
+OriginalFilename = "LDesk.exe"
+FileDescription = "LDesk Remote Desktop"
 #ProductVersion = ""
 
 [target.'cfg(target_os="windows")'.build-dependencies]
 winres = "0.1"
 winapi = { version = "0.3", features = [ "winnt", "pdh", "synchapi" ] }
-

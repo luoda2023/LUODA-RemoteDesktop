@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:luoda_flutter/mobile/pages/server_page.dart';
@@ -16,6 +17,48 @@ import 'connection_page.dart';
 import 'scan_page.dart';
 
 const _kFirstRunAuthorization = 'android-first-run-authorization-v2';
+const _kPublicAuthMarkerName = 'first-run-authorization';
+
+/// Persisted authorization marker on the *real public* external storage
+/// (/storage/emulated/0/Android/data/... is app-private and wiped together
+/// with the app data on uninstall, so we deliberately use a folder that
+/// survives reinstall). path_provider's external dirs are app-scoped, so the
+/// path is resolved natively from Kotlin and cached in the Rust LocalConfig
+/// (history-backup-dir). Falling back to the app-private marker keeps
+/// "reinstalled over the same version" working even when the storage
+/// permission was revoked (Android 13+ / no MANAGE_EXTERNAL_STORAGE grant).
+String _authorizationBaseDir() {
+  final dir = bind.mainGetLocalOption(key: kOptionAuthorizationBaseDir);
+  if (dir.isNotEmpty) return dir;
+  final backupDir = bind.mainGetLocalOption(key: kOptionHistoryBackupDir);
+  if (backupDir.isNotEmpty) return File(backupDir).parent.path;
+  return '';
+}
+
+File? _publicAuthMarkerFile() {
+  final dir = _authorizationBaseDir();
+  if (dir.isEmpty) return null;
+  return File('$dir${Platform.pathSeparator}$_kPublicAuthMarkerName');
+}
+
+bool _readPublicAuthMarker() {
+  try {
+    final f = _publicAuthMarkerFile();
+    if (f == null) return false;
+    return f.existsSync() && f.readAsStringSync().trim() == 'Y';
+  } catch (_) {
+    return false;
+  }
+}
+
+void _writePublicAuthMarker() {
+  try {
+    final f = _publicAuthMarkerFile();
+    if (f == null) return;
+    f.parent.createSync(recursive: true);
+    f.writeAsStringSync('Y');
+  } catch (_) {}
+}
 
 abstract class PageShape extends Widget {
   final String title = "";
@@ -95,35 +138,71 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// True when the marker says the user already completed the one-tap flow AND
+  /// the accessibility service (the capability Android wipes on a real
+  /// uninstall/reinstall) is currently granted. When both hold, the app starts
+  /// silently; otherwise the guided flow runs again but every step auto-skips
+  /// the grants that are already in place.
+  Future<bool> _canStartQuietly() async {
+    try {
+      final markedDone =
+          bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y' ||
+              await gFFI.invokeMethod('get_first_run_authorization') == true ||
+              _readPublicAuthMarker();
+      if (!markedDone) return false;
+      // The accessibility grant is the capability Android actually wipes on a
+      // real uninstall/reinstall, so treat it as the source of truth: only a
+      // device whose accessibility service is still enabled starts silently.
+      return await AndroidPermissionManager.checkAccessibility();
+    } catch (e) {
+      RuntimeLogger.instance.info('ANDROID', 'quiet-start check failed: $e');
+    }
+    return false;
+  }
+
+  /// On every cold start:
+  ///  - already-authorized device: quietly request only the standard runtime
+  ///    permissions that may have been reset by a reinstall (single system
+  ///    dialog, no accessibility jump, no screen-capture prompt), then refresh
+  ///    the marker; nothing pops when everything is already granted.
+  ///  - first run: run the guided one-tap flow.
   Future<void> _runFirstLaunchAuthorization() async {
     if (!isAndroid || bind.isOutgoingOnly() || !mounted) {
       return;
     }
     try {
-      final previouslyCompleted =
-          bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y';
-      if (!previouslyCompleted) {
+      final canStartQuietly = await _canStartQuietly();
+      if (!canStartQuietly) {
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence started');
-        // Show a one-time guidance dialog before requesting permissions
-        final userAgreed = await _showFirstRunPermissionDialog();
-        if (!userAgreed) {
+        final completed = await _firstRunPermissionFlow.run();
+        if (completed) {
+          await bind.mainSetLocalOption(
+              key: _kFirstRunAuthorization, value: 'Y');
+          await gFFI.invokeMethod('set_first_run_authorization', true);
+          _writePublicAuthMarker();
           RuntimeLogger.instance
-              .warn('ANDROID', 'user deferred first-run authorization');
-          return;
+              .info('ANDROID', 'first-run authorization sequence finished');
+        } else {
+          RuntimeLogger.instance.warn('ANDROID',
+              'first-run authorization incomplete; will retry on next launch');
         }
-      } else {
-        RuntimeLogger.instance
-            .info('ANDROID', 'rechecking Android authorization state');
+        return;
       }
-      final completed = await _firstRunPermissionFlow.run();
-      if (completed) {
+      // Prior authorization: silently top up standard runtime permissions.
+      // On a fresh reinstall Android resets those, but the batch system dialog
+      // regrants them in one tap; when they are already granted nothing pops.
+      // Accessibility keeps its OS-granted state and is never re-prompted here;
+      // screen capture is only requested when the user actually starts a
+      // session (Android 14+ revokes that token on every reboot, so auto
+      // prompting on cold start would only annoy).
+      RuntimeLogger.instance
+          .info('ANDROID', 'rechecking Android authorization state');
+      final stillComplete = await _requestStandardPermissionsBatch();
+      if (stillComplete) {
         await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
-        RuntimeLogger.instance
-            .info('ANDROID', 'first-run authorization sequence finished');
-      } else {
-        RuntimeLogger.instance.warn('ANDROID',
-            'first-run authorization incomplete; will retry on next launch');
+        await gFFI.invokeMethod('set_first_run_authorization', true);
+        _writePublicAuthMarker();
       }
     } catch (error, stackTrace) {
       RuntimeLogger.instance.error(
@@ -131,80 +210,13 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Show a one-time dialog explaining all permissions before requesting them.
-  /// Returns true if the user tapped "一键授权", false if they deferred.
-  Future<bool> _showFirstRunPermissionDialog() async {
-    if (!mounted) return false;
-    final res = await gFFI.dialogManager.show<bool>((setState, close, context) {
-      return CustomAlertDialog(
-        title: Row(children: [
-          const Icon(Icons.security, color: Colors.blue, size: 28),
-          const SizedBox(width: 10),
-          Text(translate('One-time Authorization')),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(translate('android_first_run_permission_tip'),
-                style: const TextStyle(fontSize: 14)),
-            const SizedBox(height: 12),
-            _buildPermissionItem(Icons.notifications, 'Notification',
-                translate('Receive connection notifications')),
-            _buildPermissionItem(Icons.mic, 'Microphone',
-                translate('Voice call during remote control')),
-            _buildPermissionItem(Icons.battery_full, 'Battery',
-                translate('Keep service alive in background')),
-            _buildPermissionItem(Icons.picture_in_picture, 'Floating Window',
-                translate('Show floating window when minimized')),
-            _buildPermissionItem(Icons.folder, 'Storage',
-                translate('File transfer support')),
-            _buildPermissionItem(Icons.accessibility, 'Accessibility',
-                translate('Remote control of this device')),
-            _buildPermissionItem(Icons.screen_share, 'Screen Capture',
-                translate('Share screen to remote')),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => close(false),
-              child: Text(translate('Later'))),
-          ElevatedButton(
-              onPressed: () => close(true),
-              child: Text(translate('Authorize All'))),
-        ],
-        onSubmit: () => close(true),
-        onCancel: () => close(false),
-      );
-    });
-    return res == true;
-  }
-
-  Widget _buildPermissionItem(IconData icon, String title, String desc) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(children: [
-        Icon(icon, size: 18, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(translate(title),
-                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-              Text(desc, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-            ],
-          ),
-        ),
-      ]),
-    );
-  }
-
-  /// Batch-request all standard runtime permissions in a single system dialog.
-  /// This replaces the old approach of requesting each permission one-by-one
-  /// which caused multiple separate system dialogs to pop up.
+  /// Batch-request the standard runtime permissions that matter for the core
+  /// remote-control flow in ONE system dialog (they merge on modern Android).
+  /// The "special" system pages (all-files access, battery-optimization list)
+  /// are deliberately NOT requested here — each is a full separate settings
+  /// screen and they are only needed by the optional file manager / keep-alive;
+  /// they stay available in Settings when actually used.
   Future<bool> _requestStandardPermissionsBatch() async {
-    // Collect all standard permissions that are not yet granted
     final typesToRequest = <String>[];
     var allOk = true;
 
@@ -217,35 +229,17 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!await AndroidPermissionManager.check(kRecordAudio)) {
       typesToRequest.add(kRecordAudio);
     }
-    // Battery optimization
-    if (!await AndroidPermissionManager.check(kRequestIgnoreBatteryOptimizations)) {
-      typesToRequest.add(kRequestIgnoreBatteryOptimizations);
-    }
-    // Floating window / overlay
-    if (androidVersion >= 23 &&
-        !await AndroidPermissionManager.check(kSystemAlertWindow)) {
-      typesToRequest.add(kSystemAlertWindow);
-    }
-    // External storage
-    if (!await AndroidPermissionManager.check(kManageExternalStorage)) {
-      typesToRequest.add(kManageExternalStorage);
-    }
 
     if (typesToRequest.isEmpty) {
       return true;
     }
 
     // Request all ungranted standard permissions at once via batch API.
-    // This shows a single system dialog (or minimal dialogs) instead of
-    // popping up one dialog per permission.
-    RuntimeLogger.instance
-        .info('ANDROID', 'batch requesting ${typesToRequest.length} permissions: $typesToRequest');
+    RuntimeLogger.instance.info('ANDROID',
+        'batch requesting ${typesToRequest.length} permissions: $typesToRequest');
     await gFFI.invokeMethod('request_permissions_batch', typesToRequest);
 
     // Wait for the batch dialog to complete by polling each permission.
-    // The batch API reports results via on_android_permission_result callback,
-    // but we simply re-check each permission after a short delay.
-    // Give the system dialog time to show and be answered.
     for (final type in typesToRequest) {
       // Poll up to 30 seconds for each permission to be granted
       var granted = false;
@@ -258,8 +252,8 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (!mounted) break;
       }
       if (!granted) allOk = false;
-      RuntimeLogger.instance
-          .info('ANDROID', 'batch permission result; type=$type granted=$granted');
+      RuntimeLogger.instance.info(
+          'ANDROID', 'batch permission result; type=$type granted=$granted');
     }
 
     return allOk;
@@ -270,26 +264,7 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return true;
     }
 
-    // Show a brief hint before jumping to settings
-    if (mounted) {
-      await gFFI.dialogManager.show<void>((setState, close, context) {
-        return CustomAlertDialog(
-          title: Row(children: [
-            const Icon(Icons.accessibility, color: Colors.blue, size: 24),
-            const SizedBox(width: 8),
-            Text(translate('Enable Accessibility')),
-          ]),
-          content: Text(translate('android_accessibility_hint')),
-          actions: [
-            ElevatedButton(
-                onPressed: close, child: Text(translate('Go to Settings'))),
-          ],
-          onSubmit: close,
-          onCancel: close,
-        );
-      });
-    }
-
+    // 直接跳转到无障碍设置页，不弹中间提示框，让"一键授权"尽可能一步到位
     final waiting = Completer<void>();
     _accessibilityReturn = waiting;
     _leftForAccessibilitySettings = false;
@@ -308,7 +283,14 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _leftForAccessibilitySettings = false;
     }
 
-    final granted = await AndroidPermissionManager.checkAccessibility();
+    // Some ROMs connect the accessibility service a moment after the toggle
+    // is flipped; poll briefly so the flow reports the real state instead of
+    // an immediate false negative.
+    var granted = await AndroidPermissionManager.checkAccessibility();
+    for (var i = 0; i < 20 && !granted; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      granted = await AndroidPermissionManager.checkAccessibility();
+    }
     await gFFI.invokeMethod('check_service');
     RuntimeLogger.instance
         .info('ANDROID', 'accessibility request completed; granted=$granted');
@@ -319,12 +301,24 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!mounted) {
       return false;
     }
+    // Screen capture is only useful together with the accessibility input
+    // service. In the guided flow step 2 already walked the user through
+    // enabling it; if it is still off, skip the MediaProjection dialog instead
+    // of stacking a second system prompt on top of the previous one.
+    if (!await AndroidPermissionManager.checkAccessibility()) {
+      RuntimeLogger.instance
+          .warn('ANDROID', 'screen capture skipped: accessibility not enabled');
+      return false;
+    }
     final mediaReady =
         await gFFI.invokeMethod('check_video_permission') == true;
     if (mediaReady) {
       return true;
     }
 
+    // One system MediaProjection confirmation dialog. This is the "one tap"
+    // inside the first-run flow: once granted the token stays alive while the
+    // service runs, and sessions no longer re-ask.
     await gFFI.serverModel.startService();
     for (var i = 0; i < 240 && mounted; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -339,9 +333,9 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initPages() {
     _pages.clear();
     if (!bind.isIncomingOnly()) {
-_pages.add(ConnectionPage(
-appBarActions: bind.isDisableSettings() ? [] : [_ScanConnectButton()],
-));
+      _pages.add(ConnectionPage(
+        appBarActions: bind.isDisableSettings() ? [] : [_ScanConnectButton()],
+      ));
     }
     if (isAndroid && !bind.isOutgoingOnly()) {
       _chatPageTabIndex = _pages.length;
@@ -532,15 +526,14 @@ class WebHomePage extends StatelessWidget {
           break;
       }
     }
-if (id != null) {
-connect(context, id,
-isFileTransfer: isFileTransfer,
-isViewCamera: isViewCamera,
-isTerminal: isTerminal,
-password: password);
-}
-}
-
+    if (id != null) {
+      connect(context, id,
+          isFileTransfer: isFileTransfer,
+          isViewCamera: isViewCamera,
+          isTerminal: isTerminal,
+          password: password);
+    }
+  }
 }
 
 /// AppBar button that opens the QR scanner for one-tap connect.

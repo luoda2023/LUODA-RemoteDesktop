@@ -12,8 +12,6 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
     <queries>
         <intent>
             <!-- https://developer.android.com/training/package-visibility/use-cases#open-urls-custom-tabs -->
@@ -23,9 +21,11 @@
 
     <application
         android:name=".MainApplication"
-        android:icon="@mipmap/ic_launcher"
-  android:label="LUODA"
-  android:roundIcon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_launcher_legacy"
+        android:label="LDesk"
+        android:roundIcon="@mipmap/ic_launcher_legacy"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
         android:supportsRtl="true">
 
         <receiver
@@ -42,7 +42,7 @@
             android:name=".InputService"
             android:enabled="true"
             android:exported="false"
-            android:label="LUODA Input"
+            android:label="LDesk Input"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
@@ -85,10 +85,6 @@
             android:name=".MainService"
             android:enabled="true"
             android:foregroundServiceType="mediaProjection" />
-
-        <service
-            android:name=".FloatingWindowService"
-            android:enabled="true" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -90,7 +90,7 @@ fn try_add_mapping(port: u16) -> Result<u16, Box<dyn std::error::Error>> {
         port,
         local_addr,
         0,
-        "LUODA Remote Desktop",
+        "LDesk Remote Desktop",
     ) {
         Ok(()) => Ok(port),
         Err(igd_next::AddPortError::PortInUse) => {
@@ -98,7 +98,7 @@ fn try_add_mapping(port: u16) -> Result<u16, Box<dyn std::error::Error>> {
                 igd_next::PortMappingProtocol::TCP,
                 local_addr,
                 0,
-                "LUODA Remote Desktop",
+                "LDesk Remote Desktop",
             )?;
             info!(
                 "UPnP: preferred external port {} was occupied; router assigned {}",
