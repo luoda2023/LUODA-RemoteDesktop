@@ -4140,9 +4140,14 @@ pub mod peer_online {
                         rendezvous_ids.len(),
                         e
                     );
-                    if !direct_onlines.is_empty() || !direct_offlines.is_empty() {
-                        f(direct_onlines, direct_offlines);
-                    }
+                    // Always invoke the callback, even when the rendezvous query
+                    // failed and there are no direct peers. Previously the callback
+                    // was skipped in that case, so the UI kept the stale (grey) state
+                    // and never refreshed. Here we only report the direct peers and
+                    // leave rendezvous peers unchanged (they are simply omitted from
+                    // both lists, so the UI keeps their previous online/offline state
+                    // instead of wrongly marking them offline).
+                    f(direct_onlines, direct_offlines);
                 }
             }
         }

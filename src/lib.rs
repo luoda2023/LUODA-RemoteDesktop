@@ -1,7 +1,3 @@
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
-
 #[cfg(target_os = "android")]
 mod android_opus_stub;
 mod keyboard;

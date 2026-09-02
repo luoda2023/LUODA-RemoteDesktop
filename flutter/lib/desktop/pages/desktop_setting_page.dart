@@ -334,7 +334,7 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
           const VerticalDivider(width: 1),
           Expanded(
             child: Container(
-              color: Colors.white,
+              color: MyTheme.grayBg,
               child: Theme(
                 data: Theme.of(context).copyWith(
                   cardColor: Colors.white,
@@ -2418,59 +2418,86 @@ Widget _Card(
     {required String title,
     required List<Widget> children,
     List<Widget>? title_suffix}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Expanded(
-              child: Text(
-            translate(title),
-            textAlign: TextAlign.start,
-            style: const TextStyle(
-              fontSize: _kTitleFontSize,
-              fontWeight: FontWeight.w600,
-            ),
-          )),
-          ...?title_suffix
-        ],
-      ).marginOnly(left: _kContentHMargin, top: 4, bottom: 8),
-      LayoutBuilder(
-        builder: (context, constraints) {
-          // 响应式多列：每项最小 200px，根据可用宽度自动决定列数
-          const double minItemWidth = 200;
-          final int columns =
-              (constraints.maxWidth / minItemWidth).floor().clamp(1, 6);
-          final double itemWidth =
-              (constraints.maxWidth - (columns - 1) * 8) / columns;
-          return Wrap(
-            alignment: WrapAlignment.start,
-            runAlignment: WrapAlignment.start,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 0,
-            children: children
-                .map((e) => SizedBox(
-                      width: itemWidth,
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: _kOptionDividerColor,
-                              width: 1,
+  return Container(
+    margin: const EdgeInsets.only(left: _kContentHMargin, right: _kContentHMargin, top: 10, bottom: 10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.04),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 标题栏
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  translate(title),
+                  textAlign: TextAlign.start,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ...?title_suffix
+            ],
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, color: _kOptionDividerColor),
+        // 响应式多列：每项最小 210px，根据可用宽度自动决定列数
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const double minItemWidth = 210;
+              final int columns =
+                  (constraints.maxWidth / minItemWidth).floor().clamp(1, 6);
+              final double itemWidth =
+                  (constraints.maxWidth - (columns - 1) * 12) / columns;
+              return Wrap(
+                alignment: WrapAlignment.start,
+                runAlignment: WrapAlignment.start,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 0,
+                children: children
+                    .map((e) => SizedBox(
+                          width: itemWidth,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 8),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: children.length > 1
+                                      ? _kOptionDividerColor
+                                      : Colors.transparent,
+                                  width: 1,
+                                ),
+                              ),
                             ),
+                            child: e,
                           ),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: e.marginOnly(right: 4),
-                      ),
-                    ))
-                .toList(),
-          ).marginOnly(left: _kContentHMargin, right: _kContentHMargin);
-        },
-      ),
-    ],
-  ).marginOnly(left: _kCardLeftMargin, top: 8, bottom: 8);
+                        ))
+                    .toList(),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+    ),
+  );
 }
 // ignore: non_constant_identifier_names
 Widget _OptionCheckBox(
@@ -2531,7 +2558,9 @@ Widget _OptionCheckBox(
           Expanded(
               child: Text(
             translate(label),
-            style: TextStyle(color: disabledTextColor(context, enabled)),
+            style: TextStyle(
+                fontSize: _kContentFontSize,
+                color: disabledTextColor(context, enabled)),
           ))
         ],
       ),

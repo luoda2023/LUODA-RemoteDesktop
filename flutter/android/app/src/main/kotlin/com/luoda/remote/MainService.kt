@@ -526,6 +526,7 @@ class MainService : Service() {
         // suface needs to be release after `imageReader.close()` to imageReader access released surface
         // https://github.com/luoda/luoda/issues/4118#issuecomment-1515666629
         surface?.release()
+        surface = null
 
         // release audio
         _isAudioStart = false
@@ -609,15 +610,31 @@ class MainService : Service() {
                     s, null, null
                 )
                 if (virtualDisplay == null) {
-                    Log.e(logTag, "createVirtualDisplay returned null! MediaProjection may be in single-app mode. Requesting full projection.")
-                    requestMediaProjection()
+                    // The projection token is stale (usually after the OS tore down a
+                    // previous session). Re-requesting a confirmation dialog here is what
+                    // makes the "share screen" prompt pop up after every session ends.
+                    // Mark the projection invalid and let the next connection go through
+                    // the normal init_service authorization flow instead of auto-prompting.
+                    Log.e(logTag, "createVirtualDisplay returned null! Marking MediaProjection invalid.")
+                    invalidateProjection()
                 }
             }
         } catch (e: SecurityException) {
-            Log.w(logTag, "createOrSetVirtualDisplay: got SecurityException, re-requesting confirmation");
-            // This initiates a prompt dialog for the user to confirm screen projection.
-            requestMediaProjection()
+            Log.w(logTag, "createOrSetVirtualDisplay: got SecurityException, invalidating projection");
+            invalidateProjection()
         }
+    }
+
+    /// Clear the stale MediaProjection without prompting the user again.
+    private fun invalidateProjection() {
+        try {
+            mediaProjection?.unregisterCallback(projectionCallback)
+        } catch (_: Exception) {
+        }
+        mediaProjection = null
+        _isReady = false
+        _isStart = false
+        checkMediaPermission()
     }
 
     private val cb: MediaCodec.Callback = object : MediaCodec.Callback() {
