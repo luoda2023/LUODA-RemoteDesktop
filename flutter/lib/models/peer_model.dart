@@ -270,6 +270,18 @@ class Peers extends ChangeNotifier {
     for (var peer in peers) {
       peer.online = _onlineStates[peer.id] ?? false;
     }
+
+    // 权威表未知的 peer（第一次被 load 进来，服务端在线状态还没有任何缓存）
+    // 立即补一次查询，避免这类设备一直灰到下一次 load/轮询才翻绿。查询走
+    // Rust 侧无界队列，绝不会因为并发 load 而丢请求。
+    final unknown = <String>[
+      for (final peer in peers)
+        if (!_onlineStates.containsKey(peer.id)) peer.id,
+    ];
+    if (unknown.isNotEmpty) {
+      bind.queryOnlines(ids: unknown);
+    }
+
     event = UpdateEvent.load;
     notifyListeners();
   }

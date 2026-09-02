@@ -73,6 +73,14 @@ lazy_static::lazy_static! {
  pub static ref IS_UAC_RUNNING: Arc<Mutex<bool>> = Default::default();
  pub static ref IS_FOREGROUND_WINDOW_ELEVATED: Arc<Mutex<bool>> = Default::default();
  static ref SCREENSHOTS: Mutex<HashMap<usize, Screenshot>> = Default::default();
+ // Cross-restart cache of the last successfully converted screen frame.
+ // A static desktop yields WouldBlock forever; when the video service restarts
+ // (SWITCH / relay) for a new subscriber, no fresh frame arrives to encode,
+ // so the viewer would hang on "connected, waiting for first frame". Keep
+ // the last good YUV buffer (plus its capture size) per display so WouldBlock
+ // handling can immediately re-encode a real frame for the waiting subscriber.
+ static ref LAST_GOOD_YUV: Mutex<HashMap<usize, (Vec<u8>, usize, usize)>> = Mutex::new(HashMap::default());
+
 }
 
 #[cfg(windows)]
@@ -664,6 +672,7 @@ fn run(vs: VideoService) -> ResultType<()> {
     #[cfg(windows)]
     let mut first_frame_no_subscriber_logged = false;
     let mut last_check_displays = time::Instant::now();
+    let mut last_cache_write = time::Instant::now();
     #[cfg(windows)]
     let mut try_gdi = 1;
     #[cfg(windows)]
@@ -843,6 +852,14 @@ fn run(vs: VideoService) -> ResultType<()> {
                         );
                     }
                     #[cfg(windows)]
+                    if !first_frame_sent && !first_frame_no_subscriber_logged {
+                        first_frame_no_subscriber_logged = true;
+                        crate::runtime_logger::warn(
+                            "VIDEO",
+                            &format!("encoded frame but no subscribers; display={display_idx}"),
+                        );
+                    }
+                    #[cfg(windows)]
                     if !first_frame_sent && !send_conn_ids.is_empty() {
                         first_frame_sent = true;
                         log::info!(
@@ -850,12 +867,21 @@ fn run(vs: VideoService) -> ResultType<()> {
                             send_conn_ids.len()
                         );
                     }
-                    #[cfg(windows)]
-                    if !first_frame_sent && !first_frame_no_subscriber_logged {
-                        first_frame_no_subscriber_logged = true;
-                        crate::runtime_logger::warn(
-                            "VIDEO",
-                            &format!("encoded frame but no subscribers; display={display_idx}"),
+
+                    // Cache the frame so that a subsequent video-service restart
+                    // on an idle desktop can still deliver a first frame to a
+                    // waiting subscriber (see the WouldBlock fallback below).
+                    // Only YUV (pixel-buffer) frames are cached: texture frames
+                    // keep no CPU-side buffer, so there is nothing reusable.
+                    // Throttled: ~500ms granularity is plenty for an idle
+                    // screen and avoids a full-frame memcpy every frame.
+                    if !yuv.is_empty()
+                        && now.duration_since(last_cache_write) >= Duration::from_millis(500)
+                    {
+                        last_cache_write = now;
+                        LAST_GOOD_YUV.lock().unwrap().insert(
+                            display_idx,
+                            (yuv.clone(), capture_width, capture_height),
                         );
                     }
                     frame_controller.set_send(now, send_conn_ids);
@@ -928,11 +954,37 @@ fn run(vs: VideoService) -> ResultType<()> {
                         }
                     }
                 }
-                if !encoder.latency_free() && yuv.len() > 0 {
-                    // yun.len() > 0 means the frame is not texture.
-                    if repeat_encode_counter < repeat_encode_max {
+                // Idle desktop: the capturer has no new frame.  Keep streaming
+                // by re-encoding what we already have, so a viewer never sits
+                // on "connected, waiting for first frame".
+                let use_cached = LAST_GOOD_YUV
+                    .lock()
+                    .unwrap()
+                    .get(&display_idx)
+                    .filter(|(b, _, _)| !b.is_empty())
+                    .map(|(b, w, h)| (b.clone(), *w, *h));
+                let can_repeat = yuv.len() > 0 || use_cached.is_some();
+                #[cfg(windows)]
+                let first_frame_pending = !first_frame_sent;
+                #[cfg(not(windows))]
+                let first_frame_pending = false;
+                // While the first frame has not been delivered yet (fresh run on
+                // an idle desktop) keep retrying without counting, so we never
+                // stop re-encoding for a waiting subscriber. Once streaming is
+                // up, fall back to the original bounded repeat (idle desktop
+                // refreshes) so a fully idle screen does not burn CPU forever.
+                let exhausted = if first_frame_pending {
+                    false
+                } else {
+                    repeat_encode_counter >= repeat_encode_max
+                };
+                if can_repeat && !exhausted {
+                    if !first_frame_pending {
                         repeat_encode_counter += 1;
-                        let send_conn_ids = handle_one_frame(
+                    }
+                    let send_conn_ids = if yuv.len() > 0 {
+                        // 1. Prefer this run's freshly converted frame.
+                        handle_one_frame(
                             display_idx,
                             &sp,
                             EncodeInput::YUV(&yuv),
@@ -943,23 +995,49 @@ fn run(vs: VideoService) -> ResultType<()> {
                             &mut first_frame,
                             capture_width,
                             capture_height,
-                        )?;
+                        )?
+                    } else if let Some((buf, cache_w, cache_h)) = use_cached.as_ref() {
+                        // 2. Restart case: nothing converted in this run yet, use
+                        //    the cross-restart cache - but only if the encoder
+                        //    geometry still matches, otherwise the raw buffer
+                        //    would be invalid (fall through to the loop tail so
+                        //    the regular frame pacing / sleep still runs).
+                        if *cache_w == capture_width && *cache_h == capture_height {
+                            handle_one_frame(
+                                display_idx,
+                                &sp,
+                                EncodeInput::YUV(buf.as_slice()),
+                                ms,
+                                &mut encoder,
+                                recorder.clone(),
+                                &mut encode_fail_counter,
+                                &mut first_frame,
+                                capture_width,
+                                capture_height,
+                            )?
+                        } else {
+                            HashSet::new()
+                        }
+                    } else {
+                        HashSet::new()
+                    };
+                    #[cfg(windows)]
+                    if !first_frame_sent && !first_frame_no_subscriber_logged {
+                        first_frame_no_subscriber_logged = true;
+                        crate::runtime_logger::warn(
+                            "VIDEO",
+                            &format!(
+                                "encoded repeated frame but no subscribers; display={display_idx}"
+                            ),
+                        );
+                    }
+                    if !send_conn_ids.is_empty() {
                         #[cfg(windows)]
-                        if !first_frame_sent && !send_conn_ids.is_empty() {
+                        if !first_frame_sent {
                             first_frame_sent = true;
                             log::info!(
                                 "first video frame sent; display={display_idx}; subscribers={}",
                                 send_conn_ids.len()
-                            );
-                        }
-                        #[cfg(windows)]
-                        if !first_frame_sent && !first_frame_no_subscriber_logged {
-                            first_frame_no_subscriber_logged = true;
-                            crate::runtime_logger::warn(
-                                "VIDEO",
-                                &format!(
-                                    "encoded repeated frame but no subscribers; display={display_idx}"
-                                ),
                             );
                         }
                         frame_controller.set_send(now, send_conn_ids);

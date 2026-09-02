@@ -2302,12 +2302,12 @@ pub(super) mod async_tasks {
     use std::{
         collections::HashMap,
         sync::{
-            mpsc::{sync_channel, SyncSender},
+            mpsc::{channel, Sender},
             Arc, Mutex,
         },
     };
 
-    type TxQueryOnlines = SyncSender<Vec<String>>;
+    type TxQueryOnlines = Sender<Vec<String>>;
     lazy_static::lazy_static! {
         static ref TX_QUERY_ONLINES: Arc<Mutex<Option<TxQueryOnlines>>> = Default::default();
     }
@@ -2324,8 +2324,14 @@ pub(super) mod async_tasks {
 
     #[tokio::main(flavor = "current_thread")]
     async fn start_flutter_async_runner_() {
-        // Only one task is allowed to run at the same time.
-        let (tx_onlines, rx_onlines) = sync_channel::<Vec<String>>(1);
+        // Only one task is allowed to run at the same time, but the queue is
+        // unbounded: an in-flight rendezvous query (~3s) must never drop the
+        // request a freshly-loaded peer list just sent.  Dropped requests were
+        // a real cause of "device is online but the UI keeps showing it grey":
+        // when several models (recent / fav / lan / ab) load at the same time,
+        // the old capacity-1 sync_channel silently discarded all but one query
+        // and the losers never recovered until the next load event.
+        let (tx_onlines, rx_onlines) = channel::<Vec<String>>();
         TX_QUERY_ONLINES.lock().unwrap().replace(tx_onlines);
 
         loop {
@@ -2343,8 +2349,10 @@ pub(super) mod async_tasks {
 
     pub fn query_onlines(ids: Vec<String>) -> ResultType<()> {
         if let Some(tx) = TX_QUERY_ONLINES.lock().unwrap().as_ref() {
-            // Ignore if the channel is full.
-            let _ = tx.try_send(ids)?;
+            // Unbounded channel: never drop a peer-state query. Dropped
+            // requests left devices permanently grey on the phone until the
+            // next full reload.
+            tx.send(ids)?;
         } else {
             bail!("No tx_query_onlines");
         }

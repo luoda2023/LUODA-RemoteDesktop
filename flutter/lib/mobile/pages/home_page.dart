@@ -81,8 +81,6 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<PageShape> _pages = [];
   int _chatPageTabIndex = -1;
   late final FirstRunPermissionFlow _firstRunPermissionFlow;
-  Completer<void>? _accessibilityReturn;
-  bool _leftForAccessibilitySettings = false;
   bool get isChatPageCurrentTab => isAndroid
       ? _selectedIndex == _chatPageTabIndex
       : false; // change this when ios have chat page
@@ -100,10 +98,8 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _firstRunPermissionFlow = FirstRunPermissionFlow(
       [
         () => _requestStandardPermissionsBatch(),
-        _requestAccessibilityPermission,
-        _ensureScreenCaptureStarted,
       ],
-      stepNames: ['standard_permissions', 'accessibility', 'screen_capture'],
+      stepNames: ['standard_permissions'],
       onStepProgress: (name, index, total, granted) {
         RuntimeLogger.instance.info('ANDROID',
             'first-run step ${index + 1}/$total ($name): ${granted ? "granted" : "denied/skipped"}');
@@ -118,42 +114,19 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    final waiting = _accessibilityReturn;
-    if (waiting != null && !waiting.isCompleted) {
-      waiting.complete();
-    }
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final waiting = _accessibilityReturn;
-    if (waiting == null || waiting.isCompleted) {
-      return;
-    }
-    if (state == AppLifecycleState.resumed && _leftForAccessibilitySettings) {
-      waiting.complete();
-    } else if (state != AppLifecycleState.resumed) {
-      _leftForAccessibilitySettings = true;
-    }
-  }
 
-  /// True when the marker says the user already completed the one-tap flow AND
-  /// the accessibility service (the capability Android wipes on a real
-  /// uninstall/reinstall) is currently granted. When both hold, the app starts
-  /// silently; otherwise the guided flow runs again but every step auto-skips
-  /// the grants that are already in place.
+  /// True when the user has completed the one-time authorization flow (any of
+  /// the persisted markers is present). Once marked, the app ALWAYS starts
+  /// silently - accessibility is deliberately not re-checked here because it
+  /// is a hosting capability only needed when this phone is remote-controlled.
   Future<bool> _canStartQuietly() async {
     try {
-      final markedDone =
-          bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y' ||
-              await gFFI.invokeMethod('get_first_run_authorization') == true ||
-              _readPublicAuthMarker();
-      if (!markedDone) return false;
-      // The accessibility grant is the capability Android actually wipes on a
-      // real uninstall/reinstall, so treat it as the source of truth: only a
-      // device whose accessibility service is still enabled starts silently.
-      return await AndroidPermissionManager.checkAccessibility();
+      return bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y' ||
+          await gFFI.invokeMethod('get_first_run_authorization') == true ||
+          _readPublicAuthMarker();
     } catch (e) {
       RuntimeLogger.instance.info('ANDROID', 'quiet-start check failed: $e');
     }
@@ -165,7 +138,11 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ///    permissions that may have been reset by a reinstall (single system
   ///    dialog, no accessibility jump, no screen-capture prompt), then refresh
   ///    the marker; nothing pops when everything is already granted.
-  ///  - first run: run the guided one-tap flow.
+  ///  - first run: run the guided one-tap flow (standard permissions only).
+  ///
+  /// Accessibility ("Input Control") and screen capture are HOSTING
+  /// capabilities: they are prompted inside the "Share screen" page when the
+  /// user actually enables them, never auto-popped on app launch.
   Future<void> _runFirstLaunchAuthorization() async {
     if (!isAndroid || bind.isOutgoingOnly() || !mounted) {
       return;
@@ -176,17 +153,16 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence started');
         final completed = await _firstRunPermissionFlow.run();
-        if (completed) {
-          await bind.mainSetLocalOption(
-              key: _kFirstRunAuthorization, value: 'Y');
-          await gFFI.invokeMethod('set_first_run_authorization', true);
-          _writePublicAuthMarker();
-          RuntimeLogger.instance
-              .info('ANDROID', 'first-run authorization sequence finished');
-        } else {
-          RuntimeLogger.instance.warn('ANDROID',
-              'first-run authorization incomplete; will retry on next launch');
-        }
+        // Persist the marker regardless of which optional steps the user
+        // skipped. Hosting capabilities (accessibility / screen capture) are
+        // requested on demand in the "Share screen" page, so an incomplete
+        // flow here must NOT re-trigger the full authorization window on the
+        // next cold start.
+        await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
+        await gFFI.invokeMethod('set_first_run_authorization', true);
+        _writePublicAuthMarker();
+        RuntimeLogger.instance.info('ANDROID',
+            'first-run authorization sequence finished (completed=$completed)');
         return;
       }
       // Prior authorization: silently top up standard runtime permissions.
@@ -257,77 +233,6 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     return allOk;
-  }
-
-  Future<bool> _requestAccessibilityPermission() async {
-    if (await AndroidPermissionManager.checkAccessibility()) {
-      return true;
-    }
-
-    // 直接跳转到无障碍设置页，不弹中间提示框，让"一键授权"尽可能一步到位
-    final waiting = Completer<void>();
-    _accessibilityReturn = waiting;
-    _leftForAccessibilitySettings = false;
-    final opened = await AndroidPermissionManager.startAction(
-        kActionAccessibilityDetailsSettings);
-    if (!opened && !waiting.isCompleted) {
-      waiting.complete();
-    }
-    try {
-      await waiting.future.timeout(const Duration(minutes: 5));
-    } on TimeoutException {
-      RuntimeLogger.instance.warn(
-          'ANDROID', 'accessibility settings did not return within 5 minutes');
-    } finally {
-      _accessibilityReturn = null;
-      _leftForAccessibilitySettings = false;
-    }
-
-    // Some ROMs connect the accessibility service a moment after the toggle
-    // is flipped; poll briefly so the flow reports the real state instead of
-    // an immediate false negative.
-    var granted = await AndroidPermissionManager.checkAccessibility();
-    for (var i = 0; i < 20 && !granted; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      granted = await AndroidPermissionManager.checkAccessibility();
-    }
-    await gFFI.invokeMethod('check_service');
-    RuntimeLogger.instance
-        .info('ANDROID', 'accessibility request completed; granted=$granted');
-    return granted;
-  }
-
-  Future<bool> _ensureScreenCaptureStarted() async {
-    if (!mounted) {
-      return false;
-    }
-    // Screen capture is only useful together with the accessibility input
-    // service. In the guided flow step 2 already walked the user through
-    // enabling it; if it is still off, skip the MediaProjection dialog instead
-    // of stacking a second system prompt on top of the previous one.
-    if (!await AndroidPermissionManager.checkAccessibility()) {
-      RuntimeLogger.instance
-          .warn('ANDROID', 'screen capture skipped: accessibility not enabled');
-      return false;
-    }
-    final mediaReady =
-        await gFFI.invokeMethod('check_video_permission') == true;
-    if (mediaReady) {
-      return true;
-    }
-
-    // One system MediaProjection confirmation dialog. This is the "one tap"
-    // inside the first-run flow: once granted the token stays alive while the
-    // service runs, and sessions no longer re-ask.
-    await gFFI.serverModel.startService();
-    for (var i = 0; i < 240 && mounted; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      if (await gFFI.invokeMethod('check_video_permission') == true ||
-          !gFFI.serverModel.isStart) {
-        break;
-      }
-    }
-    return await gFFI.invokeMethod('check_video_permission') == true;
   }
 
   void initPages() {
