@@ -163,6 +163,11 @@ class _PeersViewState extends State<_PeersView>
     if (isDesktop || isWebDesktop) return;
     if (state == AppLifecycleState.resumed) {
       _isActive = true;
+      // Mobile equivalent of onWindowFocus: force a refresh right after the
+      // app returns to the foreground, instead of waiting out one full
+      // polling interval. Otherwise returning to the app can leave peers
+      // grey/outdated for several seconds or longer.
+      _lastQueryTime = DateTime.now().subtract(_queryInterval);
     } else if (state == AppLifecycleState.inactive) {
       _isActive = false;
     }
@@ -376,8 +381,17 @@ class _PeersViewState extends State<_PeersView>
                         }));
 
             if (updateEvent == UpdateEvent.load) {
-              _curPeers.clear();
-              _curPeers.addAll(peers.map((e) => e.id));
+              // Query the *whole* known peer set of this model, not only the
+              // cards currently visible on screen. A device that is in the
+              // list but not yet scrolled into view (or rendered later)
+              // otherwise never gets queried and stays grey forever.
+              _curPeers
+                ..clear()
+                ..addAll(peers.map((e) => e.id));
+              final all = widget.peers.peers;
+              if (all.length > _curPeers.length) {
+                _curPeers.addAll(all.map((e) => e.id));
+              }
               _queryOnlines(true);
             }
             return child;
