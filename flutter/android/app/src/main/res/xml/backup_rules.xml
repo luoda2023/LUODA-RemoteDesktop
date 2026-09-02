@@ -1,18 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Auto-backup (Android 12+ full backup / older auto backup) keeps the first-run
-  authorization SharedPreferences so a reinstall or device migration restores
-  the "already authorized" state. The public-storage marker under
-  Documents/LDesk is the primary cross-reinstall mechanism and lives outside
-  app data; this rules file is the second layer for OEM backup transports.
+  Auto-backup second layer for the first-run authorization SharedPreferences
+  (KEY_SHARED_PREFERENCES.xml). The primary cross-reinstall mechanism is the
+  public-storage marker under Documents/LDesk/, which lives outside app data;
+  this rules file additionally lets OEM backup transports restore the
+  "already authorized" flag on reinstall / device migration.
+
+  Keep this minimal: lint (lintVitalRelease) requires every <exclude> to
+  reference an <include>d path, so no excludes are declared here.
 -->
 <full-backup-content>
     <include domain="sharedpref" path="KEY_SHARED_PREFERENCES.xml" />
-    <include domain="file" path="." />
-    <include domain="database" path="." />
-    <include domain="external" path="." />
-    <exclude domain="sharedpref" path="FlutterSharedPreferences.xml" />
-    <exclude domain="sharedpref" path="flutter." />
-    <exclude domain="cache" path="." />
-    <exclude domain="file" path="cache/" />
 </full-backup-content>
