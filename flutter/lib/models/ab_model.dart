@@ -1276,7 +1276,6 @@ class LegacyAb extends BaseAb {
 
   _deserialize(dynamic data) {
     if (data == null) return;
-    final oldOnlineIDs = peers.where((e) => e.online).map((e) => e.id).toList();
     tags.clear();
     tagColors.clear();
     peers.clear();
@@ -1291,11 +1290,9 @@ class LegacyAb extends BaseAb {
     if (isFull()) {
       peers.removeRange(licensedDevices, peers.length);
     }
-    // restore online
-    peers
-        .where((e) => oldOnlineIDs.contains(e.id))
-        .map((e) => e.online = true)
-        .toList();
+    // 用进程级权威表恢复在线状态：不仅是“上一轮就在线的”，也包括本轮
+    // 首次出现但服务端已确认在线的设备（跨列表共享，绝不再因重建而灰）。
+    Peers.restoreOnline(peers);
     if (data['tag_colors'] is String) {
       Map<String, dynamic> map = jsonDecode(data['tag_colors']);
       tagColors.value = Map<String, int>.from(map);
@@ -1367,6 +1364,7 @@ class Ab extends BaseAb {
     if (!await _fetchPeers(tmpPeers, quiet: quiet)) {
       ret = false;
     }
+    Peers.restoreOnline(tmpPeers);
     peers.value = tmpPeers;
     List<AbTag> tmpTags = [];
     if (!await _fetchTags(tmpTags, quiet: quiet)) {

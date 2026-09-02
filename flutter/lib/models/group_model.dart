@@ -89,13 +89,10 @@ class GroupModel {
         !deviceGroups.any((d) => d.name == selectedAccessibleItemName.value)) {
       selectedAccessibleItemName.value = '';
     }
-    // recover online
-    final oldOnlineIDs = peers.where((e) => e.online).map((e) => e.id).toList();
+    // 用进程级权威表恢复在线状态：不仅恢复“上一轮就在线的”，也包括本轮首次
+    // 出现但服务端已确认在线的设备（跨列表共享，不再因重建 Peer 而误灰）。
+    Peers.restoreOnline(tmpPeers);
     peers.value = tmpPeers;
-    peers
-        .where((e) => oldOnlineIDs.contains(e.id))
-        .map((e) => e.online = true)
-        .toList();
     groupLoadError.value = '';
     _callbackPeerUpdate();
   }

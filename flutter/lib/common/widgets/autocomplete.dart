@@ -62,12 +62,17 @@ class AllPeersLoader {
     Map<String, dynamic> combinedPeers = {};
     for (var p in gFFI.abModel.allPeers()) {
       if (!combinedPeers.containsKey(p.id)) {
-        combinedPeers[p.id] = p.toJson();
+        final copy = Peer.copy(p);
+        // 通讯录对象重建会丢失 online，用进程级权威表回填，避免恒灰。
+        Peers.restoreOnline([copy]);
+        combinedPeers[p.id] = copy.toJson();
       }
     }
     for (var p in gFFI.groupModel.peers.map((e) => Peer.copy(e)).toList()) {
       if (!combinedPeers.containsKey(p.id)) {
-        combinedPeers[p.id] = p.toJson();
+        final copy = Peer.copy(p);
+        Peers.restoreOnline([copy]);
+        combinedPeers[p.id] = copy.toJson();
       }
     }
 
@@ -75,6 +80,9 @@ class AllPeersLoader {
     for (var peer in combinedPeers.values) {
       parsedPeers.add(Peer.fromJson(peer));
     }
+    // 统一用进程级权威表回填：无论来自哪个列表、经过多少次序列化重建，
+    // 服务器已确认在线的设备在这里也保持在线，绝不再因为重建而变灰。
+    Peers.restoreOnline(parsedPeers);
 
     Set<String> peerIds = combinedPeers.keys.toSet();
     for (final peer in gFFI.lanPeersModel.peers) {
@@ -92,10 +100,14 @@ class AllPeersLoader {
     }
     for (final id in gFFI.recentPeersModel.restPeerIds) {
       if (!peerIds.contains(id)) {
-        parsedPeers.add(Peer.fromJson({'id': id}));
+        // rest ids 只有 id，同样回填权威表，避免在线设备以“未知”身份出现灰点。
+        final p = Peer.fromJson({'id': id});
+        Peers.restoreOnline([p]);
+        parsedPeers.add(p);
         peerIds.add(id);
       }
     }
+    Peers.restoreOnline(parsedPeers);
 
     peers = parsedPeers;
     setState(() {

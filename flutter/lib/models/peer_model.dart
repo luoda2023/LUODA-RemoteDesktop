@@ -168,13 +168,46 @@ enum UpdateEvent { online, load }
 
 typedef GetInitPeers = RxList<Peer> Function();
 
-/// 在线状态的“权威表”：与 Peer 对象生命周期解耦。
-/// 每次 load 事件都会重新解码出一批全新的 Peer 对象（默认 online=false），
-/// 若直接用旧 peers 的 online 字段去恢复，任何一次“先 load 后异步查询返回”
-/// 的时序抖动都会把已确认的在线状态覆盖回灰。这里单独保存 id->online，
-/// 跨 load 存活，load 后统一回填，保证 UI 永不因重新加载而把在线设备误置灰。
+/// 进程级“在线权威表” + 活跃列表实例注册表。
+///
+/// 背景：最近/收藏/局域网/通讯录/群组每个列表各有一个 Peers 实例，顶部输入框
+/// 的自动补全(AllPeersLoader)又会把各列表的 Peer 重新打包成新对象。此前每个
+/// 实例各自维护一份 _onlineStates，而 AllPeersLoader 重建对象时 online 恒为
+/// false，导致“服务器确认在线、但手机端任意列表/补全里始终灰点”。
+///
+/// 因此把权威表提升为 static，全进程共享：
+///  - 任何一个 Peers 实例收到服务端推送(online/offline)都写入同一张表；
+///  - 任何列表 load、任何地方重建 Peer，都能用 Peers.onlineOf(id) 回填；
+///  - 任一实例查询到新状态后，所有活跃实例同步本地 peers.online 并通知 UI。
 class Peers extends ChangeNotifier {
-  final Map<String, bool> _onlineStates = {};
+  /// 进程级权威表：id -> online。全实例共享、跨实例存活。
+  static final Map<String, bool> _onlineStates = {};
+
+  /// 当前存活的 Peers 实例（供状态广播）。
+  static final List<Peers> _instances = [];
+
+  /// 供外部(如 AllPeersLoader)查询某 id 的真实在线状态；未知返回 null。
+  static bool? onlineOf(String id) {
+    if (id.isEmpty) return null;
+    return _onlineStates[id];
+  }
+
+  /// 供外部把权威表回填到一组重建后的 Peer 对象上。
+  static void restoreOnline(Iterable<Peer> peers) {
+    for (final peer in peers) {
+      if (peer.id.isNotEmpty && _onlineStates.containsKey(peer.id)) {
+        peer.online = _onlineStates[peer.id] ?? false;
+      }
+    }
+  }
+
+  static void _broadcast(Peers? source) {
+    for (final inst in _instances) {
+      if (identical(inst, source)) continue;
+      inst._syncFromShared();
+    }
+  }
+
   final String name;
   final String loadEvent;
   List<Peer> peers = List.empty(growable: true);
@@ -191,7 +224,11 @@ class Peers extends ChangeNotifier {
       {required this.name,
       required this.getInitPeers,
       required this.loadEvent}) {
+    _instances.add(this);
     peers = getInitPeers?.call() ?? [];
+    // 创建即用进程级共享表回填一次，保证后创建的列表(如切到通讯录 tab 才
+    // 懒加载的实例)直接显示正确状态，而不是先全灰再等查询。
+    Peers.restoreOnline(peers);
     platformFFI.registerEventHandler(_cbQueryOnlines, name, (evt) async {
       _updateOnlineState(evt);
     });
@@ -202,9 +239,27 @@ class Peers extends ChangeNotifier {
 
   @override
   void dispose() {
+    _instances.remove(this);
     platformFFI.unregisterEventHandler(_cbQueryOnlines, name);
     platformFFI.unregisterEventHandler(loadEvent, name);
     super.dispose();
+  }
+
+  /// 共享表有变化且不是本实例发起时，把变化同步到本实例并通知 UI。
+  void _syncFromShared() {
+    var changed = false;
+    for (final peer in peers) {
+      if (peer.id.isNotEmpty &&
+          _onlineStates.containsKey(peer.id) &&
+          peer.online != _onlineStates[peer.id]) {
+        peer.online = _onlineStates[peer.id] ?? false;
+        changed = true;
+      }
+    }
+    if (changed) {
+      event = UpdateEvent.online;
+      notifyListeners();
+    }
   }
 
   Peer getByIndex(int index) {
@@ -250,6 +305,9 @@ class Peers extends ChangeNotifier {
     if (changedCount > 0) {
       event = UpdateEvent.online;
       notifyListeners();
+      // 通知其它列表实例：它们列表里若有同 id 的卡片，立即翻绿/翻灰，
+      // 而不是等到自己下一次轮询(最长 10~30s)才更新。
+      _broadcast(this);
     }
   }
 
