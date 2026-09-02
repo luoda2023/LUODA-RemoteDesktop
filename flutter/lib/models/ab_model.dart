@@ -637,6 +637,9 @@ reset() async {
             for (var peer in abEntry['peers']) {
               ab.peers.add(Peer.fromJson(peer));
             }
+            // 通讯录缓存反序列化重建 Peer 后 online 恒 false，用进程级权威表回填，
+            // 否则冷启动/切到通讯录 tab 时服务器已确认在线的设备仍显示灰点。
+            Peers.restoreOnline(ab.peers);
           }
           if (abEntry['tag_colors'] is String) {
             Map<String, dynamic> map = jsonDecode(abEntry['tag_colors']);

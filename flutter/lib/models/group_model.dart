@@ -333,6 +333,9 @@ class GroupModel {
         for (final peer in data['peers']) {
           peers.add(Peer.fromJson(peer));
         }
+        // Peer 由缓存反序列化重建后 online 恒 false，用进程级权威表回填，
+        // 否则冷启动/切 tab 走缓存加载时，服务器已确认在线的设备仍显示灰点。
+        Peers.restoreOnline(peers);
         _callbackPeerUpdate();
       }
     } catch (e) {

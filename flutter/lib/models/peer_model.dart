@@ -45,7 +45,10 @@ class Peer {
         loginName = json['loginName'] ?? '',
         device_group_name = json['device_group_name'] ?? '',
         note = json['note'] is String ? json['note'] : '',
-        sameServer = json['same_server'];
+        sameServer = json['same_server'],
+        // fromJson 重建的 Peer 一律从进程级权威表回填在线状态，
+        // 根治所有路径(缓存/补全/通讯录/群组/payload 转换)重建对象后 online 恒 false 导致的灰点。
+        online = Peers.onlineOf(json['id'] ?? '') ?? false;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
