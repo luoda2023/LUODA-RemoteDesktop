@@ -379,8 +379,16 @@ class MainService : Service() {
                     retryVirtualDisplay()
                 }
             } ?: let {
-                Log.d(logTag, "getParcelableExtra intent null, invoke requestMediaProjection")
-                requestMediaProjection()
+                val fromBoot = intent.getBooleanExtra(EXT_INIT_FROM_BOOT, false)
+                if (fromBoot) {
+                    // 开机自启/后台拉起：只启动服务保持“可被远程连接/在线”，
+                    // 绝不自动弹出系统录屏授权窗口。投屏授权只在用户主动进入
+                    // “分享屏幕”并开启时由 Flutter 显式触发(带 res intent 重来)。
+                    Log.d(logTag, "boot-start without media projection; skip auto permission dialog")
+                } else {
+                    Log.d(logTag, "getParcelableExtra intent null, invoke requestMediaProjection")
+                    requestMediaProjection()
+                }
             }
         }
         return START_NOT_STICKY // don't use sticky (auto restart), the new service (from auto restart) will lose control
