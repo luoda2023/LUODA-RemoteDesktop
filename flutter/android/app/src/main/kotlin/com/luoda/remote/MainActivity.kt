@@ -299,6 +299,9 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                "get_public_auth_base_dir" -> {
+                    result.success(publicAuthBaseDir(activity))
+                }
                 "get_first_run_authorization" -> {
                     val prefs = getSharedPreferences(KEY_SHARED_PREFERENCES, MODE_PRIVATE)
                     result.success(prefs.getBoolean(KEY_FIRST_RUN_AUTHORIZATION, false))

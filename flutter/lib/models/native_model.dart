@@ -223,17 +223,18 @@ class PlatformFFI {
       );
       if (isAndroid) {
         try {
-          // Public-storage folder for the visit-history backup so it
-          // survives uninstall/reinstall. Set after mainInit so the Rust
-          // LocalConfig is already bound to the real app dir.
-          final pubDirs = await getExternalStorageDirectories(
-              type: StorageDirectory.documents);
-          if (pubDirs != null && pubDirs.isNotEmpty) {
-            final backupDir =
-                '${pubDirs.first.path}${Platform.pathSeparator}LDesk'
-                '${Platform.pathSeparator}history';
+          // True public-storage folder resolved natively (survives
+          // uninstall/reinstall). Resolve once here, cache in LocalConfig so
+          // both the Flutter marker and the Rust history backup use the same
+          // base directory.
+          final resolved =
+              await _toAndroidChannel.invokeMethod('get_public_auth_base_dir');
+          if (resolved is String && resolved.isNotEmpty) {
             await _ffiBind.mainSetLocalOption(
-                key: kOptionHistoryBackupDir, value: backupDir);
+                key: kOptionAuthorizationBaseDir, value: resolved);
+            await _ffiBind.mainSetLocalOption(
+                key: kOptionHistoryBackupDir,
+                value: '$resolved${Platform.pathSeparator}history');
           }
         } catch (e) {
           debugPrint('history backup dir setup failed: $e');

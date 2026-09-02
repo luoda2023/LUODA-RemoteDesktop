@@ -19,16 +19,26 @@ import 'scan_page.dart';
 const _kFirstRunAuthorization = 'android-first-run-authorization-v2';
 const _kPublicAuthMarkerName = 'first-run-authorization';
 
-/// The public-storage marker file lives next to the visit-history backup
-/// (Documents/LDesk/), so it survives uninstall/reinstall. The OS always
-/// resets runtime permissions on reinstall, but this lets the app remember
-/// that the user already completed the one-tap authorization flow before, and
-/// skip the explanation dialog on a fresh install.
-File? _publicAuthMarkerFile() {
+/// Persisted authorization marker on the *real public* external storage
+/// (/storage/emulated/0/Android/data/... is app-private and wiped together
+/// with the app data on uninstall, so we deliberately use a folder that
+/// survives reinstall). path_provider's external dirs are app-scoped, so the
+/// path is resolved natively from Kotlin and cached in the Rust LocalConfig
+/// (history-backup-dir). Falling back to the app-private marker keeps
+/// "reinstalled over the same version" working even when the storage
+/// permission was revoked (Android 13+ / no MANAGE_EXTERNAL_STORAGE grant).
+String _authorizationBaseDir() {
+  final dir = bind.mainGetLocalOption(key: kOptionAuthorizationBaseDir);
+  if (dir.isNotEmpty) return dir;
   final backupDir = bind.mainGetLocalOption(key: kOptionHistoryBackupDir);
-  if (backupDir.isEmpty) return null;
-  final dir = File(backupDir).parent;
-  return File('${dir.path}${Platform.pathSeparator}$_kPublicAuthMarkerName');
+  if (backupDir.isNotEmpty) return File(backupDir).parent.path;
+  return '';
+}
+
+File? _publicAuthMarkerFile() {
+  final dir = _authorizationBaseDir();
+  if (dir.isEmpty) return null;
+  return File('$dir${Platform.pathSeparator}$_kPublicAuthMarkerName');
 }
 
 bool _readPublicAuthMarker() {
@@ -128,35 +138,71 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// True when the marker says the user already completed the one-tap flow AND
+  /// the accessibility service (the capability Android wipes on a real
+  /// uninstall/reinstall) is currently granted. When both hold, the app starts
+  /// silently; otherwise the guided flow runs again but every step auto-skips
+  /// the grants that are already in place.
+  Future<bool> _canStartQuietly() async {
+    try {
+      final markedDone =
+          bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y' ||
+              await gFFI.invokeMethod('get_first_run_authorization') == true ||
+              _readPublicAuthMarker();
+      if (!markedDone) return false;
+      // The accessibility grant is the capability Android actually wipes on a
+      // real uninstall/reinstall, so treat it as the source of truth: only a
+      // device whose accessibility service is still enabled starts silently.
+      return await AndroidPermissionManager.checkAccessibility();
+    } catch (e) {
+      RuntimeLogger.instance.info('ANDROID', 'quiet-start check failed: $e');
+    }
+    return false;
+  }
+
+  /// On every cold start:
+  ///  - already-authorized device: quietly request only the standard runtime
+  ///    permissions that may have been reset by a reinstall (single system
+  ///    dialog, no accessibility jump, no screen-capture prompt), then refresh
+  ///    the marker; nothing pops when everything is already granted.
+  ///  - first run: run the guided one-tap flow.
   Future<void> _runFirstLaunchAuthorization() async {
     if (!isAndroid || bind.isOutgoingOnly() || !mounted) {
       return;
     }
     try {
-      final previousLocalMarker =
-          bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y';
-      final previousAndroidMarker =
-          await gFFI.invokeMethod('get_first_run_authorization') == true;
-      final previouslyCompleted = previousLocalMarker ||
-          previousAndroidMarker ||
-          _readPublicAuthMarker();
-      if (!previouslyCompleted) {
+      final canStartQuietly = await _canStartQuietly();
+      if (!canStartQuietly) {
         RuntimeLogger.instance
             .info('ANDROID', 'first-run authorization sequence started');
-      } else {
-        RuntimeLogger.instance
-            .info('ANDROID', 'rechecking Android authorization state');
+        final completed = await _firstRunPermissionFlow.run();
+        if (completed) {
+          await bind.mainSetLocalOption(
+              key: _kFirstRunAuthorization, value: 'Y');
+          await gFFI.invokeMethod('set_first_run_authorization', true);
+          _writePublicAuthMarker();
+          RuntimeLogger.instance
+              .info('ANDROID', 'first-run authorization sequence finished');
+        } else {
+          RuntimeLogger.instance.warn('ANDROID',
+              'first-run authorization incomplete; will retry on next launch');
+        }
+        return;
       }
-      final completed = await _firstRunPermissionFlow.run();
-      if (completed) {
+      // Prior authorization: silently top up standard runtime permissions.
+      // On a fresh reinstall Android resets those, but the batch system dialog
+      // regrants them in one tap; when they are already granted nothing pops.
+      // Accessibility keeps its OS-granted state and is never re-prompted here;
+      // screen capture is only requested when the user actually starts a
+      // session (Android 14+ revokes that token on every reboot, so auto
+      // prompting on cold start would only annoy).
+      RuntimeLogger.instance
+          .info('ANDROID', 'rechecking Android authorization state');
+      final stillComplete = await _requestStandardPermissionsBatch();
+      if (stillComplete) {
         await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
         await gFFI.invokeMethod('set_first_run_authorization', true);
         _writePublicAuthMarker();
-        RuntimeLogger.instance
-            .info('ANDROID', 'first-run authorization sequence finished');
-      } else {
-        RuntimeLogger.instance.warn('ANDROID',
-            'first-run authorization incomplete; will retry on next launch');
       }
     } catch (error, stackTrace) {
       RuntimeLogger.instance.error(
@@ -164,11 +210,13 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Batch-request all standard runtime permissions in a single system dialog.
-  /// This replaces the old approach of requesting each permission one-by-one
-  /// which caused multiple separate system dialogs to pop up.
+  /// Batch-request the standard runtime permissions that matter for the core
+  /// remote-control flow in ONE system dialog (they merge on modern Android).
+  /// The "special" system pages (all-files access, battery-optimization list)
+  /// are deliberately NOT requested here — each is a full separate settings
+  /// screen and they are only needed by the optional file manager / keep-alive;
+  /// they stay available in Settings when actually used.
   Future<bool> _requestStandardPermissionsBatch() async {
-    // Collect all standard permissions that are not yet granted
     final typesToRequest = <String>[];
     var allOk = true;
 
@@ -181,31 +229,17 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!await AndroidPermissionManager.check(kRecordAudio)) {
       typesToRequest.add(kRecordAudio);
     }
-    // Battery optimization
-    if (!await AndroidPermissionManager.check(
-        kRequestIgnoreBatteryOptimizations)) {
-      typesToRequest.add(kRequestIgnoreBatteryOptimizations);
-    }
-    // External storage
-    if (!await AndroidPermissionManager.check(kManageExternalStorage)) {
-      typesToRequest.add(kManageExternalStorage);
-    }
 
     if (typesToRequest.isEmpty) {
       return true;
     }
 
     // Request all ungranted standard permissions at once via batch API.
-    // This shows a single system dialog (or minimal dialogs) instead of
-    // popping up one dialog per permission.
     RuntimeLogger.instance.info('ANDROID',
         'batch requesting ${typesToRequest.length} permissions: $typesToRequest');
     await gFFI.invokeMethod('request_permissions_batch', typesToRequest);
 
     // Wait for the batch dialog to complete by polling each permission.
-    // The batch API reports results via on_android_permission_result callback,
-    // but we simply re-check each permission after a short delay.
-    // Give the system dialog time to show and be answered.
     for (final type in typesToRequest) {
       // Poll up to 30 seconds for each permission to be granted
       var granted = false;
@@ -267,12 +301,24 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!mounted) {
       return false;
     }
+    // Screen capture is only useful together with the accessibility input
+    // service. In the guided flow step 2 already walked the user through
+    // enabling it; if it is still off, skip the MediaProjection dialog instead
+    // of stacking a second system prompt on top of the previous one.
+    if (!await AndroidPermissionManager.checkAccessibility()) {
+      RuntimeLogger.instance
+          .warn('ANDROID', 'screen capture skipped: accessibility not enabled');
+      return false;
+    }
     final mediaReady =
         await gFFI.invokeMethod('check_video_permission') == true;
     if (mediaReady) {
       return true;
     }
 
+    // One system MediaProjection confirmation dialog. This is the "one tap"
+    // inside the first-run flow: once granted the token stays alive while the
+    // service runs, and sessions no longer re-ask.
     await gFFI.serverModel.startService();
     for (var i = 0; i < 240 && mounted; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 500));

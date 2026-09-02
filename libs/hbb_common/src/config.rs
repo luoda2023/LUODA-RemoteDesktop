@@ -2084,6 +2084,13 @@ pub fn history_backup_dir() -> Option<PathBuf> {
     if !opt.is_empty() {
         return Some(PathBuf::from(opt));
     }
+    // The Flutter side resolves the *true* public directory (Documents/LDesk)
+    // from Java and stores it in the authorization-base-dir local option;
+    // prefer it here too so backups survive uninstall/reinstall.
+    let base = LocalConfig::get_option("authorization-base-dir");
+    if !base.is_empty() {
+        return Some(PathBuf::from(base).join("history"));
+    }
     let home = Config::get_home();
     if home.as_os_str().is_empty() {
         return None;

@@ -439,8 +439,8 @@ String get connectQrData {
     } else {
       // First-run authorization usually handles all permissions.
       // But if the user skipped it, do a quick check on critical permissions.
-      if (!await AndroidPermissionManager.check(kManageExternalStorage)) {
-        await AndroidPermissionManager.request(kManageExternalStorage);
+      if (!await AndroidPermissionManager.check(kRecordAudio)) {
+        await AndroidPermissionManager.request(kRecordAudio);
       }
       startService();
     }

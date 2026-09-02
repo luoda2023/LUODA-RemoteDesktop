@@ -25,6 +25,7 @@
         android:label="LDesk"
         android:roundIcon="@mipmap/ic_launcher_legacy"
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
         android:supportsRtl="true">
 
         <receiver

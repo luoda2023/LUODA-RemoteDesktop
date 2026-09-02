@@ -147,6 +147,7 @@ const String kOptionPeerTabVisible = "peer-tab-visible";
 const String kOptionPeerCardUiType = "peer-card-ui-type";
 const String kOptionSaveHistory = "save-history";
 const String kOptionHistoryBackupDir = "history-backup-dir";
+const String kOptionAuthorizationBaseDir = "authorization-base-dir";
 const String kOptionCurrentAbName = "current-ab-name";
 const String kOptionEnableConfirmClosingTabs = "enable-confirm-closing-tabs";
 const String kOptionAllowAlwaysSoftwareRender = "allow-always-software-render";

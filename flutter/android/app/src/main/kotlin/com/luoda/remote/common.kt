@@ -11,6 +11,7 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -24,6 +25,7 @@ import androidx.core.content.ContextCompat.getSystemService
 import com.hjq.permissions.Permission
 import com.hjq.permissions.XXPermissions
 import ffi.FFI
+import java.io.File
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -64,6 +66,33 @@ val SCREEN_INFO = Info(0, 0, 1, 200)
 data class Info(
     var width: Int, var height: Int, var scale: Int, var dpi: Int
 )
+
+
+/**
+ * True *shared/public* external storage directory (/storage/emulated/0/Documents
+ * or Download on API 28+; the root /storage/emulated/0 on older releases).
+ * Unlike path_provider's app-scoped getExternalFilesDirs this path survives an
+ * app uninstall/reinstall, so it is the right home for the authorization marker.
+ * Prefer a user-visible folder that is guaranteed writable without extra
+ * runtime permission:
+ *  - API 29+: /storage/emulated/0/Documents/LDesk (no permission needed to write
+ *    our own subfolder; media permissions govern other apps' files only).
+ *  - API 28-: /storage/emulated/0 (app-specific subfolders there are the only
+ *    reliably writable public location without runtime grants).
+ */
+fun publicAuthBaseDir(context: Context): String {
+    return try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val documents = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+            File(documents, "LDesk").absolutePath
+        } else {
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
+        }
+    } catch (e: Exception) {
+        Log.e("common", "publicAuthBaseDir failed: ${e.message}")
+        Environment.getExternalStorageDirectory().absolutePath
+    }
+}
 
 fun isSupportVoiceCall(): Boolean {
     // https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#VOICE_COMMUNICATION
