@@ -74,3 +74,12 @@
   * autocomplete.dart(AllPeersLoader): 合并 ab/group/lan/recent/restIds 全程 restoreOnline。
   * ab_model.dart / group_model.dart: 拉取/反序列化后用 Peers.restoreOnline 替代仅恢复旧online id。
 - dart analyze 通过(4文件)。
+
+## 2026-09-03 2.2.19 交付 + 本机实测验证（goal 收尾）
+- 2.2.19 双构建成功(EXE 57min / APK 49min)，Release v2.2.19 已发布，7 资产 SHA256 与官方 digest 全部一致。
+- 旧 _release_v2.2.17 / _release_v2.2.18 已删除（共释放 ~240MB）。
+- **本机(466619)已从 2.2.17 升级到 2.2.19**：旧 PID 2756 终止，新 PID 12332 runtime 75b6d51c... version=2.2.19+1。
+- 升级后官方 online_probe 连 47.114.75.115:21115 查询 => **466619 -> ONLINE**（决定性验证）。
+- 本机 id 复核：enc_id 用 machine_uid 前32字节 zero-pad 作 key(sodium secretbox, nonce全0) 解密 = 466619 确认。
+- 灰点修复链路闭环审计(2.2.19)：peer_model 进程级权威表(_onlineStates static) + 实例注册表(_instances) + 广播(_broadcast) + load后未知peer补查(bind.queryOnlines) + Rust handle_query_onlines 事件回传 => 466619 load后立即翻绿。
+- 待用户动作：手机安装 LDesk-arm64-v8a.apk (2.2.19)，覆盖旧版；装完 466619 应在任意tab绿点。
