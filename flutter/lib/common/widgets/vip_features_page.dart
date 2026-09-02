@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart' as inapp;
 
 import '../../common.dart';
 
@@ -26,8 +25,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
   // Mobile controller (webview_flutter)
   late final WebViewController? _mobileController;
 
-  // Desktop controller (flutter_inappwebview)
-  inapp.InAppWebViewController? _desktopController;
 
   bool _loading = true;
   bool _canGoBack = false;
@@ -103,8 +100,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
     try {
       if (controller is WebViewController) {
         controller.runJavaScript(_noHorizontalScrollCss);
-      } else if (controller is inapp.InAppWebViewController) {
-        controller.evaluateJavascript(source: _noHorizontalScrollCss);
       }
     } catch (_) {}
   }
@@ -114,9 +109,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
     try {
       bool back, forward;
       if (controller is WebViewController) {
-        back = await controller.canGoBack();
-        forward = await controller.canGoForward();
-      } else if (controller is inapp.InAppWebViewController) {
         back = await controller.canGoBack();
         forward = await controller.canGoForward();
       } else {
@@ -142,11 +134,8 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
 ''';
     try {
       final m = _mobileController;
-      final d = _desktopController;
       if (m != null) {
         m.runJavaScript(js);
-      } else if (d != null) {
-        d.evaluateJavascript(source: js);
       }
     } catch (_) {}
   }
@@ -207,8 +196,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
 ''';
       if (controller is WebViewController) {
         controller.runJavaScript(cleanup);
-      } else if (controller is inapp.InAppWebViewController) {
-        controller.evaluateJavascript(source: cleanup);
       }
     } catch (_) {}
   }
@@ -217,7 +204,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
   void dispose() {
     _loadingTimer?.cancel();
     _cleanupInjectedScripts(_mobileController);
-    _cleanupInjectedScripts(_desktopController);
     super.dispose();
   }
 
@@ -251,59 +237,14 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
       );
     }
 
-    // Linux & Web: no embedded webview, fall back to external browser
-    if (isLinux || isWeb) {
-      return _buildExternalBrowserPlaceholder(context);
-    }
-
-    // Desktop (Windows/macOS): use flutter_inappwebview
-    return _buildDesktopWebView(context);
-  }
-
-  Widget _buildDesktopWebView(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(
-          top: 44,
-          child: inapp.InAppWebView(
-            initialUrlRequest:
-                inapp.URLRequest(url: inapp.WebUri(kDownloadUrl)),
-            initialSettings: inapp.InAppWebViewSettings(
-              javaScriptEnabled: true,
-              useShouldOverrideUrlLoading: false,
-              mediaPlaybackRequiresUserGesture: false,
-              allowsInlineMediaPlayback: true,
-              iframeAllow: 'fullscreen',
-            ),
-            onWebViewCreated: (controller) {
-              _desktopController = controller;
-            },
-            onLoadStart: (controller, url) {
-              _onPageStarted(controller);
-            },
-            onLoadStop: (controller, url) {
-              _onPageFinished(controller);
-            },
-            onReceivedError: (controller, request, error) {
-              if (mounted) setState(() => _loading = false);
-              _refreshNavState(controller);
-            },
-          ),
-        ),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: _buildNavBar(context, _desktopController),
-        ),
-        if (_loading)
-          const Positioned.fill(
-            top: 44,
-            child: Center(child: CircularProgressIndicator()),
-          ),
-      ],
-    );
+    // Desktop (Windows/macOS/Linux) & Web: no embedded WebView2.
+    // flutter_inappwebview (WebView2) used to be hosted permanently in this
+    // always-alive tab; on Windows preview builds the DirectComposition
+    // (dcomp.dll) fail-fast 0xe0464645 crash fired right after every remote
+    // session ended (heavy texture/composition teardown). The embedded page is
+    // only the download/dicad.cn page, so desktop opens it in the external
+    // browser instead - same content, no in-process WebView2.
+    return _buildExternalBrowserPlaceholder(context);
   }
 
   Widget _buildExternalBrowserPlaceholder(BuildContext context) {
@@ -363,10 +304,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
                         if (await controller.canGoBack()) {
                           await controller.goBack();
                         }
-                      } else if (controller is inapp.InAppWebViewController) {
-                        if (await controller.canGoBack()) {
-                          await controller.goBack();
-                        }
                       }
                     } catch (_) {}
                   }
@@ -384,10 +321,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
                         if (await controller.canGoForward()) {
                           await controller.goForward();
                         }
-                      } else if (controller is inapp.InAppWebViewController) {
-                        if (await controller.canGoForward()) {
-                          await controller.goForward();
-                        }
                       }
                     } catch (_) {}
                   }
@@ -401,8 +334,6 @@ class _VipFeaturesPageState extends State<VipFeaturesPage>
             onPressed: () {
               try {
                 if (controller is WebViewController) {
-                  controller.reload();
-                } else if (controller is inapp.InAppWebViewController) {
                   controller.reload();
                 }
               } catch (_) {}
