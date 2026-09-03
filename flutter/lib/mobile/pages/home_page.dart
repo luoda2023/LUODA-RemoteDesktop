@@ -122,18 +122,35 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// silently - accessibility is deliberately not re-checked here because it
   /// is a hosting capability only needed when this phone is remote-controlled.
   Future<bool> _canStartQuietly() async {
+    // Every marker check is isolated: a transient failure of ONE marker (native
+    // channel not ready yet, storage briefly unavailable, ...) must NEVER flip
+    // the whole decision to "not authorized" - that would re-open the first-run
+    // authorization window on an already-authorized device. Any hit => true.
     try {
-      // The native public marker (/storage/emulated/0/Documents/LDesk/...) is the
-      // authoritative cross-reinstall signal: it is resolved by Kotlin directly and
-      // survives app uninstall, so a reinstalled app never re-prompts.  The app-
-      // private fallbacks (LocalConfig / SharedPreferences / legacy Dart marker)
-      // cover older installs that already authorized before this marker existed.
-      return await gFFI.invokeMethod('read_public_auth_marker') == true ||
-          bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y' ||
-          await gFFI.invokeMethod('get_first_run_authorization') == true ||
-          _readPublicAuthMarker();
+      final nativePublic = await gFFI.invokeMethod('read_public_auth_marker');
+      if (nativePublic == true) return true;
     } catch (e) {
-      RuntimeLogger.instance.info('ANDROID', 'quiet-start check failed: $e');
+      RuntimeLogger.instance.info('ANDROID', 'public marker check failed: $e');
+    }
+    try {
+      if (bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y') {
+        return true;
+      }
+    } catch (e) {
+      RuntimeLogger.instance.info('ANDROID', 'local option check failed: $e');
+    }
+    try {
+      final prefs = await gFFI.invokeMethod('get_first_run_authorization');
+      if (prefs == true) return true;
+    } catch (e) {
+      RuntimeLogger.instance.info('ANDROID', 'prefs marker check failed: $e');
+    }
+    try {
+      if (_readPublicAuthMarker()) {
+        return true;
+      }
+    } catch (e) {
+      RuntimeLogger.instance.info('ANDROID', 'legacy marker check failed: $e');
     }
     return false;
   }
