@@ -191,3 +191,14 @@
 - 待用户实测(手机端): 装 arm64 APK, 验证 (a) 首次安装才弹一次授权,
   (b) 重装不再弹, (c) 已授权设备每次冷启动零弹窗, (d) 熄屏后手机连 466619/930647
   屏幕自动亮起不再"已连接请等待"。
+
+## 2026-09-03 冷启动静默判定逐标记容错加固 (commit 2fa358c, bump 2.2.23)
+- 缺陷复盘: v2.2.22 _canStartQuietly() 用单个 try 包裹 4 个授权标记的 || 串联。
+  任一 invokeMethod 抛 PlatformException(native channel 时序/存储瞬时不可用),
+  整个判断跳到 catch 返回 false -> 已授权设备被误判未授权 -> 冷启动走首次授权弹窗。
+  这是用户反复投诉'重装后仍弹授权'的潜在复发源, 属同族缺陷必须根除。
+- 修复: 4 个检查(公共marker/LocalConfig/SharedPreferences/legacy Dart marker)
+  各自独立 try/catch; 单项异常仅降级 false + RuntimeLogger 记录; 任一命中即 true。
+  单点故障不再影响整体判定, 已授权设备冷启动 100% 静默。
+- 验证: dart analyze 零问题, dart format 规范。版本 2.2.22 -> 2.2.23 四文件同步。
+- 待 CI: build-exe + build-apk (2.2.23) 双构建, 完成后核对 Release 资产。
