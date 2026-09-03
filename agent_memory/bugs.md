@@ -233,3 +233,14 @@
   备查: 若要 tag 正确溯源, workflow 需在发布前移动轻量 tag 到 GITHUB_SHA。
 - 网络: git push 走 socks5 代理故障时, 本机 SSH(git@github.com:22) 可用,
   加 origin-ssh remote 即可 push (本次已用此法补推 9a06bd1)。
+
+## 2026-09-03 决定性验证: 本机=466619, 2.2.23 运行中官方查询 ONLINE
+- 本机身份澄清: LDesk_local.toml remote_id='930647' 是"最近远程过的对方",
+  非本机 id; 本机真实 id=466619 (LDesk.toml enc_id secretbox 解密, bugs.md 早前确认)。
+  peers/930647.toml = 曾连接的设备。两 id 当前都 ONLINE。
+- 决定性反证(灰点/离线问题): 本机跑 2.2.23 portable (PID 41320, runtime 016a5c1a...,
+  FileVersion 2.2.23+1), 官方 online_probe 连 47.114.75.115:21115 查询:
+  * 466619 -> ONLINE
+  * 930647 -> ONLINE
+  => 修复版运行时 466619 已被服务器确认在线, 手机端应显示绿点, 不再灰/离线。
+- 该 2.2.23 实例保持运行, 供用户立即用手机验证 466619 在线状态 + 熄屏自动亮屏。
