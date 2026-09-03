@@ -155,3 +155,21 @@
     修复 Android 构建失败(cannot find function mouse_move_relative)。
 - 待用户实测: 手机连 466619, 观察 PC 屏幕是否自动亮起 + 手机不再"已连接请等待"。
 
+
+## 2026-09-03 授权一次性完成+重装不重复授权+冷启动零弹窗 (commit 46c2f0c, 2.2.22 追加)
+- 用户诉求: 每次打开软件不要再弹任何设置/授权窗口, 授权只在第一次安装后出现一次; 重装软件也不要再次授权。
+- 根因: 已授权设备(含重装后公共marker仍在)每次冷启动仍调用 _requestStandardPermissionsBatch()
+  批量请求通知/录音权限; 重装后系统重置这些运行时权限 => 每次打开都弹系统授权框。
+- 修复:
+  1. MainActivity.kt 新增 write_public_auth_marker / read_public_auth_marker 两个 channel,
+     直读写 /storage/emulated/0/Documents/LDesk/first-run-authorization (publicAuthBaseDir,
+     重装保留, Android 10+ 免运行时权限)。
+  2. home_page.dart _canStartQuietly() 优先读 native 公共 marker 作为跨重装权威信号,
+     旧安装由 LocalConfig/SharedPreferences/legacy Dart marker 兜底兼容。
+  3. home_page.dart _runFirstLaunchAuthorization(): 已授权设备(任意 marker 命中)直接
+     return 完全静默, 不再冷启动批量请求权限; 首次安装才跑一次性引导流。
+     无障碍(输入控制)/录屏 只在"分享屏幕"页用户主动开启时请求(toggleService/toggleInput 内已有)。
+- 验证: dart analyze home_page.dart 零问题; Kotlin 分支语法与既有 when/else 模式一致。
+- 补漏: 4991ce6 bump 2.2.22 漏改 Cargo.lock luoda version -> 本次同步为 2.2.22。
+- 待 CI: build-exe + build-apk 双构建确认 (前一轮 2.2.22 APK 曾因 mouse_move_relative 失败,
+  已在 4991ce6 try_activate_screen cfg(windows) 修复, 需新 CI 证实)。
