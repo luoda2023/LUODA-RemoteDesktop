@@ -446,6 +446,21 @@ String get connectQrData {
     }
   }
 
+  /// Start ONLY the Rust network layer (host service) on app launch, without
+  /// requesting any screen-capture/MediaProjection permission.  The online
+  /// state of other peers and this device's reachability are served by the
+  /// network layer; gating it behind the share-screen permission dialog meant
+  /// that a phone which skipped that dialog could never query peers, so every
+  /// remote device stayed grey/offline.
+  Future<void> startNetworkSilently() async {
+    if (!isAndroid) return;
+    try {
+      await parent.target?.invokeMethod("init_network");
+    } catch (e) {
+      debugPrint('startNetworkSilently failed: $e');
+    }
+  }
+
   /// Start the screen sharing service.
   Future<void> startService() async {
     _isStart = true;

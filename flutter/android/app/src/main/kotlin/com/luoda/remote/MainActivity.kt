@@ -90,6 +90,17 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun launchMainService() {
+        val intent = Intent(this, MainService::class.java).apply {
+            action = ACT_INIT_MEDIA_PROJECTION_AND_SERVICE
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
     private fun requestMediaProjection() {
         val intent = Intent(this, PermissionRequestTransparentActivity::class.java).apply {
             action = ACT_REQUEST_MEDIA_PROJECTION
@@ -149,10 +160,23 @@ class MainActivity : FlutterActivity() {
         flutterMethodChannel.setMethodCallHandler { call, result ->
             // make sure result will be invoked, otherwise flutter will await forever
             when (call.method) {
+                "init_network" -> {
+                    // Start the host service so the Rust network layer (peer
+                    // registration + online-state queries) comes up on app
+                    // launch, WITHOUT asking for screen-capture permission.
+                    // Screen capture is only needed when the user actively
+                    // shares the screen; requiring the MediaProjection grant
+                    // before the network starts was the root cause of "peer
+                    // grey / offline" on the phone (MainService never started
+                    // when the user skipped the permission dialog, so no
+                    // online query could ever be sent).
+                    launchMainService()
+                    result.success(true)
+                }
                 "init_service" -> {
-                    Intent(activity, MainService::class.java).also {
-                        bindService(it, serviceConnection, Context.BIND_AUTO_CREATE)
-                    }
+                    launchMainService()
+                    bindService(Intent(activity, MainService::class.java),
+                        serviceConnection, Context.BIND_AUTO_CREATE)
                     if (MainService.isReady) {
                         result.success(false)
                         return@setMethodCallHandler

@@ -106,7 +106,18 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
       },
     );
     initPages();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Start the network layer early and unconditionally (idempotent). Even
+      // if the first-run authorization flow is still running or was skipped,
+      // peer online-state queries must be able to fire. Do NOT await it here:
+      // the authorization flow below runs in parallel and may show dialogs.
+      if (isAndroid && !bind.isOutgoingOnly()) {
+        try {
+          await gFFI.serverModel.startNetworkSilently();
+        } catch (e) {
+          RuntimeLogger.instance.info('ANDROID', 'early network start failed: $e');
+        }
+      }
       _runFirstLaunchAuthorization();
     });
   }
@@ -175,6 +186,12 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // runtime permissions on reinstall - never do that on cold start.
         RuntimeLogger.instance.info('ANDROID',
             'authorized device: silent cold start, no permission dialog');
+        // Bring up the Rust network layer (peer registration + online-state
+        // queries) on every cold start WITHOUT the share-screen permission
+        // dialog. Previously the network only started from init_service after
+        // the MediaProjection grant, so a phone that skipped the dialog could
+        // never query peers and every remote device showed grey/offline.
+        await gFFI.serverModel.startNetworkSilently();
         return;
       }
       RuntimeLogger.instance
