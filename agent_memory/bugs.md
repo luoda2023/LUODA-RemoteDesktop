@@ -218,3 +218,18 @@
   gh release download 会卡 0 字节。可靠法: curl -L -C - --retry 3 直连续传。
 - 待用户实测(手机): 装 LDesk-arm64-v8a.apk 2.2.23, 验证首次弹一次授权、
   重装不弹、已授权设备每次冷启动零弹窗、熄屏后连 930647 自动亮屏。
+
+## 2026-09-03 v2.2.23 APK 内容级验证 + release tag 溯源核查
+- 内容级铁证(解包 arm64 APK):
+  * lib/arm64-v8a/libluoda.so 内版本串 = 2.2.23 (Rust 修复: 熄屏自动亮屏等已编译入)
+  * lib/arm64-v8a/libapp.so 内含 2.2.23 Dart 新增字符串:
+    'public marker check failed' / 'legacy marker check failed' (容错日志) +
+    'authorized device: silent cold start' (2.2.22 静默启动)
+  => 下载的 v2.2.23 APK 确实含本轮全部修复, 非旧版误标。
+- release tag 溯源核查: v2.2.20~v2.2.23 的 git tag 均指向 dac8fef (v2.0.1 分支旧码),
+  因 softprops/action-gh-release 只在 tag 缺失时创建、发布时不移 tag 到构建 HEAD。
+  影响: 仅源码 checkout tag 会拿到旧码; 资产本身由每次 workflow 从触发分支
+  (v2.0.1-track 实际 HEAD) 构建上传, 内容正确(已由 APK 内容验证)。
+  备查: 若要 tag 正确溯源, workflow 需在发布前移动轻量 tag 到 GITHUB_SHA。
+- 网络: git push 走 socks5 代理故障时, 本机 SSH(git@github.com:22) 可用,
+  加 origin-ssh remote 即可 push (本次已用此法补推 9a06bd1)。
