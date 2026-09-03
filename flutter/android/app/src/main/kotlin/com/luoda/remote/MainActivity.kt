@@ -302,6 +302,35 @@ class MainActivity : FlutterActivity() {
                 "get_public_auth_base_dir" -> {
                     result.success(publicAuthBaseDir(activity))
                 }
+                "write_public_auth_marker" -> {
+                    // Marker lives in the real public external storage
+                    // (/storage/emulated/0/Documents/LDesk), which SURVIVES app
+                    // uninstall + reinstall, so a re-installed app never asks for
+                    // authorization again. No runtime permission is needed to write
+                    // our own file under the app-named public Documents folder on
+                    // Android 10+.
+                    var ok = false
+                    try {
+                        val dir = File(publicAuthBaseDir(activity))
+                        if (!dir.exists()) dir.mkdirs()
+                        val marker = File(dir, "first-run-authorization")
+                        marker.writeText("Y")
+                        ok = marker.exists() && marker.readText().trim() == "Y"
+                    } catch (e: Exception) {
+                        Log.e(logTag, "write_public_auth_marker failed: ${e.message}")
+                    }
+                    result.success(ok)
+                }
+                "read_public_auth_marker" -> {
+                    var ok = false
+                    try {
+                        val marker = File(File(publicAuthBaseDir(activity)), "first-run-authorization")
+                        ok = marker.exists() && marker.readText().trim() == "Y"
+                    } catch (e: Exception) {
+                        Log.e(logTag, "read_public_auth_marker failed: ${e.message}")
+                    }
+                    result.success(ok)
+                }
                 "get_first_run_authorization" -> {
                     val prefs = getSharedPreferences(KEY_SHARED_PREFERENCES, MODE_PRIVATE)
                     result.success(prefs.getBoolean(KEY_FIRST_RUN_AUTHORIZATION, false))

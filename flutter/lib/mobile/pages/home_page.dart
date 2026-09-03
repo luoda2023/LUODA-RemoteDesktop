@@ -117,14 +117,19 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-
   /// True when the user has completed the one-time authorization flow (any of
   /// the persisted markers is present). Once marked, the app ALWAYS starts
   /// silently - accessibility is deliberately not re-checked here because it
   /// is a hosting capability only needed when this phone is remote-controlled.
   Future<bool> _canStartQuietly() async {
     try {
-      return bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y' ||
+      // The native public marker (/storage/emulated/0/Documents/LDesk/...) is the
+      // authoritative cross-reinstall signal: it is resolved by Kotlin directly and
+      // survives app uninstall, so a reinstalled app never re-prompts.  The app-
+      // private fallbacks (LocalConfig / SharedPreferences / legacy Dart marker)
+      // cover older installs that already authorized before this marker existed.
+      return await gFFI.invokeMethod('read_public_auth_marker') == true ||
+          bind.mainGetLocalOption(key: _kFirstRunAuthorization) == 'Y' ||
           await gFFI.invokeMethod('get_first_run_authorization') == true ||
           _readPublicAuthMarker();
     } catch (e) {
@@ -134,52 +139,42 @@ class HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   /// On every cold start:
-  ///  - already-authorized device: quietly request only the standard runtime
-  ///    permissions that may have been reset by a reinstall (single system
-  ///    dialog, no accessibility jump, no screen-capture prompt), then refresh
-  ///    the marker; nothing pops when everything is already granted.
-  ///  - first run: run the guided one-tap flow (standard permissions only).
-  ///
-  /// Accessibility ("Input Control") and screen capture are HOSTING
-  /// capabilities: they are prompted inside the "Share screen" page when the
-  /// user actually enables them, never auto-popped on app launch.
+  ///  - already-authorized device (incl. a reinstall, signalled by the public
+  ///    marker that survives uninstall): start FULLY SILENT - no permission
+  ///    dialog, no accessibility jump, no screen-capture prompt.  Runtime
+  ///    permissions are requested on demand from the "Share screen" page when
+  ///    the user actually enables each capability.
+  ///  - first install: run the guided one-tap flow once (standard runtime
+  ///    permissions only, no special settings pages).
   Future<void> _runFirstLaunchAuthorization() async {
     if (!isAndroid || bind.isOutgoingOnly() || !mounted) {
       return;
     }
     try {
-      final canStartQuietly = await _canStartQuietly();
-      if (!canStartQuietly) {
-        RuntimeLogger.instance
-            .info('ANDROID', 'first-run authorization sequence started');
-        final completed = await _firstRunPermissionFlow.run();
-        // Persist the marker regardless of which optional steps the user
-        // skipped. Hosting capabilities (accessibility / screen capture) are
-        // requested on demand in the "Share screen" page, so an incomplete
-        // flow here must NOT re-trigger the full authorization window on the
-        // next cold start.
-        await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
-        await gFFI.invokeMethod('set_first_run_authorization', true);
-        _writePublicAuthMarker();
+      if (await _canStartQuietly()) {
+        // Already authorized (any marker, incl. cross-reinstall public marker):
+        // stay completely quiet.  Asking for permissions again here is exactly
+        // what re-opens a system dialog on every launch after Android resets
+        // runtime permissions on reinstall - never do that on cold start.
         RuntimeLogger.instance.info('ANDROID',
-            'first-run authorization sequence finished (completed=$completed)');
+            'authorized device: silent cold start, no permission dialog');
         return;
       }
-      // Prior authorization: silently top up standard runtime permissions.
-      // On a fresh reinstall Android resets those, but the batch system dialog
-      // regrants them in one tap; when they are already granted nothing pops.
-      // Accessibility keeps its OS-granted state and is never re-prompted here;
-      // screen capture is only requested when the user actually starts a
-      // session (Android 14+ revokes that token on every reboot, so auto
-      // prompting on cold start would only annoy).
       RuntimeLogger.instance
-          .info('ANDROID', 'rechecking Android authorization state');
-      final stillComplete = await _requestStandardPermissionsBatch();
-      if (stillComplete) {
-        await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
-        await gFFI.invokeMethod('set_first_run_authorization', true);
-        _writePublicAuthMarker();
-      }
+          .info('ANDROID', 'first-run authorization sequence started');
+      final completed = await _firstRunPermissionFlow.run();
+      // Persist the marker regardless of which optional steps the user
+      // skipped. Hosting capabilities (accessibility / screen capture) are
+      // requested on demand in the "Share screen" page, so an incomplete
+      // flow here must NOT re-trigger the full authorization window on the
+      // next cold start.
+      await bind.mainSetLocalOption(key: _kFirstRunAuthorization, value: 'Y');
+      await gFFI.invokeMethod('set_first_run_authorization', true);
+      _writePublicAuthMarker();
+      // Native public marker survives reinstall (resolved by Kotlin).
+      await gFFI.invokeMethod('write_public_auth_marker');
+      RuntimeLogger.instance.info('ANDROID',
+          'first-run authorization sequence finished (completed=$completed)');
     } catch (error, stackTrace) {
       RuntimeLogger.instance.error(
           'ANDROID', 'first-run authorization failed: $error\n$stackTrace');
