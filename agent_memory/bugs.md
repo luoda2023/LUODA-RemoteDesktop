@@ -106,3 +106,52 @@
 - rendezvous 历史失败 404 次, 集中在凌晨 04:00-04:18 (疑似服务器维护窗口), 最长簇仅64s,
   不影响 120s 在线超时窗口 => 非灰点/连接卡住根因, 当前已完全恢复。
 - 结论: PC 被控端全链路健康; 灰点根因在手机端 Peer 重建(2.2.20 fromJson 自动回填已根治)。
+
+## 2026-09-03 本机(466619)"长时间后手机连不上/已连接请等待" 深度诊断 (进行中)
+- 现象: 本机 PC 时间长了(熄屏/空闲)再用手机连, 一直"已连接,请等待"; 另一台电脑能连。
+- 本机环境: S0 Modern Standby, 显示器 10 分钟自动熄屏(VIDEOIDLE=600s), 无自动锁屏策略;
+  LDesk 以纯用户进程运行(便携 runtime %LOCALAPPDATA%\LDesk\runtime), 无 LDesk 服务组件(仅 dotchat 的 LUODA 服务, 不相关)。
+- 已确认健康: 在线注册每16s正常(rev.dicad.cn:21116 acknowledged); DIRECT_SERVER 21118 LISTENING(IPv4+IPv6);
+  本机自连 127.0.0.1:21118 和 192.168.31.42:21118 均成功; 进程 197线程/Responding=True; 会话 Active 未锁屏; 显示器 online。
+- 时间线(runtime log ldesk_runtime.log + FileLogger %PROGRAMDATA%\LDesk\logs\ldesk-2026-09-03.log):
+  * 最后一次稳定视频会话: 09-03 01:41:21 (first frame encoding completed subscribers=1)
+  * 01:41 后 9 小时无稳定会话; 09:34 启动 2.2.20(当前 PID 43936)
+  * 09:39:04 服务子系统崩溃重启: monitor0 "Desktop changed" x5 + mouse_cursor "拒绝访问"(os error 5) x3 + "Failed to switch desktop: 拒绝访问" + "ipc to connection manager exit: reset by the peer"
+  * 09:39:08 FileLogger 停写(疑似 logger 异常或服务循环僵死)
+  * 10:27:43 第二 LDesk 实例短暂启动("LDesk started")+ 一次 video 会话: 首帧编码 subscribers=1 -> 下一帧 "encoded frame but no subscribers"(订阅者1帧后消失)
+  * 10:27:49 FileLogger "ipc to connection manager exit: expected" 后恢复心跳-only
+- 代码疑点(video_service.rs / service.rs):
+  * video_service.rs:743 desktop_changed() && !portable_service::running() => bail("Desktop changed")
+    无服务组件时, 锁屏/会话切换(selectInputDesktop 失败 os error 5)会陷入 创建capturer->bail->退避 死循环, 永不产帧
+  * video_service.rs:1380 handle_one_frame 里 sps.has_subscribes() => bail("SWITCH")
+    无法区分"新加入订阅者"与"已在服务的订阅者", 订阅者持续存在时理论上每帧 SWITCH 重启
+  * LAST_GOOD_YUV 仅进程内存(static Mutex<HashMap>), 进程重启即空; 熄屏+重启后首帧 WouldBlock 无缓存可回放
+- 待办: 与用户确认根因方向(A: video SWITCH 死循环 / B: desktop_changed 崩溃 / C: 连接层), 再做最小修复并构建。
+
+
+## 2026-09-03 熄屏无法连接 根治(采纳用户方案: 连接即自动亮屏) (bump 2.2.22)
+- 根因确认: 本机为 ROG 笔记本, 熄屏 = 内屏面板断电 -> Intel 核显显示输出停摆 ->
+  DXGI Desktop Duplication 无新帧; 原 keep-awake(ES_DISPLAY_REQUIRED) 只能"阻止熄灭",
+  无法"重新点亮已熄灭的屏幕"; 台式机熄屏只是显示器 DPMS 断电、GPU 仍渲染 -> 所以另一台没事。
+- 用户方案(采纳): 有连接进来就自动点亮屏幕, 亮起后核显恢复渲染 -> 捕获恢复 -> 首帧可达。
+- 修复(3 层, 全部只碰 Windows 便携/桌面运行路径):
+  1. src/platform/windows.rs: 新增 pub fn wake_up_displays()
+     - SendMessageTimeoutW(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, -1) 系统级真正点亮显示器;
+       失败回退 PostMessageW; 再 SetThreadExecutionState(ES_CONTINUOUS|ES_DISPLAY_REQUIRED) 防立即再熄。
+  2. src/server/connection.rs: try_activate_screen() 强化 + 触发时机提前
+     - 原实现只在授权通过后鼠标微移(-6/+6), 无法可靠点亮已熄灭内屏, 且时机太晚。
+     - 现在: handle_login_request_without_validation() 入口即调用(授权窗口弹出前屏幕已开始点亮);
+       windows 分支先调 wake_up_displays() 再鼠标微移; 5 秒节流防风暴(LAST_SCREEN_WAKE lazy_static)。
+  3. src/server/video_service.rs: 等首帧期间周期兜底重亮
+     - WouldBlock 分支 + 捕获错误分支: !first_frame_sent 且距上次唤醒>=4s 时再次 wake_up_displays(),
+       直到首帧发出, 覆盖"唤醒后被系统再次熄屏/唤醒失败"的持续场景。
+- 语法验证: rustfmt --check 三文件均通过(仅格式建议, 无语法错误); 本地 vcpkg 缺失无法 cargo check,
+  由 CI(默认 features, 同 build-exe.yml) 做最终编译验证。
+- 修正(v2.2.22 定稿): 
+  * wake_up_displays() 改为一次性点亮(SC_MONITORPOWER), 不再带持续 ES_DISPLAY_REQUIRED
+    (原实现调用一次后无连接也永不熄屏, 违反用户"平时按系统自动熄屏"要求);
+    连接期间常亮由既有 wakelock 机制负责(连接数>0 才持有, 断开即释放)。
+  * try_activate_screen() 改为 #[cfg(windows)] 实做 / #[cfg(not(windows))] no-op,
+    修复 Android 构建失败(cannot find function mouse_move_relative)。
+- 待用户实测: 手机连 466619, 观察 PC 屏幕是否自动亮起 + 手机不再"已连接请等待"。
+

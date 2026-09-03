@@ -2137,6 +2137,11 @@ impl Connection {
     }
 
     async fn handle_login_request_without_validation(&mut self, lr: &LoginRequest) {
+        // A login request means a peer wants in: wake the display right away so a
+        // laptop panel that turned off after the idle timeout re-lights before the
+        // video service starts waiting for its first frame (otherwise the viewer
+        // hangs on "connected, waiting for first frame").
+        try_activate_screen();
         self.lr = lr.clone();
         self.peer_argb = crate::str2color(&format!("{}{}", &lr.my_id, &lr.my_platform), 0xff);
         if let Some(o) = lr.option.as_ref() {
@@ -4977,16 +4982,37 @@ async fn start_ipc(
         }
     }
 }
-
-// in case screen is sleep and blank, here to activate it
+// in case the display is off (laptop panel powered down after the idle
+// timeout) and a peer wants in: wake the display.  This runs as soon as a
+// login request arrives (not only after authorization) so the screen lights
+// up before the video service starts waiting for its first frame.
+// Windows-only: waking the physical display only makes sense on the desktop
+// host being controlled; on Android/iOS/Linux it is a no-op.
+#[cfg(windows)]
 fn try_activate_screen() {
-    #[cfg(windows)]
+    // Throttle: wake attempts at most once per 5 seconds no matter how many
+    // login requests / retries race in.
+    lazy_static::lazy_static! {
+        static ref LAST_SCREEN_WAKE: Arc<Mutex<Instant>> = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(60)));
+    }
+    let mut last = LAST_SCREEN_WAKE.lock().unwrap();
+    if last.elapsed() < Duration::from_secs(5) {
+        return;
+    }
+    *last = Instant::now();
+    drop(last);
+    crate::runtime_logger::info("SCREEN", "waking display for incoming connection");
     std::thread::spawn(|| {
+        crate::platform::windows::wake_up_displays();
+        std::thread::sleep(std::time::Duration::from_millis(30));
         mouse_move_relative(-6, -6);
         std::thread::sleep(std::time::Duration::from_millis(30));
         mouse_move_relative(6, 6);
     });
 }
+
+#[cfg(not(windows))]
+fn try_activate_screen() {}
 
 pub enum AlarmAuditType {
     IpWhitelist = 0,

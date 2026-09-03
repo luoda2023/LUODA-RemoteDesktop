@@ -968,6 +968,34 @@ pub fn try_change_desktop() -> bool {
     return false;
 }
 
+/// Wake the physical display(s) up.  This is a ONE-SHOT wake: it only re-lights
+/// a panel that has already powered down (e.g. a laptop panel after the idle
+/// timeout).  It does NOT keep the display awake afterwards - the normal
+/// keep-awake wakelock (ES_DISPLAY_REQUIRED while connections > 0) is what
+/// keeps the screen on during an active session, and it is released as soon as
+/// the last connection drops, so the screen returns to the OS power policy.
+/// Broadcasting SC_MONITORPOWER(-1) tells the power manager to turn monitors on,
+/// which makes the GPU resume rendering so Desktop Duplication yields frames again.
+/// Best-effort: safe to call from any thread, never blocks long.
+pub fn wake_up_displays() {
+    unsafe {
+        let mut result: usize = 0;
+        let sent = SendMessageTimeoutW(
+            HWND_BROADCAST as _,
+            WM_SYSCOMMAND as _,
+            SC_MONITORPOWER as _,
+            -1isize as _,
+            0x0002 /*SMTO_ABORTIFHUNG*/,
+            1000,
+            &mut result as *mut usize as _,
+        );
+        if sent == 0 {
+            // Fall back to a non-blocking post so we never stall the caller.
+            PostMessageW(HWND_BROADCAST as _, WM_SYSCOMMAND as _, SC_MONITORPOWER as _, -1isize as _);
+        }
+    }
+}
+
 fn share_rdp() -> BOOL {
     if get_reg("share_rdp") != "false" {
         TRUE

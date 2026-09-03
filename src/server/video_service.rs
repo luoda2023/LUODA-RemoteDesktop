@@ -676,6 +676,8 @@ fn run(vs: VideoService) -> ResultType<()> {
     #[cfg(windows)]
     let mut try_gdi = 1;
     #[cfg(windows)]
+    let mut last_screen_wake = time::Instant::now() - Duration::from_secs(60);
+    #[cfg(windows)]
     log::info!("gdi: {}", c.is_gdi());
     #[cfg(windows)]
     start_uac_elevation_check();
@@ -938,6 +940,19 @@ fn run(vs: VideoService) -> ResultType<()> {
                         log::info!("No image, fall back to gdi");
                     }
                 }
+                #[cfg(windows)]
+                // The capturer keeps returning WouldBlock (idle / display powered
+                // off after timeout).  Re-wake the display periodically while a
+                // subscriber is still waiting for the very first frame, so a laptop
+                // panel that turned off re-lights and the GPU resumes rendering.
+                if !first_frame_sent && last_screen_wake.elapsed() >= Duration::from_secs(4) {
+                    last_screen_wake = time::Instant::now();
+                    crate::runtime_logger::warn(
+                        "VIDEO",
+                        &format!("still no first frame; waking display; display={display_idx}"),
+                    );
+                    crate::platform::windows::wake_up_displays();
+                }
                 #[cfg(target_os = "linux")]
                 {
                     would_block_count += 1;
@@ -1055,6 +1070,17 @@ fn run(vs: VideoService) -> ResultType<()> {
                 #[cfg(windows)]
                 {
                     let capture_error = err.to_string();
+                    // Capture failed outright (e.g. DXGI after the display powered
+                    // off).  Try waking the display periodically while no first
+                    // frame has been delivered yet.
+                    if !first_frame_sent && last_screen_wake.elapsed() >= Duration::from_secs(4) {
+                        last_screen_wake = time::Instant::now();
+                        crate::runtime_logger::warn(
+                            "VIDEO",
+                            &format!("capture error before first frame; waking display; display={display_idx}; error={capture_error}"),
+                        );
+                        crate::platform::windows::wake_up_displays();
+                    }
                     if vs.source.is_monitor()
                         && crate::headless_policy::should_recover_headless_after_capture_error(
                             true, // headless_capable: any Windows may run headless on VPS/VM
