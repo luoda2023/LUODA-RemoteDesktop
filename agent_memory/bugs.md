@@ -342,3 +342,11 @@
 - 验证: cargo check --lib 通过; 版本号 2.2.23 -> 2.2.24 (Cargo.toml/Cargo.lock/
   src/version.rs/flutter/pubspec.yaml 同步)。
 - 待验证: CI 2.2.24 APK 装机后, 手机连 466619 应直接显示 encoder=VP9 且画面出现。
+
+## 2026-09-04 v2.2.24 CI 构建成功, 待手机实测 AV1 回退修复
+- commit e5c45ba (v2.0.1-track): 手机Auto不再选AV1, 自动回退VP9; 显式AV1偏好保留。
+- CI: Build LDesk Android APK 33794878506 success (49m47s);
+  Build LDesk Windows EXE 33794878353 success (52m05s)。
+- Release v2.2.24 已见 APK 资产; EXE 由 Windows workflow 上传完成。
+- 验收标准: 手机连接 466619, 服务端日志应显示 encoder=VP9;
+  画面应正常出现, 不再卡"已连接，等待画面传输..."。
