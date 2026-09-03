@@ -307,3 +307,18 @@
   与 online 查询失败同源(每次失败WS连接触发UI刷新)。修复后应同步消失。
   若仍有, 再单独追查(与页面无关, 全局性)。
 - 交付: 等 CI APK (LDesk-arm64-v8a.apk), 装到手机后验证 466619 绿点。
+
+## 2026-09-03 22:20 手机端灰点最后一环验证: 466619进程未运行→重启后恢复绿点
+- 用户反馈"手机端466619还是灰色,明明在线"。本机(466619=这台PC, bugs.md已确认)
+  的 LDesk 2.2.23 便携版进程当时已不在运行(22:17前被关闭), 服务器无心跳。
+- 权威验证(纯服务器21115, 排除LAN direct): 重启前 466619=OFFLINE, 930647=OFFLINE;
+  说明灰点是"服务器确实判定离线", 非手机查询bug。
+- 处理: 重启 C:\Users\Administrator\AppData\Local\LDesk\runtime\016a5c1a...\LDesk.exe
+  (PID 3820, FileVersion 2.2.23+1, 21118 DIRECT_SERVER恢复监听)。
+  复测(纯服务器): 466619=ONLINE, 930647=ONLINE。
+- 手机端(OPPO, 修复版APK)轮询刷新: 466619卡片由灰转绿(像素级确认, 截图
+  accept-green-dot-466619.png 存 _release_v2.2.23)。
+- 结论: 手机端灰点查询bug已根治(e44eea7 connect_tcp_local + peer_model权威表)。
+  之后若466619显示灰, 先确认该电脑LDesk进程在运行(离线则灰点是正确的)。
+- 遗留观察: 手机端LDesk前台偶现 AtchDlg 输入法附加窗(h=0, 非授权弹窗),
+  与主页远程ID输入框软键盘有关, 非BUG-4授权弹窗; 已授权设备冷启动仍静默。
