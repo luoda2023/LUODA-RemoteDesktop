@@ -173,3 +173,21 @@
 - 补漏: 4991ce6 bump 2.2.22 漏改 Cargo.lock luoda version -> 本次同步为 2.2.22。
 - 待 CI: build-exe + build-apk 双构建确认 (前一轮 2.2.22 APK 曾因 mouse_move_relative 失败,
   已在 4991ce6 try_activate_screen cfg(windows) 修复, 需新 CI 证实)。
+
+## 2026-09-03 v2.2.22 构建验证通过 (CI 33716725514 APK / 33716725482 EXE)
+- 双构建均 success: APK 58m16s, EXE 51m55s。APK 成功证实 4991ce6 的
+  try_activate_screen cfg(windows) 拆分修复了上轮 mouse_move_relative 编译失败。
+- Release v2.2.22 (Latest) 7 资产全部上传: 3 APK (arm64/v7a/x86_64/universal 4 个) +
+  install/portable EXE + service zip。核对:
+  * LDesk-arm64-v8a.apk sha256 61edebec...da9b3a 一致
+  * LDesk-portable-x64.exe sha256 40b3df34...5092 一致 (install/portable 同 digest)
+- 本机(amei-print, ID 930647) 已用 portable 升级 2.2.22:
+  * 新 runtime 目录 2997026936029b9800a6db5aac62023e (旧 6c28342... 为 2.2.20)
+  * LDesk.exe FileVersion 2.2.22+1 确认, 进程 Responding=True, 21118 LISTENING,
+    direct-access-status=listening, 配置 LDesk2.toml 14:16:41 正常写入
+  * 启动级无崩溃 (验证熄屏修复未引入启动问题)
+- 下载注意: gh release download 在本机不走代理会卡 0 字节; 需 curl.exe --proxy
+  socks5h://127.0.0.1:10808 -L 显式代理下载 (8MB/s)。
+- 待用户实测(手机端): 装 arm64 APK, 验证 (a) 首次安装才弹一次授权,
+  (b) 重装不再弹, (c) 已授权设备每次冷启动零弹窗, (d) 熄屏后手机连 466619/930647
+  屏幕自动亮起不再"已连接请等待"。
