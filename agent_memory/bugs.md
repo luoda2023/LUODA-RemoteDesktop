@@ -265,3 +265,21 @@
 - 已重启 2.2.23 (PID 35880, runtime 016a5c1a 不变), 466619 官方 probe = ONLINE。
 - 状态: 466619 以 2.2.23 在线, 待用户手机装 v2.2.23 arm64 APK 真机验收
   (绿点/首装一次授权/重装不弹/熄屏自动亮屏)。
+
+## 2026-09-03 运行证据: 466619 = 本机, 2.2.23 持续在线无崩溃 (用户确认)
+- 用户明确: "466619 正在这台电脑运行呀" => 466619 = 本机(不是930647; 930647是
+  amei-print 旧配置, 另一台设备)。此前把本机ID误判为930647是错的, 已纠正。
+- 本机 = 这台PC (ROG Strix G814JI, hostname DESKTOP-6UI3K4R)。运行 2.2.23
+  portable (runtime 016a5c1a..., 启动于 17:11:53, PID 7392) 保持466619在线。
+- 证据:
+  * 服务器 21115 权威探测: 466619 ONLINE=True (930647 也 True, 那台也在线)
+  * 21118 DIRECT_SERVER listening (PID 7392)
+  * 日志每16s一条 rendezvous registration acknowledged; 最新心跳距查询仅3s
+    (近5分钟19条), 证明持续稳定注册, 无掉线
+  * 运行目录无任何 webview/inappwebview 组件 => 远程后 dcomp/Unknown Hard
+    Error 崩溃根因已随 2.2.23 移除, 进程自启动持续无崩溃
+- 交付物(用户可装):
+  * PC: 桌面 LDesk-portable-v2.2.23.exe (sha256 BD9E774E..., 官方一致)
+  * APK: _release_v2.2.23\LDesk-arm64-v8a.apk
+  * 验收: _release_v2.2.23\验收清单-v2.2.23.md
+- 待用户真机4项验收: 绿点/零弹窗/重装不弹/熄屏自动亮屏。
