@@ -83,3 +83,17 @@
 - 本机 id 复核：enc_id 用 machine_uid 前32字节 zero-pad 作 key(sodium secretbox, nonce全0) 解密 = 466619 确认。
 - 灰点修复链路闭环审计(2.2.19)：peer_model 进程级权威表(_onlineStates static) + 实例注册表(_instances) + 广播(_broadcast) + load后未知peer补查(bind.queryOnlines) + Rust handle_query_onlines 事件回传 => 466619 load后立即翻绿。
 - 待用户动作：手机安装 LDesk-arm64-v8a.apk (2.2.19)，覆盖旧版；装完 466619 应在任意tab绿点。
+
+
+## 2026-09-03 灰点残余根因终修 (commit 6f9510c, bump 2.2.20)
+- 发现: 2.2.19 只修了 autocomplete/ab pullAbImpl/group _pull 的 restoreOnline,
+  但冷启动/切 tab 走本地缓存加载路径仍重建 Peer 丢 online:
+  * group_model.loadCache()  (data['peers'] -> Peer.fromJson -> peers.add) 无回填
+  * ab_model._deserializeCache()  (abEntry['peers'] -> Peer.fromJson -> ab.peers.add) 无回填
+  => 手机冷启动/切 tab 时, 服务器已确认在线的设备仍灰 (权威表有值但重建对象没回填)。
+- 根治方案: Peer.fromJson 构造器初始化列表直接查进程级权威表:
+    online = Peers.onlineOf(json['id'] ?? '') ?? false
+  一处修改覆盖所有 Peer.fromJson 重建路径(缓存/补全/通讯录/群组/PeerPayload.toPeer/getRecentPeers/addPeers/_fetchPeers)。
+- 双保险: group loadCache / ab _deserializeCache 也显式补 Peers.restoreOnline。
+- dart analyze 全 lib 通过, 零问题。版本 2.2.19 -> 2.2.20。
+- 已 push 6f9510c, CI 双构建进行中。
