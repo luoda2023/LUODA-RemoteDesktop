@@ -202,3 +202,19 @@
   单点故障不再影响整体判定, 已授权设备冷启动 100% 静默。
 - 验证: dart analyze 零问题, dart format 规范。版本 2.2.22 -> 2.2.23 四文件同步。
 - 待 CI: build-exe + build-apk (2.2.23) 双构建, 完成后核对 Release 资产。
+
+## 2026-09-03 v2.2.23 构建验证通过 (CI 33723651169 APK / 33723651175 EXE)
+- 双构建 success: APK 58m24s, EXE 49m14s。Release v2.2.23 (Latest) 7 资产齐全。
+- 完整性核对(与 release digest 一致):
+  * LDesk-arm64-v8a.apk sha256 00cc17c6...6493, 25883593 bytes
+  * LDesk-portable-x64.exe sha256 bd9e774e...7cc, 24488448 bytes
+- 本机(amei-print, ID 930647) portable 冒烟测试:
+  * 新 runtime 016a5c1aa52f018d99774a61481d7df2, LDesk.exe FileVersion 2.2.23+1
+  * 进程 195 线程/182MB/Responding=True/主窗口 LDesk
+  * Test-NetConnection 127.0.0.1:21118 = True (DIRECT_SERVER 实际握手成功)
+  * 无启动崩溃; 测试后已 Stop-Process 恢复干净环境
+- 下载教训: 本机 socks5 代理(127.0.0.1:10808)对 github 大文件时通时断;
+  直连 github release 大文件被限速(~12-24KB/s)但 curl -C - 断点续传可完成;
+  gh release download 会卡 0 字节。可靠法: curl -L -C - --retry 3 直连续传。
+- 待用户实测(手机): 装 LDesk-arm64-v8a.apk 2.2.23, 验证首次弹一次授权、
+  重装不弹、已授权设备每次冷启动零弹窗、熄屏后连 930647 自动亮屏。
