@@ -322,3 +322,23 @@
   之后若466619显示灰, 先确认该电脑LDesk进程在运行(离线则灰点是正确的)。
 - 遗留观察: 手机端LDesk前台偶现 AtchDlg 输入法附加窗(h=0, 非授权弹窗),
   与主页远程ID输入框软键盘有关, 非BUG-4授权弹窗; 已授权设备冷启动仍静默。
+
+## 2026-09-04 根因修复: 手机连466619卡等待画面 = AV1解码失败, 自动降级VP9 (2.2.24)
+- FileLogger 铁证(C:\ProgramData\LDesk\logs\ldesk-2026-09-04.log):
+  * 00:23 / 00:24 / 02:09 手机连466619, 手机上报 ability_av1=1, prefer=Auto;
+    466619 配置 av1-test='Y', 服务端 Auto 优先 AV1, encoder=AV1。
+  * 三次均 "first video frame sent; subscribers=1"; 首帧后客户端保护触发
+    Option update custom_fps=30, 随后 3~6 秒内 Peer close/Timeout, UI 始终无首帧。
+  * 对照 930647: LUODA2.toml av1-test='N', 自动编码器=VP9, 手机正常。
+  * 判定: Android libaom 软解 AV1 不能及时产出 RGBA, io_loop 若干秒无解码帧,
+    客户端既无错误又无 VideoReceived 回执, 服务端与 Flutter UI 只能保持等待。
+- 修复(libs/scrap/src/common/codec.rs, 最小改动):
+  * Encoder::update auto 分支不再无条件选 AV1。
+  * 仅当本连接 SupportedDecoding.prefer 显式为 AV1 时选择 AV1;
+    其余 Auto/VP9/VP8 一律回退 VP9。
+  * 显式 AV1 偏好保留; 如确有设备选择 AV1 后失败, 客户端 mark_unsupported
+    会把 ability_av1 置 0, 下一连接自然回退 VP9。
+  * 不改 AV1 编码器能力测试(av1-test), 桌面显式选择 AV1 不受影响。
+- 验证: cargo check --lib 通过; 版本号 2.2.23 -> 2.2.24 (Cargo.toml/Cargo.lock/
+  src/version.rs/flutter/pubspec.yaml 同步)。
+- 待验证: CI 2.2.24 APK 装机后, 手机连 466619 应直接显示 encoder=VP9 且画面出现。

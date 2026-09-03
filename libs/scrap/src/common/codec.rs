@@ -268,9 +268,12 @@ impl Encoder {
             .unwrap_or((PreferCodec::Auto.into(), 0));
         let preference = most_frequent.enum_value_or(PreferCodec::Auto);
 
-        // auto: h265 > h264 > av1/vp9/vp8
-        let av1_test = Config::get_option(hbb_common::config::keys::OPTION_AV1_TEST) != "N";
-        let mut auto_codec = if av1_useable && av1_test {
+        // auto: h265 > h264 > vp9/vp8; AV1 requires an explicit peer preference
+        // because mobile libaom software decoding can fail to produce the first frame.
+        let explicit_av1 = decodings
+            .values()
+            .any(|s| s.prefer == PreferCodec::AV1.into());
+        let mut auto_codec = if av1_useable && explicit_av1 {
             CodecFormat::AV1
         } else {
             CodecFormat::VP9
