@@ -97,3 +97,12 @@
 - 双保险: group loadCache / ab _deserializeCache 也显式补 Peers.restoreOnline。
 - dart analyze 全 lib 通过, 零问题。版本 2.2.19 -> 2.2.20。
 - 已 push 6f9510c, CI 双构建进行中。
+
+## 2026-09-03 2.2.20 PC 端日志审计 (补充)
+- runtime 日志(ldesk_runtime.log) 证实 2.2.20 PC(466619):
+  * 每16s向 rev.dicad.cn:21116 注册且被服务器确认, 当前实时(09:40 仍在注册)
+  * DIRECT_SERVER status=listening (直连端口正常)
+  * 无崩溃记录
+- rendezvous 历史失败 404 次, 集中在凌晨 04:00-04:18 (疑似服务器维护窗口), 最长簇仅64s,
+  不影响 120s 在线超时窗口 => 非灰点/连接卡住根因, 当前已完全恢复。
+- 结论: PC 被控端全链路健康; 灰点根因在手机端 Peer 重建(2.2.20 fromJson 自动回填已根治)。
