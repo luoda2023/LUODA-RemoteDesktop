@@ -283,3 +283,27 @@
   * APK: _release_v2.2.23\LDesk-arm64-v8a.apk
   * 验收: _release_v2.2.23\验收清单-v2.2.23.md
 - 待用户真机4项验收: 绿点/零弹窗/重装不弹/熄屏自动亮屏。
+
+## 2026-09-03 决定性根因: 手机端灰点 = online查询被WebSocket改写, 已修复推送CI
+- 用户最终反馈"手机端466619还是灰色, 明明在线"。真机(OPPO PFUM10 7358bbbb)
+  Rust日志(rs_rCURRENT.log)铁证:
+    ERROR websocket.rs:275 WebSocket protocol error: Connection reset without closing handshake
+    WARN  client.rs:4138 Failed to query online states for 1 peers: Online stream receives None
+  手机端每4~10秒查询466619在线状态, 全部失败 => _onlineStates权威表永空 => 灰点。
+- 根因链(代码+服务器双证):
+  * Android use_ws() 默认 true (carrier 网络假设), 桌面 false
+  * create_online_stream() 用 connect_tcp() => check_ws() 把 rev.dicad.cn:21115
+    (online明文TCP) 改写成 wss://rev.dicad.cn/ws/id (443)
+  * nginx 把 /ws/id 转发到 hbbs 21118 (注册WS端口), 明文 OnlineRequest 无法解析
+    => 服务器RST => 每次查询失败
+  * 桌面 use_ws()=false 直连21115明文TCP成功 => 仅手机端灰
+  * 服务器源码(LUODA-SERVER-API/src/rendezvous_server.rs:880 handle_online_request)
+    确认 21115 (port-1) 用 FramedStream 明文处理 OnlineRequest, 非WS
+- 修复: src/client.rs create_online_stream() 改 connect_tcp_local() 强制raw TCP
+  (与 create_relay/rendezvous_mediator fallback 一致), 绕过WS改写直连21115。
+  host cargo check --lib 通过。已提交 e44eea7 并 push v2.0.1-track,
+  CI Build LDesk Android APK (run 33748097790) 构建中。
+- 附加现象: 手机端每1.2~5秒 AtchDlg 窗口闪烁(空对话框+输入法onStartInput),
+  与 online 查询失败同源(每次失败WS连接触发UI刷新)。修复后应同步消失。
+  若仍有, 再单独追查(与页面无关, 全局性)。
+- 交付: 等 CI APK (LDesk-arm64-v8a.apk), 装到手机后验证 466619 绿点。
