@@ -4165,7 +4165,17 @@ pub mod peer_online {
             bail!("Invalid server address: {}", rendezvous_server);
         }
         let online_server = format!("{}:{}", tmp[0], port - 1);
-        connect_tcp(online_server, CONNECT_TIMEOUT).await
+        // The hbbs "online" service (rendezvous_port - 1, e.g. 21115) speaks a
+        // PLAIN-TCP FramedStream protocol: it parses a raw RendezvousMessage
+        // OnlineRequest and answers with OnlineResponse.  It is NOT a WebSocket
+        // endpoint.  On mobile use_ws() defaults to true, which would make
+        // connect_tcp() rewrite this address into wss://.../ws/id (443) and then
+        // nginx would forward it to the hbbs WS listener (21118) where the raw
+        // OnlineRequest is unparseable - the server resets the connection and
+        // every online-state query fails, so peer dots stay grey forever on the
+        // phone.  Force the raw TCP path (same as create_relay / rendezvous
+        // mediator fallbacks) so online-state queries always reach 21115.
+        connect_tcp_local(online_server, None, CONNECT_TIMEOUT).await
     }
 
     async fn query_online_states_(
