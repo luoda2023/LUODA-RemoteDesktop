@@ -386,8 +386,9 @@ class MainService : Service() {
                     // “分享屏幕”并开启时由 Flutter 显式触发(带 res intent 重来)。
                     Log.d(logTag, "boot-start without media projection; skip auto permission dialog")
                 } else {
-                    Log.d(logTag, "getParcelableExtra intent null, invoke requestMediaProjection")
-                    requestMediaProjection()
+                    // 无实际触发者(开机自启必带 boot=true, 主动投屏必带 res intent)。
+                    // 为彻底满足"授权窗只在用户主动分享时弹出", 此兜底不再自动弹授权, 仅记录。
+                    Log.d(logTag, "init intent without res intent and not from boot; no auto dialog");
                 }
             }
         }
