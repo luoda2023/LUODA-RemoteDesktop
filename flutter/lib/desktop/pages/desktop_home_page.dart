@@ -460,7 +460,7 @@ Positioned(
     final model = gFFI.serverModel;
     return Container(
       margin: const EdgeInsets.only(left: 20, right: 11),
-      height: 62,
+      constraints: const BoxConstraints(minHeight: 62),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,

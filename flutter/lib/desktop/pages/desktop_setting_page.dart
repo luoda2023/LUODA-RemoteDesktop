@@ -338,6 +338,8 @@ class _DesktopSettingPageState extends State<DesktopSettingPage>
               child: Theme(
                 data: Theme.of(context).copyWith(
                   cardColor: Colors.white,
+                  // LUODA: 设置页内输入框边框统一弱化(20% 透明淡灰), 不突兀。
+                  inputDecorationTheme: _faintInputDecoration(context),
                 ),
                 child: PageView(
                   controller: controller,
@@ -631,7 +633,8 @@ class _GeneralState extends State<_General> {
           setDevice(key);
           setState(() {});
         },
-      ).marginOnly(left: _kContentHMargin);
+        borderColor: _kFieldBorderColor,
+      );
       return _Card(title: 'Audio Input Device', children: [child]);
     }
 
@@ -763,7 +766,8 @@ class _GeneralState extends State<_General> {
           if (!isWeb) bind.mainChangeLanguage(lang: key);
         },
         enabled: !isOptFixed,
-      ).marginOnly(left: _kContentHMargin);
+        borderColor: _kFieldBorderColor,
+      );
     });
   }
 }
@@ -988,7 +992,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
             onChanged: (mode) async {
               await bind.mainSetOption(key: kOptionAccessMode, value: mode);
               setState(() {});
-            }).marginOnly(left: _kContentHMargin),
+            },
+            borderColor: _kFieldBorderColor),
         Column(
           children: [
             _OptionCheckBox(
@@ -1167,7 +1172,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               values: modeValues,
               initialKey: modeInitialKey,
               onChanged: (key) => model.setApproveMode(key),
-            ).marginOnly(left: _kContentHMargin),
+              borderColor: _kFieldBorderColor,
+            ),
             if (usePassword) radios[0],
             if (usePassword)
               _SubLabeledWidget(
@@ -2294,7 +2300,8 @@ class __PrinterState extends State<_Printer> {
                 key: kKeyPrinterSelected, value: value);
             setState(() {});
           },
-        ).marginOnly(left: 10),
+          borderColor: _kFieldBorderColor,
+        ),
       _OptionCheckBox(
         context,
         'auto-print-tip',
@@ -2412,12 +2419,45 @@ class _AboutState extends State<_About> {
 
 // ignore: non_constant_identifier_names
 // LUODA: 响应式多列设置项，每项底部加浅灰色底线，宽度随父容器自适应
-const Color _kOptionDividerColor = Color(0xFFE0E0E0);
+const Color _kOptionDividerColor = Color(0x33E0E0E0); // E0E0E0 @ 20% 不透明度, 分隔线极淡不抢眼
+// LUODA: 设置页内下拉框/输入框边线统一用 20% 透明度的淡灰, 不突兀。
+const Color _kFieldBorderColor = Color(0x33B0B0B0);
+// LUODA: 设置页输入框主题: 继承默认值, 仅把各状态边框色替换为 20% 透明淡灰,
+// 并去掉默认灰底填充, 让输入框在白色卡片里更轻、不抢眼。
+InputDecorationThemeData _faintInputDecoration(BuildContext context) {
+  final cur = Theme.of(context).inputDecorationTheme;
+  final side = BorderSide(color: _kFieldBorderColor);
+  return cur.copyWith(
+    filled: true,
+    fillColor: MyTheme.grayBg,
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: side,
+    ),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: side,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide(color: _kFieldBorderColor, width: 1.5),
+    ),
+    disabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: side,
+    ),
+  );
+}
+
 
 Widget _Card(
     {required String title,
     required List<Widget> children,
-    List<Widget>? title_suffix}) {
+    List<Widget>? title_suffix,
+    int columns = 1}) {
+  // LUODA: 统一卡片排版。默认单列纵向流式布局, 每行一项(行高自适应),
+  // 窗口放大只加宽卡片、不再自动切成 5~6 列导致错位。
+  // 需要紧凑网格的卡片(如复选框群)请显式传 columns: 2。
   return Container(
     margin: const EdgeInsets.only(left: _kContentHMargin, right: _kContentHMargin, top: 10, bottom: 10),
     decoration: BoxDecoration(
@@ -2454,49 +2494,86 @@ Widget _Card(
           ),
         ),
         const Divider(height: 1, thickness: 1, color: _kOptionDividerColor),
-        // 响应式多列：每项最小 210px，根据可用宽度自动决定列数
+        // 内容区: 单列(或显式 2 列网格), 每项底部细分隔线
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              const double minItemWidth = 210;
-              final int columns =
-                  (constraints.maxWidth / minItemWidth).floor().clamp(1, 6);
-              final double itemWidth =
-                  (constraints.maxWidth - (columns - 1) * 12) / columns;
-              return Wrap(
-                alignment: WrapAlignment.start,
-                runAlignment: WrapAlignment.start,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 12,
-                runSpacing: 0,
-                children: children
-                    .map((e) => SizedBox(
-                          width: itemWidth,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 8),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: children.length > 1
-                                      ? _kOptionDividerColor
-                                      : Colors.transparent,
-                                  width: 1,
-                                ),
-                              ),
-                            ),
-                            child: e,
-                          ),
-                        ))
-                    .toList(),
-              );
-            },
-          ),
+          child: columns >= 2
+              ? _buildGrid(children, columns)
+              : _buildList(children),
         ),
         const SizedBox(height: 4),
       ],
     ),
+  );
+}
+
+// 单列: 每个子项独占一行, 高度自适应, 底部加细分隔线
+Widget _buildList(List<Widget> children) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: children.asMap().entries.map((e) {
+      final i = e.key;
+      final child = e.value;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: i < children.length - 1
+                  ? _kOptionDividerColor
+                  : Colors.transparent,
+              width: 1,
+            ),
+          ),
+        ),
+        child: child,
+      );
+    }).toList(),
+  );
+}
+
+// 紧凑网格: 固定列数的等宽网格(用于复选框群), 单元格宽度不小于 300px;
+// 可用宽度不足时自动降为单列, 保证不挤压换行。
+Widget _buildGrid(List<Widget> children, int columns) {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final maxW = constraints.maxWidth;
+      final effCols =
+          (maxW / 300).floor().clamp(1, columns);
+      if (effCols <= 1) {
+        return _buildList(children);
+      }
+      final gap = 12.0;
+      final itemW = (maxW - (effCols - 1) * gap) / effCols;
+      return Wrap(
+        alignment: WrapAlignment.start,
+        runAlignment: WrapAlignment.start,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: gap,
+        runSpacing: 0,
+        children: children.asMap().entries.map((e) {
+          final i = e.key;
+          final child = e.value;
+          return SizedBox(
+            width: itemW,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: i < children.length - 1
+                        ? _kOptionDividerColor
+                        : Colors.transparent,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: child,
+            ),
+          );
+        }).toList(),
+      );
+    },
   );
 }
 // ignore: non_constant_identifier_names
@@ -2814,15 +2891,15 @@ Widget _SubButton(String label, Function() onPressed, [bool enabled = true]) {
 // ignore: non_constant_identifier_names
 Widget _SubLabeledWidget(BuildContext context, String label, Widget child,
     {bool enabled = true}) {
-  return Row(
+  // LUODA: 统一为“标签在上、控件在下”的垂直两行, 避免横向挤压错位。
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
         '${translate(label)}: ',
         style: TextStyle(color: disabledTextColor(context, enabled)),
       ),
-      SizedBox(
-        width: 10,
-      ),
+      const SizedBox(height: 6),
       child,
     ],
   ).marginOnly(left: _kContentHSubMargin);

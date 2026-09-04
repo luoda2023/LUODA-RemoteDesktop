@@ -3632,6 +3632,8 @@ class ComboBox extends StatelessWidget {
   late final Function(String key) onChanged;
   late final bool enabled;
   late String current;
+  // LUODA: 可选边框色。传 null 保持默认; 设置页等需弱化边框处传入淡色。
+  final Color? borderColor;
 
   ComboBox({
     Key? key,
@@ -3640,6 +3642,7 @@ class ComboBox extends StatelessWidget {
     required this.initialKey,
     required this.onChanged,
     this.enabled = true,
+    this.borderColor,
   }) : super(key: key);
 
   @override
@@ -3653,9 +3656,10 @@ class ComboBox extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(
-          color: enabled
-              ? MyTheme.color(context).border2 ?? MyTheme.border
-              : MyTheme.border,
+          color: borderColor ??
+              (enabled
+                  ? MyTheme.color(context).border2 ?? MyTheme.border
+                  : MyTheme.border),
         ),
         borderRadius:
             BorderRadius.circular(8), //border raiuds of dropdown button

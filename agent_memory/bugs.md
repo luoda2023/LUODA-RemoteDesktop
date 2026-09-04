@@ -373,3 +373,23 @@
 - 验证: cargo check --lib / cargo build --features flutter --lib 通过;
   dart analyze lib 零问题; 版本 2.2.24 -> 2.2.25 (Cargo.toml/Cargo.lock/src/version.rs/pubspec)。
 - 待用户实测: 问题 PC 上点击"无人值守·免密恢复"开启后, 远程待机/锁屏恢复应直达桌面不再卡等待。
+
+## 2026-09-04 v2.2.26 PC设置页重排(单列化)+线框淡化+修复ID区溢出
+- 用户需求: PC 端设置页排版混乱, 窗口放大/缩小时多列 Wrap 自动切列导致跳列错位;
+  设置里的分隔线、下拉框/输入框边线太明显太突兀; 主界面 ID 数字下方出现彩色斜纹警告条。
+- 截图诊断: ID 下方黄黑 debug 条 = BOTTOM OVERFLOWED BY 2.0 PIXELS。
+  根因: desktop_home_page.dart buildIDBoard() 外层 Container 固定 height:62,
+  内部(ID 标签+二维码 IconButton Row + TextFormField)内容被裁 2px。
+- 实现 (Flutter):
+  * desktop_setting_page.dart _Card 重写: 新增 columns 参数, 默认单列 _buildList()
+    (每项一行、高度自适应、底部分隔线) —— 根治窗口缩放跳列乱排;
+    checkbox 群可显式 _buildGrid(列) (单元格>=300px, 不足自动降单列)。
+  * _SubLabeledWidget: Row -> Column 垂直两行(标签在上控件在下), 不再横向挤压。
+  * 分隔线颜色 _kOptionDividerColor = 0x33E0E0E0 (20% 不透明, 极淡);
+    新增 _kFieldBorderColor = 0x33B0B0B0 + _faintInputDecoration() 弱化输入框/下拉框边线,
+    设置页 Theme.copyWith(inputDecorationTheme) 应用; 5 处 ComboBox 传 borderColor。
+  * common.dart ComboBox 新增可选 Color? borderColor (默认 null 不影响其它页面)。
+  * desktop_home_page.dart buildIDBoard: height:62 -> constraints minHeight:62, 不再裁内容。
+- 验证: dart analyze lib 零问题; flutter build windows --debug 成功,
+  设置页"显示"分类单列整齐(视觉确认), 黄黑溢出条消失。
+- 版本 2.2.25 -> 2.2.26 (Cargo.toml/Cargo.lock/src/version.rs/pubspec)。
