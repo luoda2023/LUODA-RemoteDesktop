@@ -1899,6 +1899,132 @@ fn get_reg_of(subkey: &str, name: &str) -> String {
     "".to_owned()
 }
 
+// ---- LUODA: 一键无人值守（开机自动登录 + 待机/锁屏返回不需要密码）----
+// 供 Flutter 主界面左侧栏"无人值守"卡片调用。内部通过提升的 cmd 写入注册表/电源策略，
+// 点击时会弹一次 UAC（由当前用户确认）。
+const NOPW_WINLOGON_SUBKEY: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
+
+/// 当前账户是否有密码（无密码才可真正实现"全自动登录/解锁免确认"）。
+/// 探测方法：尝试用空密码交互登录当前用户；成功 => 无密码。
+fn account_has_no_password(username: &str) -> bool {
+    if username.is_empty() {
+        return false;
+    }
+    // 本进程若不是以该用户身份运行（如 SYSTEM），用户名可能带域前缀。
+    let user_part = username.rsplit('\\').next().unwrap_or(username);
+    let wuser = wide_string(user_part);
+    let wpwd = wide_string("");
+    let mut token: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        LogonUserW(
+            wuser.as_ptr(),
+            std::ptr::null(),
+            wpwd.as_ptr(),
+            LOGON32_LOGON_INTERACTIVE,
+            LOGON32_PROVIDER_DEFAULT,
+            &mut token,
+        )
+    };
+    if ok == FALSE {
+        return false;
+    }
+    unsafe { CloseHandle(token) };
+    true
+}
+
+/// 读取无人值守相关状态，返回 JSON 字符串（供 UI 展示）：
+/// { "auto_admin_logon":bool, "default_user":str, "active_user":str,
+///   "no_password":bool, "screensaver_secure":bool }
+pub fn no_password_login_status() -> String {
+    use serde_json::json;
+    let read = |name: &str| -> String {
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        match hklm.open_subkey_with_flags(NOPW_WINLOGON_SUBKEY, KEY_READ) {
+            Ok(k) => k.get_value::<String, _>(name).unwrap_or_default(),
+            Err(_) => "".to_owned(),
+        }
+    };
+    let auto_admin_logon = read("AutoAdminLogon") == "1";
+    let default_user = read("DefaultUserName");
+    let mut screensaver_secure = false;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok(k) = hkcu.open_subkey_with_flags(r"Control Panel\Desktop", KEY_READ) {
+        if let Ok(v) = k.get_value::<String, _>("ScreenSaverIsSecure") {
+            screensaver_secure = v == "1";
+        }
+    }
+    let active_user = get_active_username();
+    json!({
+        "auto_admin_logon": auto_admin_logon,
+        "default_user": default_user,
+        "active_user": active_user,
+        "no_password": account_has_no_password(&active_user),
+        "screensaver_secure": screensaver_secure,
+    })
+    .to_string()
+}
+
+/// 一键启用无人值守：
+///  1) 关闭"屏保恢复时要求登录"(ScreenSaverIsSecure=0)；
+///  2) 关闭"唤醒(睡眠/待机恢复)时需要密码"(0e796bdb AC/DC=0)；
+///  3) 若当前账户无密码，额外开启"开机自动登录"(AutoAdminLogon + 当前用户)。
+pub fn enable_no_password_login() -> ResultType<String> {
+    let username = get_active_username();
+    if username.is_empty() {
+        bail!("无法获取当前登录用户名");
+    }
+    let user_part = username.rsplit('\\').next().unwrap_or(&username).to_owned();
+    let domain = std::env::var("COMPUTERNAME").unwrap_or_default();
+
+    let mut cmds = String::new();
+    // 关闭“屏保恢复时要求登录” + “唤醒(睡眠/待机恢复)时需要密码”：解决远程时
+    // 屏幕黑屏/待机后回到登录界面，需要点击/输入密码而卡在“等待画面传输”。
+    cmds.push_str(
+        "chcp 65001 >nul\r\n\
+         reg add \"HKCU\\Control Panel\\Desktop\" /v ScreenSaverIsSecure /t REG_SZ /d \"0\" /f\r\n\
+         powercfg /SETACVALUEINDEX SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 0e796bdb-100d-47d6-a2d5-f7d2daa51f51 0 >nul 2>&1\r\n\
+         powercfg /SETDCVALUEINDEX SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 0e796bdb-100d-47d6-a2d5-f7d2daa51f51 0 >nul 2>&1\r\n\
+         powercfg /SETACTIVE SCHEME_CURRENT >nul 2>&1\r\n",
+    );
+    // 仅当账户确实无密码时，才开启“开机自动登录”，否则 Winlogon 用空密码反复尝试，
+    // 反而导致重启后卡在登录界面无法进入桌面。
+    if account_has_no_password(&username) {
+        cmds.push_str(&format!(
+            "reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v AutoAdminLogon /t REG_SZ /d \"1\" /f\r\n\
+             reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v DefaultUserName /t REG_SZ /d \"{user}\" /f\r\n\
+             reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v DefaultDomainName /t REG_SZ /d \"{domain}\" /f\r\n\
+             reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v DefaultPassword /t REG_SZ /d \"\" /f\r\n",
+            user = user_part,
+            domain = domain,
+        ));
+    }
+    let _ = run_cmds(cmds, false, "enable_no_password_login")?;
+    let tip = if account_has_no_password(&username) {
+        "已启用：本机账户无密码，开机/注销会自动登录桌面；待机、锁屏恢复均不再要求输入密码。"
+            .to_owned()
+    } else {
+        "已启用免锁屏恢复：屏幕待机/黑屏/锁屏后唤醒不再要求输入密码，远程可直达桌面。\n本机账户设置了密码，未开启开机自动登录；如需彻底无人值守，请改用无密码账户。"
+            .to_owned()
+    };
+    Ok(tip)
+}
+
+/// 一键关闭无人值守（恢复系统默认：开机需选择账户登录、待机/锁屏恢复需密码）。
+pub fn disable_no_password_login() -> ResultType<String> {
+    let cmds = "chcp 65001 >nul\r\n\
+        reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v AutoAdminLogon /f >nul 2>&1\r\n\
+        reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v DefaultUserName /f >nul 2>&1\r\n\
+        reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v DefaultDomainName /f >nul 2>&1\r\n\
+        reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\" /v DefaultPassword /f >nul 2>&1\r\n\
+        reg add \"HKCU\\Control Panel\\Desktop\" /v ScreenSaverIsSecure /t REG_SZ /d \"1\" /f\r\n\
+        powercfg /SETACVALUEINDEX SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 0e796bdb-100d-47d6-a2d5-f7d2daa51f51 1 >nul 2>&1\r\n\
+        powercfg /SETDCVALUEINDEX SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 0e796bdb-100d-47d6-a2d5-f7d2daa51f51 1 >nul 2>&1\r\n\
+        powercfg /SETACTIVE SCHEME_CURRENT >nul 2>&1\r\n"
+        .to_owned();
+    let _ = run_cmds(cmds, false, "disable_no_password_login")?;
+    Ok("已关闭开机自动登录与免密恢复，系统回到默认行为。".to_owned())
+}
+
 fn get_public_base_dir() -> PathBuf {
     if let Ok(allusersprofile) = std::env::var("ALLUSERSPROFILE") {
         let path = PathBuf::from(&allusersprofile);

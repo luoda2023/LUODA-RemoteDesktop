@@ -350,3 +350,26 @@
 - Release v2.2.24 已见 APK 资产; EXE 由 Windows workflow 上传完成。
 - 验收标准: 手机连接 466619, 服务端日志应显示 encoder=VP9;
   画面应正常出现, 不再卡"已连接，等待画面传输..."。
+
+## 2026-09-04 v2.2.25 新增: PC受控端"无人值守·免密恢复"入口 (屏幕待机/锁屏后远程卡等待画面)
+- 用户场景: 一台受控 PC (LDesk) 屏幕黑屏/待机后再亮屏, 回到 Windows 登录界面
+  需点击/输入密码才能进桌面 -> 远程连接停在"已连接, 等待画面传输"。另一台无此问题。
+- 需求: 在 PC 端左侧栏加"破解屏幕待机返回密码确认"的一键开关; 系统账户无密码时
+  应能全自动直接进桌面, 免去远程前手动登录。
+- 实现 (Rust):
+  * src/platform/windows.rs 新增一键无人值守:
+    - 关闭 HKCU Control Panel\Desktop ScreenSaverIsSecure=0 (屏保/锁屏恢复不再要求登录);
+    - powercfg 0e796bdb (AC/DC=0) 关闭"唤醒(睡眠/待机)时需要密码";
+    - 仅当账户确无密码 (LogonUserW 空密码探测) 才写 AutoAdminLogon+DefaultUserName,
+      避免有密码账户被 Winlogon 空密码反复尝试卡登录界面; 关闭项对称恢复。
+    - 统一经 run_cmds(提升 cmd)执行, 点击弹一次 UAC。
+  * src/flutter_ffi.rs: main_get_common 增加 key "no-password-login-status"(读注册表 JSON),
+    main_set_common 增加 key "no-password-login" (on/off), 异步执行并 push_global_event
+    "no-password-login-res" 回传 {success,msg} (复用 install-printer 的事件模式)。
+- 实现 (Flutter 桌面左侧栏):
+  * desktop_home_page.dart 新增 _UnattendedAccessCard (仅 Windows, 普通版与 incoming-only
+    左侧栏显示; 客户定制版固定 380x500 无滚动容器故不显示避免溢出)。
+  * 卡片显示当前状态(屏保免密/是否无密码/开机自动登录)并支持一键开/关+UAC确认。
+- 验证: cargo check --lib / cargo build --features flutter --lib 通过;
+  dart analyze lib 零问题; 版本 2.2.24 -> 2.2.25 (Cargo.toml/Cargo.lock/src/version.rs/pubspec)。
+- 待用户实测: 问题 PC 上点击"无人值守·免密恢复"开启后, 远程待机/锁屏恢复应直达桌面不再卡等待。

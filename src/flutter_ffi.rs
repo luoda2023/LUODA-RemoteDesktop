@@ -3092,6 +3092,13 @@ pub fn main_get_common(key: String) -> String {
         return ui_interface::is_permanent_password_set().to_string();
     } else if key == "local-permanent-password-set" {
         return ui_interface::is_local_permanent_password_set().to_string();
+    } else if key == "no-password-login-status" {
+        #[cfg(target_os = "windows")]
+        {
+            return crate::platform::windows::no_password_login_status();
+        }
+        #[cfg(not(target_os = "windows"))]
+        return "{}".to_owned();
     } else {
         if key.starts_with("download-data-") {
             let id = key.replace("download-data-", "");
@@ -3141,6 +3148,37 @@ pub fn main_get_common_sync(key: String) -> SyncReturn<String> {
 }
 
 pub fn main_set_common(_key: String, _value: String) {
+    // LUODA: 一键无人值守(开机自动登录 + 待机/锁屏免密恢复)。
+    // 写入 HKLM 需要管理员权限 -> 提升的 cmd 会弹一次 UAC，结果通过事件回传 UI。
+    #[cfg(target_os = "windows")]
+    if _key == "no-password-login" {
+        let op = _value.clone();
+        std::thread::spawn(move || {
+            let (success, msg) = if op == "off" {
+                match crate::platform::windows::disable_no_password_login() {
+                    Ok(t) => (true, t),
+                    Err(e) => (false, e.to_string()),
+                }
+            } else {
+                match crate::platform::windows::enable_no_password_login() {
+                    Ok(t) => (true, t),
+                    Err(e) => (false, e.to_string()),
+                }
+            };
+            if !success {
+                log::error!("no-password-login failed: {}", msg);
+            }
+            let data = HashMap::from([
+                ("name", serde_json::json!("no-password-login-res")),
+                ("success", serde_json::json!(success)),
+                ("msg", serde_json::json!(msg)),
+            ]);
+            let _res = flutter::push_global_event(
+                flutter::APP_TYPE_MAIN,
+                serde_json::ser::to_string(&data).unwrap_or("".to_owned()),
+            );
+        });
+    }
     #[cfg(target_os = "windows")]
     if _key == "install-printer" && crate::platform::is_win_10_or_greater() {
         std::thread::spawn(move || {

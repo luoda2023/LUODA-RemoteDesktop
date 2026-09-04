@@ -301,6 +301,7 @@ child: Text(translate('Close')),
       if (!isOutgoingOnly) buildIDBoard(context),
       if (!isOutgoingOnly) buildPasswordBoard(context),
       if (!isOutgoingOnly) buildDirectAccessBoard(context),
+      if (!isOutgoingOnly && isWindows && !isWeb) const _UnattendedAccessCard(),
       FutureBuilder<Widget>(
         future: Future.value(
             Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),
@@ -1442,6 +1443,208 @@ onPressed: () => _showConnectQrDialog(context, model),
             return entry.value;
           })
         ],
+      ),
+    );
+  }
+}
+
+/// 左侧栏：无人值守（免密恢复）快捷卡片 —— 仅 Windows。
+/// 启用后写入系统注册表/电源策略：开机自动登录 + 待机/锁屏恢复不再要求密码，
+/// 解决“屏幕黑屏/待机后回到登录界面需要点击/输入密码，导致远程停在‘等待画面传输’”的问题。
+class _UnattendedAccessCard extends StatefulWidget {
+  const _UnattendedAccessCard({Key? key}) : super(key: key);
+
+  @override
+  State<_UnattendedAccessCard> createState() => _UnattendedAccessCardState();
+}
+
+class _UnattendedAccessCardState extends State<_UnattendedAccessCard> {
+  static const _resEvent = 'no-password-login-res';
+  bool _on = false;
+  bool _noPwd = false;
+  bool _autoLogon = false;
+  String _hint = '';
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    platformFFI.registerEventHandler(_resEvent, _resEvent, (evt) async {
+      if (!mounted) return;
+      final ok = evt['success'] == true;
+      _busy = false;
+      if (ok) {
+        _refresh();
+        final tip = evt['msg'] as String? ?? '';
+        if (mounted) setState(() {});
+        showToast(tip.isNotEmpty ? tip : translate('Successful'));
+      } else {
+        _hint = evt['msg'] as String? ?? '操作失败';
+        if (mounted) setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    platformFFI.unregisterEventHandler(_resEvent, _resEvent);
+    super.dispose();
+  }
+
+  void _refresh() {
+    final raw = bind.mainGetCommonSync(key: 'no-password-login-status');
+    try {
+      final Map<String, dynamic> st = jsonDecode(raw);
+      _autoLogon = st['auto_admin_logon'] == true;
+      // “已开启”以屏保恢复不再要求登录为准（该设置对所有账户都生效，也正是
+      // 解决待机/锁屏后远程卡“等待画面传输”的关键项）。
+      _on = st['screensaver_secure'] == false;
+      _noPwd = st['no_password'] == true;
+      _hint = '';
+    } catch (e) {
+      _hint = '';
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _toggle() {
+    final String content;
+    if (_on) {
+      content = '关闭“无人值守/免密恢复”后，系统回到默认：屏幕待机或锁屏后需要重新登录。确定关闭吗？';
+    } else if (_noPwd) {
+      content = '启用后：屏幕待机、黑屏、锁屏后恢复不再要求输入密码，且开机/注销自动登录桌面（本机账户无密码），远程连接将直达桌面。\n\n点击“确定”会弹出系统管理员授权（UAC），请允许。';
+    } else {
+      content = '启用后：屏幕待机、黑屏、锁屏后恢复不再要求输入密码（本机账户设有密码，开机登录仍需输入一次），远程连接将直达桌面。\n\n点击“确定”会弹出系统管理员授权（UAC），请允许。';
+    }
+    gFFI.dialogManager.show((setState, close, context) {
+      return CustomAlertDialog(
+        content: createDialogContent(content),
+        actions: [
+          dialogButton('Cancel', onPressed: close, isOutline: true),
+          dialogButton('OK', onPressed: () {
+            close();
+            _apply();
+          }),
+        ],
+        onSubmit: close,
+        onCancel: close,
+      );
+    });
+  }
+
+  void _apply() {
+    setState(() => _busy = true);
+    bind.mainSetCommon(key: 'no-password-login', value: _on ? 'off' : 'on');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = Theme.of(context).textTheme.titleLarge?.color;
+    final green = Colors.green.shade600;
+    final grey = textColor?.withValues(alpha: 0.45) ?? Colors.grey;
+    return Container(
+      margin: const EdgeInsets.only(left: 20, right: 11, top: 6),
+      decoration: BoxDecoration(
+        color: (_on ? green : grey).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+            color: (_on ? green : grey).withValues(alpha: 0.45), width: 1),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: _busy ? null : _toggle,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                _on ? Icons.verified_user_outlined : Icons.security_outlined,
+                size: 18,
+                color: _on ? green : grey,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '无人值守·免密恢复',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _on ? green : grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_hint.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _hint,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 9, color: Colors.red.shade400),
+                      ),
+                    ] else if (_noPwd && !_autoLogon) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '账户无密码，待机/锁屏恢复已免密',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 9, color: grey),
+                      ),
+                    ] else if (!_noPwd) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _on
+                            ? '已免待机/锁屏恢复密码；开机登录仍需要一次'
+                            : '账户有密码：开启后免待机/锁屏恢复密码',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 9, color: grey),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _on ? '已启用：待机/锁屏后远程直达桌面' : '点击开启：待机/锁屏后不再要求密码',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 9, color: grey),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (_busy)
+                const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+              else
+                Text(
+                  _on ? '已开启' : '已关闭',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: _on ? green : grey),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
