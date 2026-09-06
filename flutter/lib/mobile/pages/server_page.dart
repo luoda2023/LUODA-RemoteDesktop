@@ -210,11 +210,7 @@ class _ServerPageState extends State<ServerPage> {
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         buildPresetPasswordWarningMobile(),
-                        gFFI.serverModel.isStart
-                            ? ServerInfo()
-                            : ServiceNotRunningNotification(),
-                        const ConnectionManager(),
-                        const PermissionChecker(),
+                        ServerInfo(),
                         SizedBox.fromSize(size: const Size(0, 15.0)),
                       ],
                     ),

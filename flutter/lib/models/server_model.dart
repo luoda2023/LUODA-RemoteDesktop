@@ -592,8 +592,10 @@ String get connectQrData {
       scrollToBottom();
       notifyListeners();
       if (isAndroid && !client.authorized) {
-        // auto-accept incoming connection on mobile (one-tap auth)
-        sendLoginResponse(client, true);
+        // Every incoming request is explicitly confirmed once on this device.
+        // Built-in password sessions arrive authorized from Rust already, so
+        // they are authenticated and are not prompted again here.
+        _confirmOrAutoAccept(client);
       }
       if (isAndroid) androidUpdatekeepScreenOn();
     } catch (e) {
@@ -620,6 +622,24 @@ String get connectQrData {
     }
     parent.target?.chatModel
         .updateConnIdOfKey(MessageKey(client.peerId, client.id));
+  }
+
+  /// A new connection needs this phone's confirmation before it starts.
+  /// Built-in password sessions arrive from Rust with authorized=true and
+  /// are already approved by the password itself, so they skip this dialog.
+  void _confirmOrAutoAccept(Client client) {
+    if (client.authorized) return;
+    final alreadyActive = _clients.any((c) =>
+        c.id != client.id &&
+        c.authorized &&
+        !c.isFileTransfer &&
+        !c.isTerminal &&
+        !c.portForward.isNotEmpty);
+    if (alreadyActive) {
+      sendLoginResponse(client, true);
+    } else {
+      showLoginDialog(client);
+    }
   }
 
   void showLoginDialog(Client client) {
