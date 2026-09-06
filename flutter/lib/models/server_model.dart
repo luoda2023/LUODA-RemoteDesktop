@@ -488,6 +488,16 @@ String get connectQrData {
     WakelockManager.disable(_wakelockKey);
   }
 
+  /// MediaProjection was denied/revoked. Keep the host/network service alive
+  /// so the phone stays reachable; the next session can request capture again.
+  Future<void> onProjectionCanceled() async {
+    _isStart = false;
+    _mediaOk = false;
+    parent.target?.dialogManager.dismissAll();
+    notifyListeners();
+    if (isAndroid) androidUpdatekeepScreenOn();
+  }
+
   fetchID() async {
     final id = await bind.mainGetMyId();
     if (id.isNotEmpty && id != _serverId.id) {

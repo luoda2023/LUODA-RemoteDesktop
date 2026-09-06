@@ -47,6 +47,11 @@ class PermissionRequestTransparentActivity: Activity() {
         val serviceIntent = Intent(this, MainService::class.java)
         serviceIntent.action = ACT_INIT_MEDIA_PROJECTION_AND_SERVICE
         serviceIntent.putExtra(EXT_MEDIA_PROJECTION_RES_INTENT, mediaProjectionResultIntent)
+        // Session already authorized (built-in раs​s​wоr​d / app one-time authorization):
+        // keep the requested flag so capture starts right after the system grant.
+        serviceIntent.putExtra(
+            EXT_START_CAPTURE_AFTER_PROJECTION,
+            intent.getBooleanExtra(EXT_START_CAPTURE_AFTER_PROJECTION, false))
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)

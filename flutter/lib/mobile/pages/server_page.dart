@@ -805,7 +805,8 @@ void androidChannelInit() {
           }
         case "on_media_projection_canceled":
           {
-            gFFI.serverModel.stopService();
+            // 仅取消录屏/系统撤销投影: 保持后台服务在线, 下次连接再申请即可。
+            gFFI.serverModel.onProjectionCanceled();
             break;
           }
         case "msgbox":

@@ -185,18 +185,18 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "start_capture" -> {
-                    mainService?.let { svc ->
-                        // Run startCapture on a background thread to avoid ANR
-                        // (codec/display creation can block)
-                        Thread {
-                            val ok = svc.startCapture()
-                            Handler(Looper.getMainLooper()).post {
-                                result.success(ok)
-                            }
-                        }.start()
-                    } ?: let {
-                        result.success(false)
+                    // Accept path. Route through MainService so capture starts
+                    // even when this Activity never bound to it (requests the
+                    // one-time MediaProjection dialog if no token is held).
+                    val captureIntent = Intent(this, MainService::class.java).apply {
+                        action = ACT_START_CAPTURE
                     }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(captureIntent)
+                    } else {
+                        startService(captureIntent)
+                    }
+                    result.success(true)
                 }
                 "stop_service" -> {
                     Log.d(logTag, "Stop service")

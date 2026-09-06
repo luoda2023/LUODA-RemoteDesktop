@@ -128,7 +128,7 @@ class MainService : Service() {
                     }
                     if (authorized) {
                         if (!isFileTransfer && !isStart) {
-                            startCapture()
+                            ensureCaptureStarted()
                         }
                         onClientAuthorizedNotification(id, type, username, peerId)
                     } else {
@@ -355,6 +355,11 @@ class MainService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("whichService", "this service: ${Thread.currentThread()}")
         super.onStartCommand(intent, flags, startId)
+        if (intent?.action == ACT_START_CAPTURE) {
+            createForegroundNotification()
+            ensureCaptureStarted()
+            return START_NOT_STICKY
+        }
         if (intent?.action == ACT_INIT_MEDIA_PROJECTION_AND_SERVICE) {
             createForegroundNotification()
 
@@ -377,6 +382,10 @@ class MainService : Service() {
                 if (_isStart && virtualDisplay == null) {
                     Log.d(logTag, "Retrying VirtualDisplay creation with new MediaProjection")
                     retryVirtualDisplay()
+                }
+                if (intent.getBooleanExtra(
+                        EXT_START_CAPTURE_AFTER_PROJECTION, false) && !isStart) {
+                    startCapture()
                 }
             } ?: let {
                 val fromBoot = intent.getBooleanExtra(EXT_INIT_FROM_BOOT, false)
@@ -409,6 +418,25 @@ class MainService : Service() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         startActivity(intent)
+    }
+
+    /// Start screen capture for an already-authorized session. If the OS
+    /// projection token is not held yet (first remote session, token revoked by
+    /// the system), request it once through the transparent activity and start
+    /// capture as soon as the grant returns.
+    private fun ensureCaptureStarted() {
+        if (isStart) return
+        if (mediaProjection == null || !isReady) {
+            Log.d(logTag, "ensureCaptureStarted: no projection token, requesting once")
+            val projectionIntent = Intent(this, PermissionRequestTransparentActivity::class.java).apply {
+                action = ACT_REQUEST_MEDIA_PROJECTION
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra(EXT_START_CAPTURE_AFTER_PROJECTION, true)
+            }
+            startActivity(projectionIntent)
+        } else {
+            startCapture()
+        }
     }
 
     @SuppressLint("WrongConstant")
