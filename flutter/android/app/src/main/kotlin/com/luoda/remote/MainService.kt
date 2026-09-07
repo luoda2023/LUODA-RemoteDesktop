@@ -210,7 +210,7 @@ class MainService : Service() {
     private val useVP9 = false
     private val binder = LocalBinder()
 
-    private var reuseVirtualDisplay = Build.VERSION.SDK_INT > 33
+    private var reuseVirtualDisplay = Build.VERSION.SDK_INT >= 29
 
     // video
     private var mediaProjection: MediaProjection? = null
