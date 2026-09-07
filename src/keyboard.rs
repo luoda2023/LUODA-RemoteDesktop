@@ -1312,7 +1312,7 @@ pub mod input_source {
     pub const CONFIG_INPUT_SOURCE_2: &str = "Input source 2";
     pub const CONFIG_INPUT_SOURCE_2_TIP: &str = "input_source_2_tip";
 
-    pub const CONFIG_INPUT_SOURCE_DEFAULT: &str = CONFIG_INPUT_SOURCE_1;
+    pub const CONFIG_INPUT_SOURCE_DEFAULT: &str = CONFIG_INPUT_SOURCE_2;
 
     pub fn init_input_source() {
         #[cfg(target_os = "linux")]
@@ -1331,6 +1331,19 @@ pub mod input_source {
             return;
         }
         let cur_input_source = get_cur_session_input_source();
+        // Windows/macOS: rdev grab (source 1) does not reach Flutter events, but the
+        // Flutter layer swallows every key event when current source != 2, which is
+        // why typing into a controlled PC only moved the mouse. Force the
+        // Flutter-native path (source 2) and migrate an old saved "Input source 1".
+        if cfg!(not(target_os = "linux")) {
+            if cur_input_source == CONFIG_INPUT_SOURCE_1 {
+                set_local_option(
+                    CONFIG_OPTION_INPUT_SOURCE.to_string(),
+                    CONFIG_INPUT_SOURCE_2.to_string(),
+                );
+                return;
+            }
+        }
         if cur_input_source == CONFIG_INPUT_SOURCE_1 {
             super::IS_RDEV_ENABLED.store(true, super::Ordering::SeqCst);
         }

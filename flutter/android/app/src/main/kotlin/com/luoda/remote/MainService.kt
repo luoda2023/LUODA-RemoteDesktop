@@ -495,8 +495,6 @@ class MainService : Service() {
         } else {
             Log.d(logTag, "Retry Capture (VirtualDisplay was null)")
         }
-        _isStart = true
-        FFI.setFrameRawEnable("video", true)
         surface = createSurface()
 
         if (useVP9) {
@@ -505,6 +503,21 @@ class MainService : Service() {
             startRawVideoRecorder(mediaProjection!!)
         }
 
+        // Only mark capture active after both the projection surface and the
+        // VirtualDisplay exist.  A stale true here makes the Rust video service
+        // wait forever for frames that will never arrive.
+        val ok = surface != null && virtualDisplay != null
+        if (!ok) {
+            Log.e(logTag, "startCapture failed to create video surface/virtual display")
+            FFI.setFrameRawEnable("video", false)
+            imageReader?.close()
+            imageReader = null
+            surface?.release()
+            surface = null
+            return false
+        }
+        _isStart = true
+        FFI.setFrameRawEnable("video", true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!audioRecordHandle.createAudioRecorder(false, mediaProjection)) {
                 Log.d(logTag, "createAudioRecorder fail")
