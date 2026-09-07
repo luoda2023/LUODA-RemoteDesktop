@@ -515,9 +515,6 @@ String get connectQrData {
     switch (name) {
       case "media":
         _mediaOk = value;
-        if (value && !_isStart) {
-          startService();
-        }
         break;
       case "input":
         if (_inputOk != value) {

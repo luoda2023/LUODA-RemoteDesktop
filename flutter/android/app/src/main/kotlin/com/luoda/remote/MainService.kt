@@ -488,13 +488,15 @@ class MainService : Service() {
             Log.w(logTag, "startCapture fail,mediaProjection is null")
             return false
         }
-        
+
         if (!isStart) {
             updateScreenInfo(resources.configuration.orientation)
             Log.d(logTag, "Start Capture")
         } else {
             Log.d(logTag, "Retry Capture (VirtualDisplay was null)")
         }
+        _isStart = true
+        FFI.setFrameRawEnable("video", true)
         surface = createSurface()
 
         if (useVP9) {
@@ -511,9 +513,6 @@ class MainService : Service() {
                 audioRecordHandle.startAudioRecorder()
             }
         }
-        checkMediaPermission()
-        _isStart = true
-        FFI.setFrameRawEnable("video",true)
         MainActivity.rdClipboardManager?.setCaptureStarted(_isStart)
         return true
     }
